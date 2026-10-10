@@ -2,28 +2,106 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './styles/Auth.css';
 
+// Mapped to integer department IDs based on your database schema
+const collegeDepartments = {
+  'College of Law (LAW)': 1,
+  'College of Agriculture (COA)': 2,
+  'College of Liberal Arts (CLA)': 3,
+  'College of Architecture': 4,
+  'College of Nursing (CN)': 5,
+  'College of Asian & Islamic Studies (CAIS)': 6,
+  'College of Computing Studies (CCS)': 7,
+  'College of Forestry & Environmental Studies (CFES)': 8,
+  'College of Criminal Justice Education (CCJE)': 9,
+  'College of Home Economics (CHE)': 10,
+  'College of Engineering (COE)': 11,
+  'College of Medicine (CM)': 12,
+  'College of Public Administration & Development Studies (CPADS)': 13,
+  'College of Sports Science & Physical Education (CSSPE)': 14,
+  'College of Science & Mathematics (CSM)': 15,
+  'College of Social Work & Community Development (CSWCD)': 16,
+  'College of Teacher Education (CTE)': 17
+};
+
+// Mapped to integer program IDs corresponding to your programs table
 const collegeCourses = {
-  LAW: ['BS Laws'],
-  COA: ['BS Agriculture', 'BS Food Technology', 'BS Agribusiness', 'Bachelor of Agricultural Technology'],
-  CLA: ['BS Accountancy', 'BA History', 'BA English', 'BA Political Science', 'BA Mass Communication – Journalism', 'BA Mass Communication – Broadcasting', 'BS Economics', 'BS Psychology'],
-  COARCH: ['BS Architecture'],
-  CN: ['BS Nursing'],
-  CAIS: ['Asian and Islamic Studies'],
-  CCS: ['BS Computer Science (BSCS)', 'BS Information Technology (BSIT)', 'ACT AD', 'ACT NT'],
-  CFES: ['BS Forestry', 'BS Agroforestry', 'BS Environmental Science'],
-  CCJE: ['Criminal Justice Education'],
-  CHE: ['BS Home Economics', 'BS Nutrition & Dietetics', 'BS Hospitality Management'],
-  COE: ['Agricultural and Biosystems Engineering', 'BS Civil Engineering', 'BS Computer Engineering', 'BS Electrical Engineering', 'BS Electronics Engineering', 'BS Environmental Engineering', 'BS Geodetic Engineering', 'BS Industrial Engineering', 'BS Mechanical Engineering', 'BS Sanitary Engineering'],
-  CM: ['Doctor of Medicine'],
-  CPADS: ['BS Public Administration'],
-  CSSPE: ['BS Physical Education', 'BS Exercise & Sports Sciences'],
-  CSM: ['BS Biology', 'BS Chemistry', 'BS Mathematics', 'BS Statistics', 'BS Physics'],
-  CSWCD: ['BS Social Work', 'BS Community Development'],
+  LAW: [{ id: 1, name: 'BS Laws' }],
+  COA: [
+    { id: 2, name: 'BS Agriculture' },
+    { id: 3, name: 'BS Food Technology' },
+    { id: 'COA-3', name: 'BS Agribusiness' },
+    { id: 'COA-4', name: 'Bachelor of Agricultural Technology' }
+  ],
+  CLA: [
+    { id: 'CLA-1', name: 'BS Accountancy' },
+    { id: 'CLA-2', name: 'BA History' },
+    { id: 'CLA-3', name: 'BA English' },
+    { id: 'CLA-4', name: 'BA Political Science' },
+    { id: 'CLA-5', name: 'BA Mass Communication – Journalism' },
+    { id: 'CLA-6', name: 'BA Mass Communication – Broadcasting' },
+    { id: 'CLA-7', name: 'BS Economics' },
+    { id: 'CLA-8', name: 'BS Psychology' }
+  ],
+  COARCH: [{ id: 'COARCH-1', name: 'BS Architecture' }],
+  CN: [{ id: 'CN-1', name: 'BS Nursing' }],
+  CAIS: [{ id: 'CAIS-1', name: 'Asian and Islamic Studies' }],
+  CCS: [
+    { id: 1, name: 'BS Computer Science (BSCS)' },
+    { id: 2, name: 'BS Information Technology (BSIT)' },
+    { id: 'CCS-3', name: 'ACT AD' },
+    { id: 'CCS-4', name: 'ACT NT' }
+  ],
+  CFES: [
+    { id: 'CFES-1', name: 'BS Forestry' },
+    { id: 'CFES-2', name: 'BS Agroforestry' },
+    { id: 'CFES-3', name: 'BS Environmental Science' }
+  ],
+  CCJE: [{ id: 'CCJE-1', name: 'Criminal Justice Education' }],
+  CHE: [
+    { id: 'CHE-1', name: 'BS Home Economics' },
+    { id: 'CHE-2', name: 'BS Nutrition & Dietetics' },
+    { id: 'CHE-3', name: 'BS Hospitality Management' }
+  ],
+  COE: [
+    { id: 'COE-1', name: 'Agricultural and Biosystems Engineering' },
+    { id: 'COE-2', name: 'BS Civil Engineering' },
+    { id: 'COE-3', name: 'BS Computer Engineering' },
+    { id: 'COE-4', name: 'BS Electrical Engineering' },
+    { id: 'COE-5', name: 'BS Electronics Engineering' },
+    { id: 'COE-6', name: 'BS Environmental Engineering' },
+    { id: 'COE-7', name: 'BS Geodetic Engineering' },
+    { id: 'COE-8', name: 'BS Industrial Engineering' },
+    { id: 'COE-9', name: 'BS Mechanical Engineering' },
+    { id: 'COE-10', name: 'BS Sanitary Engineering' }
+  ],
+  CM: [{ id: 'CM-1', name: 'Doctor of Medicine' }],
+  CPADS: [{ id: 'CPADS-1', name: 'BS Public Administration' }],
+  CSSPE: [
+    { id: 'CSSPE-1', name: 'BS Physical Education' },
+    { id: 'CSSPE-2', name: 'BS Exercise & Sports Sciences' }
+  ],
+  CSM: [
+    { id: 'CSM-1', name: 'BS Biology' },
+    { id: 'CSM-2', name: 'BS Chemistry' },
+    { id: 'CSM-3', name: 'BS Mathematics' },
+    { id: 'CSM-4', name: 'BS Statistics' },
+    { id: 'CSM-5', name: 'BS Physics' }
+  ],
+  CSWCD: [
+    { id: 'CSWCD-1', name: 'BS Social Work' },
+    { id: 'CSWCD-2', name: 'BS Community Development' }
+  ],
   CTE: [
-    'Bachelor of Culture and Arts Education', 'Bachelor of Early Childhood Education', 'Bachelor of Elementary Education',
-    'Bachelor of Secondary Education – English', 'Bachelor of Secondary Education – Filipino', 'Bachelor of Secondary Education – Mathematics',
-    'Bachelor of Secondary Education – Sciences', 'Bachelor of Secondary Education – Social Studies', 'Bachelor of Secondary Education – Values Education',
-    'Bachelor of Special Needs Education'
+    { id: 'CTE-1', name: 'Bachelor of Culture and Arts Education' },
+    { id: 'CTE-2', name: 'Bachelor of Early Childhood Education' },
+    { id: 'CTE-3', name: 'Bachelor of Elementary Education' },
+    { id: 'CTE-4', name: 'Bachelor of Secondary Education – English' },
+    { id: 'CTE-5', name: 'Bachelor of Secondary Education – Filipino' },
+    { id: 'CTE-6', name: 'Bachelor of Secondary Education – Mathematics' },
+    { id: 'CTE-7', name: 'Bachelor of Secondary Education – Sciences' },
+    { id: 'CTE-8', name: 'Bachelor of Secondary Education – Social Studies' },
+    { id: 'CTE-9', name: 'Bachelor of Secondary Education – Values Education' },
+    { id: 'CTE-10', name: 'Bachelor of Special Needs Education' }
   ]
 };
 
@@ -41,15 +119,25 @@ export default function Auth() {
   // Form states
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [regData, setRegData] = useState({
-    studentId: '', firstName: '', middleName: '', lastName: '',
-    college: '', program: '', yearLevel: '', email: '', password: '', confirmPassword: ''
+    studentId: '', 
+    firstName: '', 
+    middleInitial: '', 
+    lastName: '',
+    departmentId: '', 
+    programId: '', 
+    yearLevel: '', 
+    email: '', 
+    password: '', 
+    confirmPassword: '', 
+    termsAccepted: false
   });
 
   const handleCollegeChange = (e) => {
-    const college = e.target.value;
-    setSelectedCollege(college);
-    setRegData({ ...regData, college, program: '' });
-    setAvailableCourses(collegeCourses[college] || []);
+    const collegeKey = e.target.value;
+    setSelectedCollege(collegeKey);
+    const deptId = collegeDepartments[collegeKey];
+    setRegData({ ...regData, departmentId: deptId, programId: '' });
+    setAvailableCourses(collegeCourses[collegeKey] || []);
   };
 
   const handleLoginSubmit = async (e) => {
@@ -62,34 +150,57 @@ export default function Auth() {
       });
       const data = await response.json();
       if (response.ok) {
-        localStorage.setItem('token', data.token);
-        if (data.role === 'staff') navigate('/staff/dashboard');
-        else if (data.role === 'admin') navigate('/admin/dashboard');
-        else navigate('/student/dashboard');
+        localStorage.setItem('user', JSON.stringify(data.user));
+        navigate('/student/dashboard');
       } else {
         alert(data.message || 'Login failed');
       }
     } catch (err) {
       console.error('Backend connection error:', err);
-      alert('Could not connect to the backend server. Make sure node index.js is running.');
+      alert('Could not connect to the backend server.');
     }
   };
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
+
     if (regData.password !== regData.confirmPassword) {
-      alert('Passwords do not match');
+      alert('Passwords do not match.');
       return;
     }
+    if (regData.password.length < 8) {
+      alert('Password must be at least 8 characters.');
+      return;
+    }
+    if (!regData.termsAccepted) {
+      alert('You must accept the Terms and Conditions.');
+      return;
+    }
+    
+    // Payload matching exact keys and integer types expected by userRoutes.js
+    const payload = {
+      student_id: regData.studentId.trim(),
+      first_name: regData.firstName.trim(),
+      middle_initial: regData.middleInitial ? regData.middleInitial.trim().charAt(0) : null, // Ensures only the initial letter is sent
+      last_name: regData.lastName.trim(),
+      department_id: Number(regData.departmentId),
+      program_id: regData.programId ? Number(regData.programId) : null,
+      year_level: regData.yearLevel, 
+      email: regData.email.trim().toLowerCase(),
+      password: regData.password,
+      confirm_password: regData.confirmPassword,
+      terms_accepted: regData.termsAccepted
+    };
+
     try {
-      const response = await fetch('http://localhost:5000/users/register', {
+      const response = await fetch('http://localhost:5000/users/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(regData),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (response.ok) {
-        alert('Account created successfully! Please sign in.');
+        alert(data.message || 'Student account created successfully!');
         setActiveTab('login');
       } else {
         alert(data.message || 'Registration failed');
@@ -102,7 +213,6 @@ export default function Auth() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Background Blobs */}
       <div className="interactive-bg">
         <div className="bg-blob blob-left-deep float-anim-2"></div>
         <div className="bg-blob blob-scatter-left-mid float-anim-3"></div>
@@ -156,7 +266,7 @@ export default function Auth() {
                 <label>Email</label>
                 <div className="input-container">
                   <input 
-                    type="text" 
+                    type="email" 
                     placeholder="username@wmsu.edu.ph" 
                     value={loginData.email}
                     onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
@@ -223,13 +333,14 @@ export default function Auth() {
                   </div>
                 </div>
                 <div className="form-group">
-                  <label>Middle Name</label>
+                  <label>Middle Initial</label>
                   <div className="input-container">
                     <input 
                       type="text" 
-                      placeholder="Middle Name" 
-                      value={regData.middleName}
-                      onChange={(e) => setRegData({ ...regData, middleName: e.target.value })}
+                      placeholder="M" 
+                      maxLength="2" 
+                      value={regData.middleInitial}
+                      onChange={(e) => setRegData({ ...regData, middleInitial: e.target.value })}
                     />
                   </div>
                 </div>
@@ -254,7 +365,7 @@ export default function Auth() {
                 <div className="input-container select-container">
                   <select value={selectedCollege} onChange={handleCollegeChange} required>
                     <option value="" disabled>Select Department</option>
-                    {Object.keys(collegeCourses).map((col) => (
+                    {Object.keys(collegeDepartments).map((col) => (
                       <option key={col} value={col}>{col}</option>
                     ))}
                   </select>
@@ -266,14 +377,13 @@ export default function Auth() {
                   <label>Program / Course</label>
                   <div className="input-container select-container">
                     <select 
-                      value={regData.program} 
-                      onChange={(e) => setRegData({ ...regData, program: e.target.value })} 
-                      required 
+                      value={regData.programId} 
+                      onChange={(e) => setRegData({ ...regData, programId: e.target.value })} 
                       disabled={!selectedCollege}
                     >
-                      <option value="" disabled>{selectedCollege ? 'Select Course' : 'Select Department First'}</option>
+                      <option value="" disabled>{selectedCollege ? 'Select Course (Optional)' : 'Select Department First'}</option>
                       {availableCourses.map((course) => (
-                        <option key={course} value={course}>{course}</option>
+                        <option key={course.id} value={course.id}>{course.name}</option>
                       ))}
                     </select>
                   </div>
@@ -288,11 +398,11 @@ export default function Auth() {
                       required
                     >
                       <option value="" disabled>Select Year</option>
-                      <option value="1">1st Year</option>
-                      <option value="2">2nd Year</option>
-                      <option value="3">3rd Year</option>
-                      <option value="4">4th Year</option>
-                      <option value="5">5th Year+</option>
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                      <option value="5th Year">5th Year</option>
                     </select>
                   </div>
                 </div>
@@ -355,6 +465,19 @@ export default function Auth() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              <div className="form-options">
+                <label className="remember-me">
+                  <input 
+                    type="checkbox" 
+                    checked={regData.termsAccepted}
+                    onChange={(e) => setRegData({ ...regData, termsAccepted: e.target.checked })}
+                    required 
+                  />
+                  <span className="custom-checkbox"></span>
+                  I agree to the <a href="#" className="inline-link">Terms & Conditions</a>
+                </label>
               </div>
 
               <button type="submit" className="btn-primary btn-block">Create Account</button>
