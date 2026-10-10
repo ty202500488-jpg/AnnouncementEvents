@@ -3,17 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Crimson - My Page Dashboard</title>
+  <title>Crimson - Page Dashboard</title>
   <link rel="stylesheet" href="PageDashboard.css">
 </head>
 <body>
 
+  <!-- Top Navigation Header -->
   <header class="top-header">
     <div class="header-left">
       <div class="brand-logo">CRIMSON</div>
     </div>
     
     <div class="search-box">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
       <input type="text" placeholder="Search Announcements, Events, Departments...">
     </div>
 
@@ -28,8 +33,10 @@
     </div>
   </header>
 
+  <!-- Main Layout -->
   <div class="main-layout">
     
+    <!-- Left Navigation Sidebar -->
     <aside class="sidebar">
       <div class="profile-summary">
         <div class="profile-avatar">AR</div>
@@ -51,8 +58,10 @@
       </nav>
     </aside>
 
+    <!-- Main Feed / Content Area -->
     <main class="feed-area">
       
+      <!-- Page Banner & Identity Card -->
       <div class="page-banner-card">
         <div class="cover-image"></div>
         <div class="banner-body">
@@ -70,6 +79,7 @@
         </div>
       </div>
 
+      <!-- Create Post Composer Box -->
       <div class="create-post-card">
         <div class="post-input-row">
           <div class="user-avatar-small">AR</div>
@@ -84,6 +94,7 @@
         </div>
       </div>
 
+      <!-- Main Feed Announcement Card -->
       <article class="feed-card">
         <div class="card-header">
           <div class="badge-sao">SAO</div>
@@ -91,6 +102,7 @@
             <div class="author-name">Student Affairs Office</div>
             <div class="post-time">Yesterday at 3:45 PM</div>
           </div>
+          <span class="category-tag">Campus Life</span>
         </div>
 
         <h2 class="post-title">Annual Campus Tech Innovation Expo Registration Open</h2>
@@ -104,92 +116,77 @@
         </div>
 
         <div class="card-actions">
-          <button class="action-link">View Details</button>
-          <button class="action-link primary">+ Register</button>
+          <button class="action-link">56 Likes</button>
+          <button class="action-link">15 Comments</button>
+          <button class="action-link">Share</button>
         </div>
       </article>
 
     </main>
 
+    <!-- Right Sidebar Widgets -->
     <aside class="right-sidebar">
+      
       <div class="widget-card">
         <div class="widget-header">
-          <h3 class="widget-title">Departments</h3>
+          <h3 class="widget-title">Notifications</h3>
+          <span class="badge-count">2 New</span>
+        </div>
+        <div class="widget-list">
+          <div class="widget-item">
+            <div class="dot-indicator"></div>
+            <div>
+              <div class="widget-item-title">New Exam Schedule</div>
+              <div class="widget-item-sub">CCS posted midterm schedules ...</div>
+              <div class="widget-item-time">10m ago</div>
+            </div>
+          </div>
+          <div class="widget-item">
+            <div class="dot-indicator green"></div>
+            <div>
+              <div class="widget-item-title">Event Pass Ready</div>
+              <div class="widget-item-sub">Leadership Summit QR confirma...</div>
+              <div class="widget-item-time">1h ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="widget-card">
+        <div class="widget-header">
+          <h3 class="widget-title">Registered Events</h3>
           <a href="#" class="view-all">View All</a>
         </div>
-
-        <div class="dept-list">
-          <div class="dept-item highlight">
-            <div class="dept-icon icon-cream">WMSU</div>
-            <div class="dept-info">
-              <div class="dept-title">Western Mindanao State University</div>
-              <div class="dept-sub">General updates & notices</div>
+        <div class="widget-list">
+          <div class="widget-item">
+            <div>
+              <div class="widget-item-status">Confirmed</div>
+              <div class="widget-item-title">Leadership Summit</div>
+              <div class="widget-item-sub">Show QR Ticket Pass</div>
             </div>
-          </div>
-
-          <div class="dept-item active-border">
-            <div class="dept-icon icon-crimson">CCS</div>
-            <div class="dept-info">
-              <div class="dept-title">College of Computing Studies</div>
-              <div class="dept-sub">CSS Department</div>
-            </div>
-          </div>
-
-          <div class="dept-item">
-            <div class="dept-icon icon-light">CM</div>
-            <div class="dept-info">
-              <div class="dept-title">College of Medicine</div>
-              <div class="dept-sub">CM Department</div>
-            </div>
-          </div>
-
-          <div class="dept-item">
-            <div class="dept-icon icon-light">CLA</div>
-            <div class="dept-info">
-              <div class="dept-title">College of Liberal Arts</div>
-              <div class="dept-sub">CLA Department</div>
-            </div>
-          </div>
-
-          <div class="dept-item">
-            <div class="dept-icon icon-light">CTE</div>
-            <div class="dept-info">
-              <div class="dept-title">College of Education</div>
-              <div class="dept-sub">CTE Department</div>
-            </div>
-          </div>
-
-          <div class="dept-item">
-            <div class="dept-icon icon-light">COE</div>
-            <div class="dept-info">
-              <div class="dept-title">College of Engineering</div>
-              <div class="dept-sub">COE Department</div>
-            </div>
-          </div>
-
-          <div class="dept-item">
-            <div class="dept-icon icon-light">CN</div>
-            <div class="dept-info">
-              <div class="dept-title">College of Nursing</div>
-              <div class="dept-sub">CN Department</div>
-            </div>
-          </div>
-
-          <div class="dept-item">
-            <div class="dept-icon icon-light">CCJE</div>
-            <div class="dept-info">
-              <div class="dept-title">College of Criminal Justice Education</div>
-              <div class="dept-sub">CCEJE Department</div>
-            </div>
+            <div class="widget-item-date">Nov 04</div>
           </div>
         </div>
-
-        <button class="see-more-btn">See More</button>
       </div>
+
+      <div class="widget-card">
+        <div class="widget-header">
+          <h3 class="widget-title">Bookmarked</h3>
+          <a href="#" class="view-all">Manage</a>
+        </div>
+        <div class="widget-list">
+          <div class="widget-item simple">
+            <div class="widget-item-title">Midterm Examination Sche...</div>
+          </div>
+          <div class="widget-item simple">
+            <div class="widget-item-title">Tech Innovation Expo</div>
+          </div>
+        </div>
+      </div>
+
     </aside>
 
   </div>
 
 </body>
 </html>
-
