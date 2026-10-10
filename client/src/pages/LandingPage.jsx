@@ -74,8 +74,9 @@ export default function LandingPage() {
       {/* Navigation Bar */}
       <header className="navbar">
         <div className="nav-container">
-          <a href="#" className="nav-logo">CRIM<span>SON</span></a>
-
+          <a href="#" className="nav-logo" style={{ fontFamily: 'Bungee, sans-serif' }}>
+            CRIM<span>SON</span>
+          </a>
           <ul className="nav-links">
             <li><a href="#" className="nav-link">Home</a></li>
             <li><a href="#campus-life" className="nav-link">Events</a></li>

@@ -151,7 +151,26 @@ export default function Auth() {
       const data = await response.json();
       if (response.ok) {
         localStorage.setItem('user', JSON.stringify(data.user));
-        navigate('/student/dashboard');
+        
+        // Dynamic Role-based Routing mapping role_id / user_roles correctly
+        const role = Number(
+          data.user?.role_id ?? 
+          data.user?.user_roles ?? 
+          data.user?.role ?? 
+          1
+        );
+
+        console.log("Detected User Role ID:", role);
+
+        if (role === 1) {
+          navigate('/student/dashboard');
+        } else if (role === 2) {
+          navigate('/staff/dashboard');
+        } else if (role === 3) {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/student/dashboard');
+        }
       } else {
         alert(data.message || 'Login failed');
       }
@@ -181,7 +200,7 @@ export default function Auth() {
     const payload = {
       student_id: regData.studentId.trim(),
       first_name: regData.firstName.trim(),
-      middle_initial: regData.middleInitial ? regData.middleInitial.trim().charAt(0) : null, // Ensures only the initial letter is sent
+      middle_initial: regData.middleInitial ? regData.middleInitial.trim().charAt(0) : null,
       last_name: regData.lastName.trim(),
       department_id: Number(regData.departmentId),
       program_id: regData.programId ? Number(regData.programId) : null,
