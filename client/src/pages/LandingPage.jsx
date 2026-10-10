@@ -138,7 +138,7 @@ export default function LandingPage() {
               Stay updated with the latest announcements, events, deadlines, and activities happening around campus.
             </p>
             <div className="hero-actions animate-text delay-2">
-              <a href="#campus-life" className="btn-primary">Explore Events</a>
+              <a href="#campus-life" className="btn-primary1">Explore Events</a>
               <a href="#campus-life" className="btn-secondary">View Announcements</a>
             </div>
           </div>

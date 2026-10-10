@@ -479,7 +479,7 @@ body {
   100% { opacity: 1; transform: translateY(0); }
 }
 
-.btn-primary {
+.btn-primary1 {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
