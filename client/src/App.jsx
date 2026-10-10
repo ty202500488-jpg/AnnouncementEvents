@@ -1,10 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import Auth from './pages/Auth';
-import StudentDashboard from './pages/StudentDashboard';
-import StaffDashboard from './pages/StaffDashboard';
-import MyPage from './pages/MyPage';
-import AdminDashboard from './pages/AdminDashboard';
+import StudentDashboard from './pages/Student/StudentDashboard';
+import StaffDashboard from './pages/Staff/StaffDashboard';
+import MyPage from './pages//Staff/MyPage';
+import AdminDashboard from './pages/Admin/AdminDashboard';
 
 function App() {
   return (

@@ -1,0 +1,423 @@
+/* ==========================================================================
+   1. SCOPED VARIABLES & RESETS
+   ========================================================================== */
+.my-page-container *, 
+.my-page-container *::before, 
+.my-page-container *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.my-page-container {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-main);
+    color: var(--slate-800);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
+    
+    --brand-50: #fff1f2;
+    --brand-100: #ffe4e6;
+    --brand-200: #fecdd3;
+    --brand-500: var(--color-accent);
+    --brand-600: var(--color-primary);
+    --brand-700: #4c0519;
+    --bg-main: #f3f5f9;
+    --slate-50: #f8fafc;
+    --slate-100: #f1f5f9;
+    --slate-200: #e2e8f0;
+    --slate-300: #cbd5e1;
+    --slate-400: #94a3b8;
+    --slate-500: #64748b;
+    --slate-600: #475569;
+    --slate-700: #334155;
+    --slate-800: #1e293b;
+    --slate-900: #0f172a;
+    --emerald-50: #ecfdf5;
+    --emerald-100: #d1fae5;
+    --emerald-500: #10b981;
+    --emerald-600: #059669;
+    --emerald-700: #047857;
+    --purple-100: #f3e8ff;
+    --purple-700: #7e22ce;
+    --amber-100: #fef3c7;
+    --amber-700: #b45309;
+    --amber-800: #92400e;
+    --rose-50: #fff1f2;
+    --rose-100: #ffe4e6;
+    --rose-500: #f43f5e;
+    --rose-600: #e11d48;
+    --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.03);
+    --shadow-hover: 0 6px 24px rgba(159, 18, 57, 0.12);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+    --color-accent: #9f1239;
+    --color-primary: #881337;
+    --color-light-cream: #fff1f2;
+    --border-glow: rgba(244, 63, 94, 0.4);
+    --nav-gradient: linear-gradient(135deg, var(--color-accent) 0%, var(--color-primary) 100%);
+}
+
+.my-page-container ::selection {
+    background-color: var(--color-accent);
+    color: #ffffff;
+}
+
+/* Custom Scrollbar */
+.my-page-container ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+.my-page-container ::-webkit-scrollbar-track {
+    background: transparent;
+}
+.my-page-container ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+}
+.my-page-container ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* ==========================================================================
+   2. HEADER & BRANDING STYLES
+   ========================================================================== */
+.my-page-container .header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background-color: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.my-page-container .header-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.my-page-container .icon-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    color: var(--slate-500);
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: color 0.2s, background-color 0.2s;
+    text-decoration: none;
+}
+
+.my-page-container .icon-btn:hover {
+    color: var(--color-accent);
+    background-color: var(--slate-100);
+}
+
+.my-page-container .profile-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 9999px;
+    transition: background-color 0.2s;
+}
+
+.my-page-container .profile-btn:hover {
+    background-color: rgba(241, 245, 249, 0.8);
+}
+
+.my-page-container .avatar-wrapper {
+    position: relative;
+}
+
+.my-page-container .avatar-img {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    object-fit: cover;
+    outline: 2px solid #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.my-page-container .online-status {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 0.625rem;
+    height: 0.625rem;
+    background-color: var(--emerald-500);
+    border-radius: 9999px;
+    outline: 2px solid #ffffff;
+}
+
+/* ==========================================================================
+   3. PAGE CREATOR LAYOUT STYLES
+   ========================================================================== */
+.my-page-container .creator-wrapper {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    height: calc(100vh - 65px);
+    overflow: hidden;
+    background-color: var(--bg-main);
+}
+
+.my-page-container .creator-sidebar {
+    background-color: #ffffff;
+    border-right: 1px solid var(--slate-200);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow-y: auto;
+}
+
+.my-page-container .creator-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--slate-900);
+    margin-bottom: 0.25rem;
+}
+
+.my-page-container .creator-subtitle {
+    font-size: 0.8125rem;
+    color: var(--slate-500);
+    margin-bottom: 1.5rem;
+}
+
+.my-page-container .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.my-page-container .form-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--slate-700);
+    margin-bottom: 0.375rem;
+}
+
+.my-page-container .form-input, 
+.my-page-container .form-textarea, 
+.my-page-container .form-select {
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--slate-300);
+    background-color: var(--slate-50);
+    color: var(--slate-800);
+    transition: all 0.2s ease;
+}
+
+.my-page-container .form-input:focus, 
+.my-page-container .form-textarea:focus, 
+.my-page-container .form-select:focus {
+    outline: none;
+    background-color: #ffffff;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(159, 18, 57, 0.15);
+}
+
+.my-page-container .form-hint {
+    font-size: 0.75rem;
+    color: var(--slate-400);
+    margin-top: 0.375rem;
+}
+
+.my-page-container .btn-submit {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    border: none;
+    background: var(--nav-gradient);
+    color: var(--color-light-cream);
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+}
+
+.my-page-container .btn-submit:hover {
+    opacity: 0.95;
+    transform: translateY(-1px);
+}
+
+.my-page-container .creator-preview-pane {
+    padding: 2rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.my-page-container .preview-header {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.my-page-container .preview-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--slate-600);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.my-page-container .device-toggle {
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--slate-200);
+    padding: 0.25rem;
+    border-radius: 0.5rem;
+}
+
+.my-page-container .device-btn {
+    border: none;
+    background: transparent;
+    padding: 0.375rem 0.625rem;
+    border-radius: 0.375rem;
+    color: var(--slate-600);
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.my-page-container .device-btn.active {
+    background-color: #ffffff;
+    color: var(--color-accent);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.my-page-container .preview-card {
+    width: 100%;
+    max-width: 900px;
+    background-color: #ffffff;
+    border-radius: 0.75rem;
+    border: 1px solid var(--slate-200);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.my-page-container .preview-banner {
+    height: 200px;
+    background: linear-gradient(135deg, var(--slate-800) 0%, var(--slate-900) 100%);
+    position: relative;
+}
+
+.my-page-container .preview-avatar-wrapper {
+    position: relative;
+    margin-top: -50px;
+    margin-left: 2rem;
+    display: flex;
+    align-items: flex-end;
+    gap: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--slate-200);
+}
+
+.my-page-container .preview-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 9999px;
+    background-color: var(--slate-100);
+    border: 4px solid #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: var(--slate-400);
+    box-shadow: var(--shadow-md);
+}
+
+.my-page-container .preview-dept-name {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--slate-900);
+}
+
+.my-page-container .preview-dept-category {
+    font-size: 0.875rem;
+    color: var(--slate-500);
+    font-weight: 500;
+}
+
+.my-page-container .preview-nav-tabs {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.75rem 2rem;
+    border-bottom: 1px solid var(--slate-200);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--slate-500);
+}
+
+.my-page-container .preview-nav-tabs span.active {
+    color: var(--color-accent);
+    border-bottom: 2px solid var(--color-accent);
+    padding-bottom: 0.5rem;
+}
+
+.my-page-container .preview-body {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 1rem;
+    padding: 1.5rem 2rem;
+    background-color: var(--slate-50);
+}
+
+.my-page-container .preview-sidebar-card, 
+.my-page-container .preview-feed-card {
+    background-color: #ffffff;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    border: 1px solid var(--slate-200);
+}
+
+/* ==========================================================================
+   4. UTILITIES & RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+.my-page-container .flex { display: flex; }
+.my-page-container .items-center { align-items: center; }
+.my-page-container .gap-3 { gap: 0.75rem; }
+
+@media (min-width: 640px) {
+    .my-page-container .header-container { padding: 0 1rem; }
+}
+
+@media (min-width: 1024px) {
+    .my-page-container {
+        height: 100vh;
+        overflow: hidden;
+    }
+    .my-page-container .header { padding: 0.75rem 2rem; }
+}
+
+@media (max-width: 1024px) {
+    .my-page-container .creator-wrapper {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: visible;
+    }
+    .my-page-container .creator-preview-pane {
+        display: none;
+    }
+}

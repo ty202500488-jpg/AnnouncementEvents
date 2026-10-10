@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import './styles/StudentDashboard.css';
+import '../styles/StudentDashboard.css';
 
 export default function StudentDashboard() {
   const [user, setUser] = useState({
@@ -39,7 +39,7 @@ export default function StudentDashboard() {
           setAnnouncements(data.announcements);
         }
       } catch (err) {
-        console.error('Error connecting to backend for dashboard data:', err);
+        console.error('Failed to fetch dashboard data:', err);
       } finally {
         setLoading(false);
       }
@@ -205,12 +205,6 @@ export default function StudentDashboard() {
                     <span>Events</span>
                   </div>
                 </a>
-                <a href="#" className="nav-item">
-                  <div className="nav-item-content">
-                    <i className="fa-solid fa-building-columns nav-icon"></i>
-                    <span>My Events</span>
-                  </div>
-                </a>
               </nav>
             </div>
 
@@ -232,8 +226,8 @@ export default function StudentDashboard() {
                 </a>
                 <a href="#" className="nav-item">
                   <div className="nav-item-content">
-                    <i className="fa-solid fa-bookmark nav-icon"></i>
-                    <span>Saved</span>
+                    <i className="fa-solid fa-calendar-days nav-icon"></i>
+                    <span>My Events</span>
                   </div>
                 </a>
               </nav>
