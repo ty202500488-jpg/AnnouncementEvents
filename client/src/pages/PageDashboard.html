@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crimson - My Page Dashboard</title>
+  <link rel="stylesheet" href="PageDashboard.css">
+</head>
+<body>
+
+  <header class="top-header">
+    <div class="header-left">
+      <div class="brand-logo">CRIMSON</div>
+    </div>
+    
+    <div class="search-box">
+      <input type="text" placeholder="Search Announcements, Events, Departments...">
+    </div>
+
+    <div class="header-right">
+      <div class="user-profile">
+        <div class="user-avatar">AR</div>
+        <div class="user-info">
+          <div class="user-name">Alex Rivera</div>
+          <div class="user-dept">BS Computer Science</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="main-layout">
+    
+    <aside class="sidebar">
+      <div class="profile-summary">
+        <div class="profile-avatar">AR</div>
+        <div class="profile-name">Alex Rivera</div>
+      </div>
+
+      <nav class="nav-section">
+        <div class="section-label">MAIN</div>
+        <a href="#" class="nav-item">Dashboard</a>
+        <a href="#" class="nav-item active">My Page</a>
+        <a href="#" class="nav-item">Announcements</a>
+        <a href="#" class="nav-item">Events</a>
+        <a href="#" class="nav-item">Registrations</a>
+      </nav>
+
+      <nav class="nav-section">
+        <div class="section-label">PERSONAL</div>
+        <a href="#" class="nav-item">Profile / Settings</a>
+      </nav>
+    </aside>
+
+    <main class="feed-area">
+      
+      <div class="page-banner-card">
+        <div class="cover-image"></div>
+        <div class="banner-body">
+          <div class="org-avatar">H</div>
+          <div class="org-details">
+            <h2 class="org-title">College / Organization Page</h2>
+            <p class="org-sub">Assigned page name and description</p>
+          </div>
+        </div>
+        <div class="page-nav-pills">
+          <button class="pill active">Posts</button>
+          <button class="pill">Announcements</button>
+          <button class="pill">Events</button>
+          <button class="pill">Registrations</button>
+        </div>
+      </div>
+
+      <div class="create-post-card">
+        <div class="post-input-row">
+          <div class="user-avatar-small">AR</div>
+          <input type="text" placeholder="What's on your mind?" class="post-input">
+        </div>
+        <div class="post-actions-row">
+          <div class="attach-opts">
+            <button class="attach-btn">Photo / Video</button>
+            <button class="attach-btn">Tag Event</button>
+          </div>
+          <button class="publish-btn">Publish Post</button>
+        </div>
+      </div>
+
+      <article class="feed-card">
+        <div class="card-header">
+          <div class="badge-sao">SAO</div>
+          <div class="author-details">
+            <div class="author-name">Student Affairs Office</div>
+            <div class="post-time">Yesterday at 3:45 PM</div>
+          </div>
+        </div>
+
+        <h2 class="post-title">Annual Campus Tech Innovation Expo Registration Open</h2>
+        <p class="post-text">
+          Join fellow student innovators and developers this coming month! Registration is open for project exhibits and hackathon tracks. Certificates and prize grants will be awarded.
+        </p>
+
+        <div class="post-banner">
+          <img src="https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=1000&auto=format&fit=crop" alt="Campus Tech Event">
+          <div class="deadline-tag">Registration Deadline: Nov 10</div>
+        </div>
+
+        <div class="card-actions">
+          <button class="action-link">View Details</button>
+          <button class="action-link primary">+ Register</button>
+        </div>
+      </article>
+
+    </main>
+
+    <aside class="right-sidebar">
+      <div class="widget-card">
+        <div class="widget-header">
+          <h3 class="widget-title">Departments</h3>
+          <a href="#" class="view-all">View All</a>
+        </div>
+
+        <div class="dept-list">
+          <div class="dept-item highlight">
+            <div class="dept-icon icon-cream">WMSU</div>
+            <div class="dept-info">
+              <div class="dept-title">Western Mindanao State University</div>
+              <div class="dept-sub">General updates & notices</div>
+            </div>
+          </div>
+
+          <div class="dept-item active-border">
+            <div class="dept-icon icon-crimson">CCS</div>
+            <div class="dept-info">
+              <div class="dept-title">College of Computing Studies</div>
+              <div class="dept-sub">CSS Department</div>
+            </div>
+          </div>
+
+          <div class="dept-item">
+            <div class="dept-icon icon-light">CM</div>
+            <div class="dept-info">
+              <div class="dept-title">College of Medicine</div>
+              <div class="dept-sub">CM Department</div>
+            </div>
+          </div>
+
+          <div class="dept-item">
+            <div class="dept-icon icon-light">CLA</div>
+            <div class="dept-info">
+              <div class="dept-title">College of Liberal Arts</div>
+              <div class="dept-sub">CLA Department</div>
+            </div>
+          </div>
+
+          <div class="dept-item">
+            <div class="dept-icon icon-light">CTE</div>
+            <div class="dept-info">
+              <div class="dept-title">College of Education</div>
+              <div class="dept-sub">CTE Department</div>
+            </div>
+          </div>
+
+          <div class="dept-item">
+            <div class="dept-icon icon-light">COE</div>
+            <div class="dept-info">
+              <div class="dept-title">College of Engineering</div>
+              <div class="dept-sub">COE Department</div>
+            </div>
+          </div>
+
+          <div class="dept-item">
+            <div class="dept-icon icon-light">CN</div>
+            <div class="dept-info">
+              <div class="dept-title">College of Nursing</div>
+              <div class="dept-sub">CN Department</div>
+            </div>
+          </div>
+
+          <div class="dept-item">
+            <div class="dept-icon icon-light">CCJE</div>
+            <div class="dept-info">
+              <div class="dept-title">College of Criminal Justice Education</div>
+              <div class="dept-sub">CCEJE Department</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="see-more-btn">See More</button>
+      </div>
+    </aside>
+
+  </div>
+
+</body>
+</html>
+
