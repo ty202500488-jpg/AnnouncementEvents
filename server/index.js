@@ -1,17 +1,21 @@
+require('dotenv').config(); // <--- Add this at the very top!
+
 const express = require('express');
 const app = express();
 const cors = require('cors');
 const pool = require('./db');
 const userRoutes = require('./Routes/userRoutes');
-const pageRoutes = require('./Routes/pageRoutes'); // Import your page routes
+const pageRoutes = require('./Routes/pageRoutes'); 
+const studentRoutes = require('./Routes/studentRoutes');
 
-// ---- Middleware ----//
+// ---- Global Middleware ----//
 app.use(cors());
-app.use(express.json()); //request.body
+app.use(express.json());
 
 // ---- Routes ----//
-app.use('/users', userRoutes); //user routes
-app.use('/api', pageRoutes); // Registers your create-page endpoint at /api/create-page
+app.use('/users', userRoutes);
+app.use('/api', pageRoutes);
+app.use('/api/student', studentRoutes);
 
 // Test route
 app.get('/', (req, res) => {

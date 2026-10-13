@@ -1,9 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import Auth from './pages/Auth';
+import ConfirmEmail from './pages/ConfirmEmail';
 import StudentDashboard from './pages/Student/StudentDashboard';
 import StaffDashboard from './pages/Staff/StaffDashboard';
-import MyPage from './pages//Staff/MyPage';
+import MyPage from './pages/Staff/MyPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/confirm-email" element={<ConfirmEmail />} />
 
         {/* Student Routes */}
         <Route path="/student/dashboard" element={<StudentDashboard />} />

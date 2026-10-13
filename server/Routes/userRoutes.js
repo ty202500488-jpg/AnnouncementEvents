@@ -2,14 +2,26 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+
+// Configure Nodemailer transporter using environment variables
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 // -------- TEST ROUTE -------- //
 router.get('/test', (req, res) => {
-    res.send('User routes are working!');
+    res.send('User routes are working securely!');
 });
 
-// -------- CREATE STUDENT ACCOUNT -------- //
+// -------- CREATE STUDENT ACCOUNT & SEND VERIFICATION EMAIL -------- //
 router.post('/', async (req, res) => {
+    const client = await pool.connect();
     try {
         const {
             student_id,
@@ -56,7 +68,7 @@ router.post('/', async (req, res) => {
             });
         }
 
-        // 4. Validate password
+        // 4. Validate password[cite: 1]
         if (password !== confirm_password) {
             return res.status(400).json({
                 message: 'Passwords do not match.'
@@ -69,7 +81,7 @@ router.post('/', async (req, res) => {
             });
         }
 
-        // 5. Validate year level
+        // 5. Validate year level[cite: 1]
         const allowedYearLevels = [
             '1st Year',
             '2nd Year',
@@ -84,8 +96,11 @@ router.post('/', async (req, res) => {
             });
         }
 
-        // 6. Find the STUDENT role
-        const roleResult = await pool.query(
+        // Start transaction[cite: 1]
+        await client.query('BEGIN');
+
+        // 6. Find the STUDENT role securely from database[cite: 1]
+        const roleResult = await client.query(
             `SELECT role_id
              FROM roles
              WHERE LOWER(role_name) = 'student'
@@ -93,6 +108,7 @@ router.post('/', async (req, res) => {
         );
 
         if (roleResult.rowCount === 0) {
+            await client.query('ROLLBACK');
             return res.status(500).json({
                 message: 'Student role is not configured in the database.'
             });
@@ -100,8 +116,8 @@ router.post('/', async (req, res) => {
 
         const studentRoleId = roleResult.rows[0].role_id;
 
-        // 7. Verify department exists and is active
-        const departmentResult = await pool.query(
+        // 7. Verify department exists and is active[cite: 1]
+        const departmentResult = await client.query(
             `SELECT department_id
              FROM departments
              WHERE department_id = $1
@@ -110,14 +126,15 @@ router.post('/', async (req, res) => {
         );
 
         if (departmentResult.rowCount === 0) {
+            await client.query('ROLLBACK');
             return res.status(400).json({
                 message: 'Invalid or inactive department.'
             });
         }
 
-        // 8. Verify program belongs to the selected department
+        // 8. Verify program belongs to selected department[cite: 1]
         if (program_id) {
-            const programResult = await pool.query(
+            const programResult = await client.query(
                 `SELECT program_id
                  FROM programs
                  WHERE program_id = $1
@@ -126,17 +143,25 @@ router.post('/', async (req, res) => {
             );
 
             if (programResult.rowCount === 0) {
+                await client.query('ROLLBACK');
                 return res.status(400).json({
                     message: 'The selected program does not belong to this department.'
                 });
             }
         }
 
-        // 9. Hash password
+        // 9. Hash password securely[cite: 1]
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 10. Create student account (using password_hash to match table definition)
-        const newUser = await pool.query(
+        // Generate email verification token (expires in 24 hours)[cite: 1]
+        const verificationToken = jwt.sign(
+            { email: normalizedEmail },
+            process.env.JWT_SECRET || 'fallback_secret',
+            { expiresIn: '1d' }
+        );
+
+        // 10. Create student account with 'Pending' status[cite: 1]
+        const newUser = await client.query(
             `INSERT INTO users (
                 student_id,
                 role_id,
@@ -152,7 +177,7 @@ router.post('/', async (req, res) => {
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6,
-                $7, $8, $9, $10, 'Active'
+                $7, $8, $9, $10, 'Pending'
             )
             RETURNING
                 user_id,
@@ -181,108 +206,149 @@ router.post('/', async (req, res) => {
             ]
         );
 
+        // Attempt to send confirmation email message[cite: 1]
+        const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${verificationToken}`;
+
+        try {
+            await transporter.sendMail({
+                from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
+                to: normalizedEmail,
+                subject: 'WMSU CampusHub - Confirm Your Email Address',
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
+                        <h2 style="color: #800000;">Welcome to WMSU CampusHub, ${first_name}!</h2>
+                        <p>Thank you for registering. Please confirm your institutional email address by clicking or tapping the button below on your device:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
+                        </div>
+                        <p>Or you can copy and paste this link into your browser:</p>
+                        <p style="word-break: break-all; color: #555;"><a href="${confirmUrl}">${confirmUrl}</a></p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                        <p style="font-size: 0.85rem; color: #777;">This verification link will expire in 24 hours. If you did not create an account, please ignore this email.</p>
+                    </div>
+                `
+            });
+        } catch (emailError) {
+            console.error('Email sending failed:', emailError);
+            await client.query('ROLLBACK');
+            return res.status(500).json({ 
+                message: 'Failed to send verification email. Please check your email settings or app password.' 
+            });
+        }
+
+        await client.query('COMMIT');
+
         return res.status(201).json({
-            message: 'Student account created successfully!',
+            message: 'Student account created successfully! Please check your email inbox to verify your account before logging in.',
             user: newUser.rows[0]
         });
 
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Create user error:', error);
 
         if (error.code === '23505') {
             if (error.constraint?.includes('student_id')) {
-                return res.status(409).json({
-                    message: 'Student ID already exists.'
-                });
+                return res.status(409).json({ message: 'Student ID already exists.' });
             }
-
             if (error.constraint?.includes('email')) {
-                return res.status(409).json({
-                    message: 'Email already exists.'
-                });
+                return res.status(409).json({ message: 'Email already exists.' });
             }
-
-            return res.status(409).json({
-                message: 'An account with these details already exists.'
-            });
+            return res.status(409).json({ message: 'An account with these details already exists.' });
         }
 
         if (error.code === '23503') {
-            return res.status(400).json({
-                message: 'Invalid department, program, or role reference.'
-            });
+            return res.status(400).json({ message: 'Invalid department, program, or role reference.' });
         }
 
-        return res.status(500).json({
-            message: 'Server error while creating account.'
-        });
+        return res.status(500).json({ message: 'Server error while creating account.' });
+    } finally {
+        client.release();
     }
 });
 
+// -------- CONFIRM EMAIL ROUTE -------- //
+router.get('/confirm-email', async (req, res) => {
+    try {
+        const { token } = req.query;
 
-// -------- LOGIN USER -------- //
+        if (!token) {
+            return res.status(400).json({ message: 'Verification token is required.' });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+        
+        const userCheck = await pool.query(
+            `UPDATE users SET status = 'Active' WHERE LOWER(email) = LOWER($1) RETURNING user_id, status`,
+            [decoded.email]
+        );
+
+        if (userCheck.rowCount === 0) {
+            return res.status(404).json({ message: 'Account not found.' });
+        }
+
+        res.status(200).json({ message: 'Email confirmed successfully! You can now log in.' });
+
+    } catch (error) {
+        return res.status(400).json({ message: 'Invalid or expired verification token.' });
+    }
+});
+
+// -------- SECURE LOGIN USER -------- //
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Validate required fields
         if (!email || !password) {
-            return res.status(400).json({
-                message: 'Email and password are required.'
-            });
+            return res.status(400).json({ message: 'Email and password are required.' });
         }
 
-        // Find user by email (alias password_hash as password for comparison consistency)
         const result = await pool.query(
-            `SELECT user_id, first_name, last_name, email,
-                    password_hash AS password, role_id, status
-             FROM users
-             WHERE LOWER(email) = LOWER($1)`,
-            [email]
+            `SELECT u.user_id, u.first_name, u.last_name, u.email,
+                    u.password_hash AS password, u.role_id, u.status, r.role_name
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             WHERE LOWER(u.email) = LOWER($1)`,
+            [email.trim()]
         );
 
-        // Check if user exists
         if (result.rows.length === 0) {
-            return res.status(401).json({
-                message: 'Invalid email or password.'
-            });
+            return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
         const user = result.rows[0];
 
-        // Check account status case-insensitively
-        if (!user.status || user.status.toLowerCase() !== 'active') {
-            return res.status(403).json({
-                message: 'Your account is not active.'
-            });
+        if (user.status?.toLowerCase() === 'pending') {
+            return res.status(403).json({ message: 'Please check your email and confirm your account before logging in.' });
         }
 
-        // Compare password with stored hash
-        const passwordMatch = await bcrypt.compare(
-            password,
-            user.password
-        );
+        if (!user.status || user.status.toLowerCase() !== 'active') {
+            return res.status(403).json({ message: 'Your account is not active.' });
+        }
+
+        const passwordMatch = await bcrypt.compare(password, user.password);
 
         if (!passwordMatch) {
-            return res.status(401).json({
-                message: 'Invalid email or password.'
-            });
+            return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
-        // Never return the password or its hash
+        const token = jwt.sign(
+            { userId: user.user_id, roleId: user.role_id },
+            process.env.JWT_SECRET || 'fallback_secret',
+            { expiresIn: '8h' }
+        );
+
         delete user.password;
 
         res.status(200).json({
             message: 'Login successful!',
+            token: token,
             user: user
         });
 
     } catch (error) {
         console.error('Login error:', error.message);
-
-        res.status(500).json({
-            message: 'Server error during login.'
-        });
+        res.status(500).json({ message: 'Server error during login.' });
     }
 });
 

@@ -2,12 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './styles/Auth.css';
 
-// Mapped to integer department IDs based on your database schema
 const collegeDepartments = {
   'College of Law (LAW)': 1,
   'College of Agriculture (COA)': 2,
   'College of Liberal Arts (CLA)': 3,
-  'College of Architecture': 4,
+  'College of Architecture (COARCH)': 4,
   'College of Nursing (CN)': 5,
   'College of Asian & Islamic Studies (CAIS)': 6,
   'College of Computing Studies (CCS)': 7,
@@ -23,85 +22,85 @@ const collegeDepartments = {
   'College of Teacher Education (CTE)': 17
 };
 
-// Mapped to integer program IDs corresponding to your programs table
 const collegeCourses = {
   LAW: [{ id: 1, name: 'BS Laws' }],
   COA: [
     { id: 2, name: 'BS Agriculture' },
     { id: 3, name: 'BS Food Technology' },
-    { id: 'COA-3', name: 'BS Agribusiness' },
-    { id: 'COA-4', name: 'Bachelor of Agricultural Technology' }
+    { id: 4, name: 'BS Agribusiness' },
+    { id: 5, name: 'Bachelor of Agricultural Technology' }
   ],
   CLA: [
-    { id: 'CLA-1', name: 'BS Accountancy' },
-    { id: 'CLA-2', name: 'BA History' },
-    { id: 'CLA-3', name: 'BA English' },
-    { id: 'CLA-4', name: 'BA Political Science' },
-    { id: 'CLA-5', name: 'BA Mass Communication – Journalism' },
-    { id: 'CLA-6', name: 'BA Mass Communication – Broadcasting' },
-    { id: 'CLA-7', name: 'BS Economics' },
-    { id: 'CLA-8', name: 'BS Psychology' }
+    { id: 6, name: 'BS Accountancy' },
+    { id: 7, name: 'BA History' },
+    { id: 8, name: 'BA English' },
+    { id: 9, name: 'BA Political Science' },
+    { id: 10, name: 'BA Mass Communication – Journalism' },
+    { id: 11, name: 'BA Mass Communication – Broadcasting' },
+    { id: 12, name: 'BS Economics' },
+    { id: 13, name: 'BS Psychology' }
   ],
-  COARCH: [{ id: 'COARCH-1', name: 'BS Architecture' }],
-  CN: [{ id: 'CN-1', name: 'BS Nursing' }],
-  CAIS: [{ id: 'CAIS-1', name: 'Asian and Islamic Studies' }],
+  COARCH: [{ id: 14, name: 'BS Architecture' }],
+  CN: [{ id: 15, name: 'BS Nursing' }],
+  CAIS: [{ id: 16, name: 'Asian and Islamic Studies' }],
   CCS: [
-    { id: 1, name: 'BS Computer Science (BSCS)' },
-    { id: 2, name: 'BS Information Technology (BSIT)' },
-    { id: 'CCS-3', name: 'ACT AD' },
-    { id: 'CCS-4', name: 'ACT NT' }
+    { id: 17, name: 'BS Computer Science (BSCS)' },
+    { id: 18, name: 'BS Information Technology (BSIT)' },
+    { id: 19, name: 'ACT AD' },
+    { id: 20, name: 'ACT NT' }
   ],
   CFES: [
-    { id: 'CFES-1', name: 'BS Forestry' },
-    { id: 'CFES-2', name: 'BS Agroforestry' },
-    { id: 'CFES-3', name: 'BS Environmental Science' }
+    { id: 21, name: 'BS Forestry' },
+    { id: 22, name: 'BS Agroforestry' },
+    { id: 23, name: 'BS Environmental Science' }
   ],
-  CCJE: [{ id: 'CCJE-1', name: 'Criminal Justice Education' }],
+  CCJE: [{ id: 24, name: 'Criminal Justice Education' }],
   CHE: [
-    { id: 'CHE-1', name: 'BS Home Economics' },
-    { id: 'CHE-2', name: 'BS Nutrition & Dietetics' },
-    { id: 'CHE-3', name: 'BS Hospitality Management' }
+    { id: 25, name: 'BS Home Economics' },
+    { id: 26, name: 'BS Nutrition & Dietetics' },
+    { id: 27, name: 'BS Hospitality Management' }
   ],
   COE: [
-    { id: 'COE-1', name: 'Agricultural and Biosystems Engineering' },
-    { id: 'COE-2', name: 'BS Civil Engineering' },
-    { id: 'COE-3', name: 'BS Computer Engineering' },
-    { id: 'COE-4', name: 'BS Electrical Engineering' },
-    { id: 'COE-5', name: 'BS Electronics Engineering' },
-    { id: 'COE-6', name: 'BS Environmental Engineering' },
-    { id: 'COE-7', name: 'BS Geodetic Engineering' },
-    { id: 'COE-8', name: 'BS Industrial Engineering' },
-    { id: 'COE-9', name: 'BS Mechanical Engineering' },
-    { id: 'COE-10', name: 'BS Sanitary Engineering' }
+    { id: 28, name: 'Agricultural and Biosystems Engineering' },
+    { id: 29, name: 'BS Civil Engineering' },
+    { id: 30, name: 'BS Computer Engineering' },
+    { id: 31, name: 'BS Electrical Engineering' },
+    { id: 32, name: 'BS Electronics Engineering' },
+    { id: 33, name: 'BS Environmental Engineering' },
+    { id: 34, name: 'BS Geodetic Engineering' },
+    { id: 35, name: 'BS Industrial Engineering' },
+    { id: 36, name: 'BS Mechanical Engineering' },
+    { id: 37, name: 'BS Sanitary Engineering' }
   ],
-  CM: [{ id: 'CM-1', name: 'Doctor of Medicine' }],
-  CPADS: [{ id: 'CPADS-1', name: 'BS Public Administration' }],
+  CM: [{ id: 38, name: 'Doctor of Medicine' }],
+  CPADS: [{ id: 39, name: 'BS Public Administration' }],
   CSSPE: [
-    { id: 'CSSPE-1', name: 'BS Physical Education' },
-    { id: 'CSSPE-2', name: 'BS Exercise & Sports Sciences' }
+    { id: 40, name: 'BS Physical Education' },
+    { id: 41, name: 'BS Exercise & Sports Sciences' }
   ],
   CSM: [
-    { id: 'CSM-1', name: 'BS Biology' },
-    { id: 'CSM-2', name: 'BS Chemistry' },
-    { id: 'CSM-3', name: 'BS Mathematics' },
+    { id: 42, name: 'BS Biology' },
+    { id: 43, name: 'BS Chemistry' },
+    { id: 44, name: 'BS Mathematics' },
     { id: 'CSM-4', name: 'BS Statistics' },
-    { id: 'CSM-5', name: 'BS Physics' }
+    { id: 45, name: 'BS Statistics' },
+    { id: 46, name: 'BS Physics' }
   ],
   CSWCD: [
-    { id: 'CSWCD-1', name: 'BS Social Work' },
-    { id: 'CSWCD-2', name: 'BS Community Development' }
+    { id: 47, name: 'BS Social Work' },
+    { id: 48, name: 'BS Community Development' }
   ],
   CTE: [
-    { id: 'CTE-1', name: 'Bachelor of Culture and Arts Education' },
-    { id: 'CTE-2', name: 'Bachelor of Early Childhood Education' },
-    { id: 'CTE-3', name: 'Bachelor of Elementary Education' },
-    { id: 'CTE-4', name: 'Bachelor of Secondary Education – English' },
-    { id: 'CTE-5', name: 'Bachelor of Secondary Education – Filipino' },
-    { id: 'CTE-6', name: 'Bachelor of Secondary Education – Mathematics' },
-    { id: 'CTE-7', name: 'Bachelor of Secondary Education – Sciences' },
-    { id: 'CTE-8', name: 'Bachelor of Secondary Education – Social Studies' },
-    { id: 'CTE-9', name: 'Bachelor of Secondary Education – Values Education' },
-    { id: 'CTE-10', name: 'Bachelor of Special Needs Education' }
+    { id: 49, name: 'Bachelor of Culture and Arts Education' },
+    { id: 50, name: 'Bachelor of Early Childhood Education' },
+    { id: 51, name: 'Bachelor of Elementary Education' },
+    { id: 52, name: 'Bachelor of Secondary Education – English' },
+    { id: 53, name: 'Bachelor of Secondary Education – Filipino' },
+    { id: 54, name: 'Bachelor of Secondary Education – Mathematics' },
+    { id: 55, name: 'Bachelor of Secondary Education – Sciences' },
+    { id: 56, name: 'Bachelor of Secondary Education – Social Studies' },
+    { id: 57, name: 'Bachelor of Secondary Education – Values Education' },
+    { id: 58, name: 'Bachelor of Special Needs Education' }
   ]
 };
 
@@ -111,12 +110,10 @@ export default function Auth() {
   const [selectedCollege, setSelectedCollege] = useState('');
   const [availableCourses, setAvailableCourses] = useState([]);
   
-  // Visibility states
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
 
-  // Form states
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [regData, setRegData] = useState({
     studentId: '', 
@@ -136,8 +133,12 @@ export default function Auth() {
     const collegeKey = e.target.value;
     setSelectedCollege(collegeKey);
     const deptId = collegeDepartments[collegeKey];
+    
+    const match = collegeKey.match(/\(([^)]+)\)/);
+    const courseKey = match ? match[1] : '';
+
     setRegData({ ...regData, departmentId: deptId, programId: '' });
-    setAvailableCourses(collegeCourses[collegeKey] || []);
+    setAvailableCourses(collegeCourses[courseKey] || []);
   };
 
   const handleLoginSubmit = async (e) => {
@@ -150,24 +151,21 @@ export default function Auth() {
       });
       const data = await response.json();
       if (response.ok) {
+        localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         
-        // Dynamic Role-based Routing mapping role_id / user_roles correctly
+        const roleName = data.user?.role_name?.toLowerCase() || '';
         const role = Number(
           data.user?.role_id ?? 
           data.user?.user_roles ?? 
           data.user?.role ?? 
-          1
+          3
         );
 
-        console.log("Detected User Role ID:", role);
-
-        if (role === 1) {
-          navigate('/student/dashboard');
-        } else if (role === 2) {
-          navigate('/staff/dashboard');
-        } else if (role === 3) {
+        if (roleName === 'admin' || role === 1) {
           navigate('/admin/dashboard');
+        } else if (roleName === 'staff' || role === 2) {
+          navigate('/staff/dashboard');
         } else {
           navigate('/student/dashboard');
         }
@@ -196,11 +194,10 @@ export default function Auth() {
       return;
     }
     
-    // Payload matching exact keys and integer types expected by userRoutes.js
     const payload = {
       student_id: regData.studentId.trim(),
       first_name: regData.firstName.trim(),
-      middle_initial: regData.middleInitial ? regData.middleInitial.trim().charAt(0) : null,
+      middle_initial: regData.middleInitial ? regData.middleInitial.trim() : null,
       last_name: regData.lastName.trim(),
       department_id: Number(regData.departmentId),
       program_id: regData.programId ? Number(regData.programId) : null,
@@ -357,7 +354,7 @@ export default function Auth() {
                     <input 
                       type="text" 
                       placeholder="M" 
-                      maxLength="2" 
+                      maxLength="5" 
                       value={regData.middleInitial}
                       onChange={(e) => setRegData({ ...regData, middleInitial: e.target.value })}
                     />
