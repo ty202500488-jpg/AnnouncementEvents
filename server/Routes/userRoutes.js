@@ -216,7 +216,7 @@ router.post('/', async (req, res) => {
                 subject: 'WMSU CampusHub - Confirm Your Email Address',
                 html: `
                     <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
-                        <h2 style="color: #800000;">Welcome to WMSU CampusHub, ${first_name}!</h2>
+                        <h2 style="color: #800000;">Welcome to CRIMSON, ${first_name}!</h2>
                         <p>Thank you for registering. Please confirm your institutional email address by clicking or tapping the button below on your device:</p>
                         <div style="text-align: center; margin: 30px 0;">
                             <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>

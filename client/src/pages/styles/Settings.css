@@ -1,0 +1,203 @@
+/* ========================================================================== */
+/* CLEAN SETTINGS & PREFERENCES LAYOUT CSS                                    */
+/* ========================================================================== */
+
+.settings-wrapper *, 
+.settings-wrapper *::before, 
+.settings-wrapper *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.settings-container-card {
+    background: #ffffff;
+    border-radius: 1rem;
+    border: 1px solid var(--slate-200, #e2e8f0);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+    padding: 2rem;
+}
+
+/* Header Section */
+.settings-header-box {
+    margin-bottom: 1.75rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--slate-100, #f1f5f9);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.settings-header-box h3 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--slate-900, #0f172a);
+    letter-spacing: -0.01em;
+}
+
+.settings-header-box p {
+    font-size: 0.8125rem;
+    color: var(--slate-500, #64748b);
+    margin-top: 0.2rem;
+}
+
+/* Section Groupings */
+.settings-section-group {
+    padding: 1.25rem 0;
+}
+
+.settings-section-group + .settings-section-group {
+    border-top: 1px solid var(--slate-100, #f1f5f9);
+}
+
+.settings-section-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--slate-800, #1e293b);
+    margin-bottom: 0.25rem;
+}
+
+.settings-section-desc {
+    font-size: 0.75rem;
+    color: var(--slate-400, #94a3b8);
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+/* Control Elements & Toggles */
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: var(--slate-700, #334155);
+    font-weight: 500;
+    transition: color 0.15s ease;
+}
+
+.settings-toggle-row:hover {
+    color: var(--slate-900, #0f172a);
+}
+
+.settings-toggle-input {
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: #881337;
+    cursor: pointer;
+    border-radius: 0.25rem;
+}
+
+/* Form Group Layouts */
+.settings-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin-top: 1rem;
+}
+
+.settings-form-group label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--slate-600, #475569);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.settings-select-input {
+    padding: 0.625rem 0.875rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--slate-300, #cbd5e1);
+    font-size: 0.875rem;
+    color: var(--slate-800, #1e293b);
+    background-color: #ffffff;
+    outline: none;
+    width: 100%;
+    transition: all 0.2s ease;
+}
+
+.settings-select-input:focus {
+    border-color: #881337;
+    box-shadow: 0 0 0 3px rgba(136, 19, 55, 0.1);
+}
+
+/* Security & Danger Actions */
+.settings-action-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.settings-btn-secondary {
+    background-color: #f8fafc;
+    color: var(--slate-700, #334155);
+    border: 1px solid var(--slate-300, #cbd5e1);
+    padding: 0.625rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.settings-btn-secondary:hover {
+    background-color: var(--slate-100, #f1f5f9);
+    border-color: var(--slate-400, #94a3b8);
+}
+
+.settings-btn-danger {
+    background-color: #fff1f2;
+    color: #e11d48;
+    border: 1px solid #ffe4e6;
+    padding: 0.625rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+    width: 100%;
+}
+
+.settings-btn-danger:hover {
+    background-color: #ffe4e6;
+    border-color: #fecdd3;
+}
+
+/* Footer Submit Bar */
+.settings-footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--slate-100, #f1f5f9);
+}
+
+.settings-save-btn {
+    background-color: #881337;
+    color: #ffffff;
+    border: none;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.settings-save-btn:hover {
+    background-color: #4c0519;
+}
+
+.settings-save-btn:active {
+    transform: scale(0.98);
+}
