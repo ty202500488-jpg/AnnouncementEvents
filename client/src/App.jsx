@@ -2,16 +2,29 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import LandingPage from './pages/LandingPage';
 import Auth from './pages/Auth';
 import ConfirmEmail from './pages/ConfirmEmail';
+
+// Student Imports
 import StudentDashboard from './pages/Student/StudentDashboard';
-import Announcements from './pages/Student/Announcements';
-import Events from './pages/Student/Events';
-import Profile from './pages/Student/Profile';
-import Notifications from './pages/Student/Notification';
-import MyEvents from './pages/Student/MyEvents';
-import Settings from './pages/Student/Settings';
-import HelpSupport from './pages/Student/HelpSupport';
+import StudentAnnouncements from './pages/Student/Announcements';
+import StudentEvents from './pages/Student/Events';
+import StudentProfile from './pages/Student/Profile';
+import StudentNotifications from './pages/Student/Notification';
+import StudentMyEvents from './pages/Student/MyEvents';
+import StudentHelpSupport from './pages/Student/HelpSupport';
+import StudentSettings from './pages/Student/Settings';
+
+// Staff Imports
 import StaffDashboard from './pages/Staff/StaffDashboard';
-import MyPage from './pages/Staff/MyPage';
+import StaffAnnouncements from './pages/Staff/StaffAnnouncements';
+import StaffEvents from './pages/Staff/StaffEvents';
+import StaffMyPage from './pages/Staff/StaffMyPage';
+import StaffProfile from './pages/Staff/StaffProfile';
+import StaffNotifications from './pages/Staff/StaffNotification';
+import StaffMyEvents from './pages/Staff/StaffMyEvents';
+import StaffHelpSupport from './pages/Staff/StaffHelpSupport';
+import StaffSettings from './pages/Staff/StaffSettings';
+
+// Admin Imports
 import AdminDashboard from './pages/Admin/AdminDashboard';
 
 function App() {
@@ -25,17 +38,24 @@ function App() {
 
         {/* Student Routes */}
         <Route path="/student/dashboard" element={<StudentDashboard />} />
-        <Route path="/student/announcements" element={<Announcements />} />
-        <Route path="/student/events" element={<Events />} />
-        <Route path="/student/profile" element={<Profile />} />
-        <Route path="/student/notifications" element={<Notifications />} />
-        <Route path="/student/my-events" element={<MyEvents />} />
-        <Route path="/student/help" element={<HelpSupport />} />
-        <Route path="/student/settings" element={<Settings />} />
+        <Route path="/student/announcements" element={<StudentAnnouncements />} />
+        <Route path="/student/events" element={<StudentEvents />} />
+        <Route path="/student/profile" element={<StudentProfile />} />
+        <Route path="/student/notifications" element={<StudentNotifications />} />
+        <Route path="/student/my-events" element={<StudentMyEvents />} />
+        <Route path="/student/help" element={<StudentHelpSupport />} />
+        <Route path="/student/settings" element={<StudentSettings />} />
 
-        {/* Staff & Page Management Routes */}
+        {/* Staff Routes */}
         <Route path="/staff/dashboard" element={<StaffDashboard />} />
-        <Route path="/staff/mypage" element={<MyPage />} />
+        <Route path="/staff/announcements" element={<StaffAnnouncements />} />
+        <Route path="/staff/events" element={<StaffEvents />} />
+        <Route path="/staff/mypage" element={<StaffMyPage />} />
+        <Route path="/staff/profile" element={<StaffProfile />} />
+        <Route path="/staff/notifications" element={<StaffNotifications />} />
+        <Route path="/staff/my-events" element={<StaffMyEvents />} />
+        <Route path="/staff/help" element={<StaffHelpSupport />} />
+        <Route path="/staff/settings" element={<StaffSettings />} />
 
         {/* Admin Routes */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />

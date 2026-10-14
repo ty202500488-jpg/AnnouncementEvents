@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
+import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import '../styles/StaffDashboard.css';
 import '../styles/MyPage.css';
 
-export default function MyPage({ onBack }) {
-  // State for form inputs and real-time preview tracking
+export default function StaffMyPage({ onBack }) {
   const [pageName, setPageName] = useState('');
   const [pageCategory, setPageCategory] = useState('');
   const [pageBio, setPageBio] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [createdPage, setCreatedPage] = useState(null);
+
+  const handleBackNavigation = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      window.location.href = '/staff/dashboard';
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,10 +32,12 @@ export default function MyPage({ onBack }) {
       const data = await response.json();
 
       if (response.ok) {
-        alert('Page submitted successfully! It will be published once approved by an admin.');
-        setPageName('');
-        setPageCategory('');
-        setPageBio('');
+        setCreatedPage({
+          name: pageName,
+          category: pageCategory,
+          bio: pageBio,
+          status: 'Pending Admin Approval'
+        });
       } else {
         alert(`Error: ${data.message || 'Failed to create page'}`);
       }
@@ -37,24 +49,75 @@ export default function MyPage({ onBack }) {
     }
   };
 
+  // If page is created, show the created page management view
+  if (createdPage) {
+    return (
+      <StaffDashboardLayout activePage="mypage">
+        <main className="lg-col-6 space-y-6">
+          <div className="card" style={{ padding: '1.75rem' }}>
+            <div className="flex items-start justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1.25rem' }}>
+              <div className="flex items-center gap-4">
+                <div style={{ width: '3.5rem', height: '3.5rem', borderRadius: '50%', backgroundColor: 'var(--amber-100)', color: 'var(--amber-700)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>
+                  WMSU
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.125rem' }}>{createdPage.name}</h3>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '0.125rem 0.5rem', borderRadius: '9999px', backgroundColor: '#fef3c7', color: '#d97706' }}>
+                      {createdPage.status}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--brand-600)', fontWeight: 600, marginTop: '0.125rem' }}>{createdPage.category}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setCreatedPage(null)} 
+                className="cancel-profile-btn"
+                style={{ fontSize: '0.75rem', padding: '0.375rem 0.75rem' }}
+              >
+                Create Another Page
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-400)', textTransform: 'uppercase', marginBottom: '0.25rem' }}>About Department</h4>
+              <p style={{ fontSize: '0.875rem', color: 'var(--slate-600)', lineHeight: 1.5 }}>{createdPage.bio || 'No bio provided.'}</p>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.9375rem', marginBottom: '0.75rem' }}>Page Announcements & Feed</h4>
+              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', border: '2px dashed var(--slate-200)', borderRadius: '0.75rem', color: 'var(--slate-500)' }}>
+                <i className="fa-solid fa-bullhorn" style={{ fontSize: '2rem', marginBottom: '0.5rem', color: 'var(--slate-300)' }}></i>
+                <p style={{ fontSize: '0.875rem' }}>No announcements posted on this page yet.</p>
+                <button className="save-profile-btn" style={{ marginTop: '0.75rem', fontSize: '0.75rem', padding: '0.375rem 0.875rem' }}>
+                  Create First Announcement
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </StaffDashboardLayout>
+    );
+  }
+
   return (
     <div className="my-page-container">
       {/* Header */}
       <header className="header">
         <div className="header-container">
           <div className="flex items-center gap-3">
-            <button onClick={onBack} className="icon-btn" title="Close">
-              <i className="fa-solid fa-xmark"></i>
+            <button onClick={handleBackNavigation} className="icon-btn" title="Back">
+              <i className="fa-solid fa-arrow-left"></i>
             </button>
             <h1 style={{ fontFamily: "'Bungee', sans-serif", fontWeight: 700, color: '#561C24', fontSize: '1.525rem', lineHeight: 1.2, letterSpacing: '-0.025em' }}>
               CRIM<span style={{ color: '#881337' }}>SON</span>
             </h1>
           </div>
-          <div className="profile-btn">
+          <div className="profile-btn" onClick={() => window.location.href = '/staff/profile'}>
             <div className="avatar-wrapper">
               <img 
                 src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" 
-                alt="Alex Rivera" 
+                alt="Staff Profile" 
                 className="avatar-img" 
               />
               <span className="online-status"></span>

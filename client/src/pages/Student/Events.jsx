@@ -76,12 +76,6 @@ export default function Events() {
                 All
               </button>
               <button 
-                onClick={() => setFilter('upcoming')} 
-                style={{ padding: '0.375rem 0.75rem', borderRadius: '0.5rem', backgroundColor: filter === 'upcoming' ? 'var(--brand-50)' : 'transparent', color: filter === 'upcoming' ? 'var(--brand-600)' : 'var(--slate-600)', fontWeight: 600, fontSize: '0.75rem', border: 'none', cursor: 'pointer' }}
-              >
-                Upcoming
-              </button>
-              <button 
                 onClick={() => setFilter('registered')} 
                 style={{ padding: '0.375rem 0.75rem', borderRadius: '0.5rem', backgroundColor: filter === 'registered' ? 'var(--brand-50)' : 'transparent', color: filter === 'registered' ? 'var(--brand-600)' : 'var(--slate-600)', fontWeight: 600, fontSize: '0.75rem', border: 'none', cursor: 'pointer' }}
               >
