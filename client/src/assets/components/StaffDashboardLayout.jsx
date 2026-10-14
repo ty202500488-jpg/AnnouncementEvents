@@ -10,6 +10,12 @@ export default function StaffDashboardLayout({ children, activePage }) {
 
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
+  
+  // State for page creation and admin validation status
+  const [pageStatus, setPageStatus] = useState({
+    exists: false,
+    status: 'none' // 'none', 'pending', 'approved', 'rejected'
+  });
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -28,7 +34,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
 
     const fetchApprovedPages = async () => {
       try {
-        const response = await fetch('http://localhost:5000/users/approved-pages', {
+        const response = await fetch('http://localhost:5000/api/approved-pages', {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -43,7 +49,29 @@ export default function StaffDashboardLayout({ children, activePage }) {
       }
     };
 
+    const fetchUserPageStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/my-page-status', {
+          method: 'GET',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}` 
+          }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          setPageStatus({
+            exists: data.exists || false,
+            status: data.status || 'none' // e.g. 'approved', 'pending', etc.
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch user page status:', err);
+      }
+    };
+
     fetchApprovedPages();
+    fetchUserPageStatus();
 
     const mobileMenuBtn = document.getElementById('mobileMenuBtn');
     const leftSidebar = document.getElementById('leftSidebar');
@@ -56,6 +84,8 @@ export default function StaffDashboardLayout({ children, activePage }) {
       mobileMenuBtn?.removeEventListener('click', handleMenuClick);
     };
   }, []);
+
+  const isPageApproved = pageStatus.exists && pageStatus.status === 'approved';
 
   return (
     <div className="staff-dashboard-wrapper student-dashboard-wrapper">
@@ -90,6 +120,30 @@ export default function StaffDashboardLayout({ children, activePage }) {
 
           {/* Right Profile & Quick Actions */}
           <div className="flex items-center gap-3"> 
+            {/* Conditional Page Switcher on Nav Account Bar if validated */}
+            {isPageApproved && (
+              <a 
+                href="/staff/mypage/dashboard" 
+                className="btn-switch-page hidden-sm" 
+                style={{ 
+                  fontSize: '0.75rem', 
+                  fontWeight: 600, 
+                  padding: '0.375rem 0.75rem', 
+                  background: 'var(--brand-700, #561C24)', 
+                  color: '#fff', 
+                  borderRadius: '6px', 
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                }}
+              >
+                <i className="fa-solid fa-right-left" style={{ fontSize: '0.65rem' }}></i>
+                <span>Switch to Page</span>
+              </a>
+            )}
+
             <div style={{ position: 'relative' }}>
               <button className="icon-btn" onClick={() => window.location.href = '/staff/notifications'}>
                 <i className="fa-regular fa-bell" style={{ fontSize: '1rem' }}></i>
@@ -165,10 +219,17 @@ export default function StaffDashboardLayout({ children, activePage }) {
                     <span>Events</span>
                   </div>
                 </a>
-                <a href="/staff/mypage" className={`nav-item ${activePage === 'mypage' ? 'active btn-nav' : ''}`}>
-                  <div className="nav-item-content">
-                    <i className="fa-solid fa-flag nav-icon"></i>
-                    <span>My Page</span>
+                <a href={isPageApproved ? "/staff/mypage/dashboard" : "/staff/mypage"} className={`nav-item ${activePage === 'mypage' ? 'active btn-nav' : ''}`}>
+                  <div className="nav-item-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <i className="fa-solid fa-flag nav-icon"></i>
+                      <span>My Page</span>
+                    </div>
+                    {isPageApproved && (
+                      <span style={{ fontSize: '10px', background: 'var(--brand-100, #fce7f3)', color: 'var(--brand-700, #881337)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                        Active
+                      </span>
+                    )}
                   </div>
                 </a>
               </nav>

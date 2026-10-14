@@ -6,9 +6,10 @@ const pool = require('../db');
 router.post('/dashboard-data', async (req, res) => {
     try {
         const announcements = await pool.query(
-            `SELECT a.*, p.page_name AS department_name, p.page_type AS department_code 
+            `SELECT a.*, p.page_name AS department_name, 
+                    CASE WHEN p.department_id IS NOT NULL THEN 'Academic College' ELSE 'Student Organization' END AS department_code 
              FROM announcements a 
-             LEFT JOIN pages p ON a.page_id = p.id 
+             LEFT JOIN pages p ON a.page_id = p.page_id 
              ORDER BY a.created_at DESC`
         );
         res.status(200).json({ announcements: announcements.rows });
@@ -24,8 +25,8 @@ router.get('/events-data', async (req, res) => {
         const events = await pool.query(
             `SELECT e.*, p.page_name AS department_name 
              FROM events e 
-             LEFT JOIN pages p ON e.page_id = p.id 
-             ORDER BY e.date ASC`
+             LEFT JOIN pages p ON e.page_id = p.page_id 
+             ORDER BY e.event_date ASC`
         );
         res.status(200).json({ events: events.rows });
     } catch (error) {
@@ -42,8 +43,8 @@ router.get('/my-events', async (req, res) => {
         const events = await pool.query(
             `SELECT e.*, p.page_name AS department_name, er.status AS registration_status 
              FROM event_registrations er
-             JOIN events e ON er.event_id = e.id
-             LEFT JOIN pages p ON e.page_id = p.id
+             JOIN events e ON er.event_id = e.event_id
+             LEFT JOIN pages p ON e.page_id = p.page_id
              WHERE er.registrant_user_id = $1`,
             [userId]
         );
@@ -113,7 +114,6 @@ router.get('/notifications', async (req, res) => {
     try {
         const userId = req.query.student_id || req.query.staff_id;
         
-        // Return notifications if table exists, or fallback to empty array
         const notifications = await pool.query(
             `SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC`,
             [userId]
