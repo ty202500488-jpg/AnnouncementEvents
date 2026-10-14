@@ -385,12 +385,13 @@ body {
   align-items: center;
 }
 
-.form-group label {
+.form-group .form-label {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--color-light-cream);
   letter-spacing: 0.02em;
 }
+
 
 .forgot-link, .inline-link {
   font-size: 0.8rem;

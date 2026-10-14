@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './styles/LandingPage.css';
+import image1 from '../assets/images/image1.jpg';
+import image2 from '../assets/images/image2.jpg';
+import image3 from '../assets/images/image3.jpg';
+import image4 from '../assets/images/image4.jpg';
 
 
 export default function LandingPage() {
@@ -102,28 +106,28 @@ export default function LandingPage() {
             <div className="circular-hero-container">
               <div className="hero-circle main-circle">
                 <img 
-                  src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1000&q=80" 
+                  src={image1} 
                   alt="Campus Life Central Feature"
                 />
               </div>
 
               <div className="hero-circle satellite-circle sat-top">
                 <img 
-                  src="https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=500&q=80" 
+                  src={image2} 
                   alt="Campus Event Preview"
                 />
               </div>
 
               <div className="hero-circle satellite-circle sat-mid">
                 <img 
-                  src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=500&q=80" 
+                  src={image3} 
                   alt="Student Collaboration Preview"
                 />
               </div>
 
               <div className="hero-circle satellite-circle sat-bot">
                 <img 
-                  src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=500&q=80" 
+                  src={image4} 
                   alt="Campus Activities Preview"
                 />
               </div>
@@ -221,7 +225,7 @@ export default function LandingPage() {
               <img src="https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=900&q=80" alt="Campus Life" className="card-bg-img" />
               <div className="card-overlay"></div>
               <div className="card-content-overlay">
-                <h3 className="card-headline">EXPLORE A THRIVING CAMPUS WORLD</h3>
+                <h3 className="card-headline">EXPLORE A THRIVING CAMPUS</h3>
                 <a href="#about" className="circle-btn" aria-label="Explore Campus World">→</a>
               </div>
             </div>

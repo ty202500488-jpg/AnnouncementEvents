@@ -279,7 +279,7 @@ export default function Auth() {
             {/* Login Form */}
             <form onSubmit={handleLoginSubmit} className={`auth-form ${activeTab === 'login' ? 'active' : ''}`}>
               <div className="form-group">
-                <label>Email</label>
+                <label className="form-label">Email</label>
                 <div className="input-container">
                   <input 
                     type="email" 
@@ -293,7 +293,7 @@ export default function Auth() {
 
               <div className="form-group">
                 <div className="label-row">
-                  <label>Password</label>
+                  <label className="form-label">Password</label>
                   <a href="#forgot" className="forgot-link">Forgot password?</a>
                 </div>
                 <div className="input-container password-container">
@@ -323,7 +323,7 @@ export default function Auth() {
               <div className="form-section-title">Personal Information</div>
 
               <div className="form-group">
-                <label>Student ID</label>
+                <label className="form-label" >Student ID</label>
                 <div className="input-container">
                   <input 
                     type="text" 
@@ -337,7 +337,7 @@ export default function Auth() {
 
               <div className="form-row three-cols">
                 <div className="form-group">
-                  <label>First Name</label>
+                  <label className="form-label">First Name</label>
                   <div className="input-container">
                     <input 
                       type="text" 
@@ -349,7 +349,7 @@ export default function Auth() {
                   </div>
                 </div>
                 <div className="form-group">
-                  <label>Middle Initial</label>
+                  <label className="form-label">Middle Initial</label>
                   <div className="input-container">
                     <input 
                       type="text" 
@@ -361,7 +361,7 @@ export default function Auth() {
                   </div>
                 </div>
                 <div className="form-group">
-                  <label>Last Name</label>
+                  <label className="form-label">Last Name</label>
                   <div className="input-container">
                     <input 
                       type="text" 
@@ -377,7 +377,7 @@ export default function Auth() {
               <div className="form-section-title">Academic Details</div>
 
               <div className="form-group">
-                <label>College / Department</label>
+                <label className="form-label">College / Department</label>
                 <div className="input-container select-container">
                   <select value={selectedCollege} onChange={handleCollegeChange} required>
                     <option value="" disabled>Select Department</option>
@@ -390,7 +390,7 @@ export default function Auth() {
 
               <div className="form-row two-cols">
                 <div className="form-group">
-                  <label>Program / Course</label>
+                  <label className="form-label">Program / Course</label>
                   <div className="input-container select-container">
                     <select 
                       value={regData.programId} 
@@ -406,7 +406,7 @@ export default function Auth() {
                 </div>
 
                 <div className="form-group">
-                  <label>Year Level</label>
+                  <label className="form-label">Year Level</label>
                   <div className="input-container select-container">
                     <select 
                       value={regData.yearLevel} 
@@ -427,7 +427,7 @@ export default function Auth() {
               <div className="form-section-title">Account Credentials</div>
 
               <div className="form-group">
-                <label>WMSU Email</label>
+                <label className="form-label">WMSU Email</label>
                 <div className="input-container">
                   <input 
                     type="email" 
@@ -441,7 +441,7 @@ export default function Auth() {
 
               <div className="form-row two-cols">
                 <div className="form-group">
-                  <label>Password</label>
+                  <label className="form-label">Password</label>
                   <div className="input-container password-container">
                     <input 
                       type={showRegPassword ? 'text' : 'password'} 
@@ -462,7 +462,7 @@ export default function Auth() {
                 </div>
 
                 <div className="form-group">
-                  <label>Confirm Password</label>
+                  <label className="form-label">Confirm Password</label>
                   <div className="input-container password-container">
                     <input 
                       type={showRegConfirmPassword ? 'text' : 'password'} 

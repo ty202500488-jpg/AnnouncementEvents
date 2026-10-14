@@ -154,13 +154,13 @@ export default function DashboardLayout({ children, activePage }) {
                     <span>Home</span>
                   </div>
                 </a>
-                <a href="/student/dashboard" className="nav-item">
+                <a href="/student/announcements" className={`nav-item ${activePage === 'announcements' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
                     <i className="fa-solid fa-bullhorn nav-icon"></i>
                     <span>Announcements</span>
                   </div>
                 </a>
-                <a href="/student/dashboard" className="nav-item">
+                <a href="/student/events" className={`nav-item ${activePage === 'events' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
                     <i className="fa-regular fa-calendar-days nav-icon"></i>
                     <span>Events</span>
@@ -185,7 +185,7 @@ export default function DashboardLayout({ children, activePage }) {
                     <span>Notifications</span>
                   </div>
                 </a>
-                <a href="#" className="nav-item">
+                <a href="/student/my-events" className={`nav-item ${activePage === 'my-events' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
                     <i className="fa-solid fa-calendar-days nav-icon"></i>
                     <span>My Events</span>

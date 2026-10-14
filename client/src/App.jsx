@@ -3,8 +3,11 @@ import LandingPage from './pages/LandingPage';
 import Auth from './pages/Auth';
 import ConfirmEmail from './pages/ConfirmEmail';
 import StudentDashboard from './pages/Student/StudentDashboard';
+import Announcements from './pages/Student/Announcements';
+import Events from './pages/Student/Events';
 import Profile from './pages/Student/Profile';
 import Notifications from './pages/Student/Notification';
+import MyEvents from './pages/Student/MyEvents';
 import Settings from './pages/Student/Settings';
 import HelpSupport from './pages/Student/HelpSupport';
 import StaffDashboard from './pages/Staff/StaffDashboard';
@@ -22,8 +25,11 @@ function App() {
 
         {/* Student Routes */}
         <Route path="/student/dashboard" element={<StudentDashboard />} />
+        <Route path="/student/announcements" element={<Announcements />} />
+        <Route path="/student/events" element={<Events />} />
         <Route path="/student/profile" element={<Profile />} />
         <Route path="/student/notifications" element={<Notifications />} />
+        <Route path="/student/my-events" element={<MyEvents />} />
         <Route path="/student/help" element={<HelpSupport />} />
         <Route path="/student/settings" element={<Settings />} />
 
