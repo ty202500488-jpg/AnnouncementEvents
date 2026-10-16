@@ -11,7 +11,10 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
 
+  // State for page creation and admin validation status / Page Info
   const [pageInfo, setPageInfo] = useState({
+    exists: false,
+    status: 'none', // 'none', 'pending', 'approved', 'rejected'
     name: 'College Of Computing Studies',
     code: 'COCS',
     subtitle: 'Academic College'
@@ -32,36 +35,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       }
     }
 
-    const fetchUserPageStatus = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        const response = await fetch('http://localhost:5000/api/my-page-status', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await response.json();
-        if (response.ok && data.exists) {
-          const name = data.pageName || 'College Of Computing Studies';
-          const initials = name
-            .split(' ')
-            .filter(w => w.length > 0)
-            .map(w => w[0])
-            .join('')
-            .toUpperCase()
-            .substring(0, 4);
-
-          setPageInfo({
-            name: name,
-            code: initials || 'COCS',
-            subtitle: data.category || 'Academic College'
-          });
-        }
-      } catch (err) {
-        console.error('Failed to fetch user created page info:', err);
-      }
-    };
-
     const fetchApprovedPages = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/approved-pages', {
@@ -79,8 +52,44 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       }
     };
 
-    fetchUserPageStatus();
+    const fetchUserPageStatus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch('http://localhost:5000/api/my-page-status', {
+          method: 'GET',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` 
+          }
+        });
+        const data = await response.json();
+        if (response.ok) {
+          const name = data.pageName || 'College Of Computing Studies';
+          const initials = name
+            .split(' ')
+            .filter(w => w.length > 0)
+            .map(w => w[0])
+            .join('')
+            .toUpperCase()
+            .substring(0, 4);
+
+          setPageInfo({
+            exists: data.exists || false,
+            status: data.status || 'none',
+            name: name,
+            code: initials || 'COCS',
+            subtitle: data.category || 'Academic College'
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch user page status:', err);
+      }
+    };
+
     fetchApprovedPages();
+    fetchUserPageStatus();
 
     const mobileMenuBtn = document.getElementById('mobileMenuBtn');
     const leftSidebar = document.getElementById('leftSidebar');
@@ -214,66 +223,66 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             <div>
               <div className="nav-group-title">MAIN</div>
               <nav className="space-y-1">
-                <button 
-                  onClick={() => handleNavigation('overview')} 
+                <a 
+                  href="#overview" 
+                  onClick={(e) => { e.preventDefault(); handleNavigation('overview'); }}
                   className={`nav-item ${activeTab === 'overview' ? 'active btn-nav' : ''}`}
-                  style={{ width: '100%', border: 'none', background: activeTab === 'overview' ? undefined : 'transparent', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-house nav-icon"></i>
                     <span>Home</span>
                   </div>
-                </button>
-                <button 
-                  onClick={() => handleNavigation('profile')} 
+                </a>
+                <a 
+                  href="#profile" 
+                  onClick={(e) => { e.preventDefault(); handleNavigation('profile'); }}
                   className={`nav-item ${activeTab === 'profile' ? 'active btn-nav' : ''}`}
-                  style={{ width: '100%', border: 'none', background: activeTab === 'profile' ? undefined : 'transparent', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-id-badge nav-icon"></i>
                     <span>Page Profile</span>
                   </div>
-                </button>
-                <button 
-                  onClick={() => handleNavigation('announcements')} 
+                </a>
+                <a 
+                  href="#announcements" 
+                  onClick={(e) => { e.preventDefault(); handleNavigation('announcements'); }}
                   className={`nav-item ${activeTab === 'announcements' ? 'active btn-nav' : ''}`}
-                  style={{ width: '100%', border: 'none', background: activeTab === 'announcements' ? undefined : 'transparent', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-bullhorn nav-icon"></i>
                     <span>Announcements</span>
                   </div>
-                </button>
-                <button 
-                  onClick={() => handleNavigation('events')} 
+                </a>
+                <a 
+                  href="#events" 
+                  onClick={(e) => { e.preventDefault(); handleNavigation('events'); }}
                   className={`nav-item ${activeTab === 'events' ? 'active btn-nav' : ''}`}
-                  style={{ width: '100%', border: 'none', background: activeTab === 'events' ? undefined : 'transparent', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div className="nav-item-content">
                     <i className="fa-regular fa-calendar-days nav-icon"></i>
                     <span>Events</span>
                   </div>
-                </button>
-                <button 
-                  onClick={() => handleNavigation('registrations')} 
+                </a>
+                <a 
+                  href="#registrations" 
+                  onClick={(e) => { e.preventDefault(); handleNavigation('registrations'); }}
                   className={`nav-item ${activeTab === 'registrations' ? 'active btn-nav' : ''}`}
-                  style={{ width: '100%', border: 'none', background: activeTab === 'registrations' ? undefined : 'transparent', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-users-rectangle nav-icon"></i>
                     <span>Registrations</span>
                   </div>
-                </button>
-                <button 
-                  onClick={onSwitchToStaffDashboard} 
+                </a>
+                <a 
+                  href="#" 
+                  onClick={(e) => { e.preventDefault(); if (onSwitchToStaffDashboard) onSwitchToStaffDashboard(); }}
                   className="nav-item"
-                  style={{ width: '100%', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-flag nav-icon"></i>
                     <span>Staff Dashboard</span>
                   </div>
-                </button>
+                </a>
               </nav>
             </div>
 
@@ -281,26 +290,16 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             <div>
               <div className="nav-group-title">SYSTEM</div>
               <nav className="space-y-1">
-                <button 
-                  onClick={() => handleNavigation('help')}
-                  className={`nav-item ${activeTab === 'help' ? 'active btn-nav' : ''}`}
-                  style={{ width: '100%', border: 'none', background: activeTab === 'help' ? undefined : 'transparent', cursor: 'pointer', textAlign: 'left' }}
-                >
-                  <div className="nav-item-content">
-                    <i className="fa-solid fa-circle-info nav-icon"></i>
-                    <span>Help & Support</span>
-                  </div>
-                </button>
-                <button 
-                  onClick={() => handleNavigation('settings')}
+                <a 
+                  href="#settings"
+                  onClick={(e) => { e.preventDefault(); handleNavigation('settings'); }}
                   className={`nav-item ${activeTab === 'settings' ? 'active btn-nav' : ''}`}
-                  style={{ width: '100%', border: 'none', background: activeTab === 'settings' ? undefined : 'transparent', cursor: 'pointer', textAlign: 'left' }}
                 >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-gear nav-icon"></i>
                     <span>Settings</span>
                   </div>
-                </button>
+                </a>
                 <a href="/" className="nav-item" style={{ color: 'var(--rose-600)' }}>
                   <div className="nav-item-content">
                     <i className="fa-solid fa-right-from-bracket nav-icon" style={{ color: 'var(--rose-600)' }}></i>

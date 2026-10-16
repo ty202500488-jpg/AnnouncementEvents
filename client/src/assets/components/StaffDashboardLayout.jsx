@@ -264,12 +264,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
             <div>
               <div className="nav-group-title">System</div>
               <nav className="space-y-1">
-                <a href="/staff/help" className={`nav-item ${activePage === 'help' ? 'active btn-nav' : ''}`}>
-                  <div className="nav-item-content">
-                    <i className="fa-solid fa-circle-info nav-icon"></i>
-                    <span>Help & Support</span>
-                  </div>
-                </a>
                 <a href="/staff/settings" className={`nav-item ${activePage === 'settings' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
                     <i className="fa-solid fa-gear nav-icon"></i>
