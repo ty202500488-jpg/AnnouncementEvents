@@ -5,6 +5,7 @@ import image1 from '../assets/images/image1.jpg';
 import image2 from '../assets/images/image2.jpg';
 import image3 from '../assets/images/image3.jpg';
 import image4 from '../assets/images/image4.jpg';
+import image5 from '../assets/images/image5.jpg';
 
 
 export default function LandingPage() {
@@ -258,7 +259,7 @@ export default function LandingPage() {
             </div>
 
             <div className="grid-card image-card banner-card">
-              <img src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1200&q=80" alt="Welcome to Crimson" className="card-bg-img" />
+              <img src={image5} alt="Welcome to Crimson" className="card-bg-img" />
               <div className="card-overlay"></div>
               
               <div className="vertical-badge">

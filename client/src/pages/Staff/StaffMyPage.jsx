@@ -106,7 +106,7 @@ export default function StaffMyPage({ onBack }) {
     if (onBack) {
       onBack();
     } else {
-      window.location.href = '/staff/dashboard';
+      window.location.href = '/staff/mypage/dashboard';
     }
   };
 
@@ -134,7 +134,7 @@ export default function StaffMyPage({ onBack }) {
               onClick={handleSwitchDashboard}
               style={{ fontSize: '0.8125rem', padding: '0.5rem 1rem', background: '#f1f5f9', color: 'var(--slate-700)', border: '1px solid var(--slate-300)', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', transition: 'all 0.2s' }}
             >
-              <i className="fa-solid fa-arrow-left"></i> Switch to Page Dashboard
+              <i className="fa-solid fa-right-left"></i> Switch to Page Dashboard
             </button>
 
             <a href={`/public/page/${createdPage.pageId}`} target="_blank" rel="noopener noreferrer" style={{ backgroundColor: '#881337', color: '#fff', border: 'none', padding: '0.5rem 1rem', borderRadius: '0.375rem', fontSize: '0.8125rem', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
@@ -176,7 +176,7 @@ export default function StaffMyPage({ onBack }) {
                   <p style={{ fontSize: '0.875rem', color: 'var(--slate-500)', lineHeight: 1.5, margin: 0 }}>Publish approved notices.</p>
                 </div>
                 <button 
-                  onClick={() => alert('Navigate to Announcement Creation')} 
+                  onClick={() => window.location.href = '/staff/mypage/dashboard'} 
                   style={{ marginTop: '1.5rem', backgroundColor: '#881337', color: '#fff', border: 'none', padding: '0.625rem 1.125rem', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
                 >
                   Create Notice
@@ -193,7 +193,7 @@ export default function StaffMyPage({ onBack }) {
                   <p style={{ fontSize: '0.875rem', color: 'var(--slate-500)', lineHeight: 1.5, margin: 0 }}>Add schedules, venues, and posters.</p>
                 </div>
                 <button 
-                  onClick={() => alert('Navigate to Event Creation')} 
+                  onClick={() => window.location.href = '/staff/mypage/dashboard'} 
                   style={{ marginTop: '1.5rem', backgroundColor: '#881337', color: '#fff', border: 'none', padding: '0.625rem 1.125rem', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
                 >
                   Create Event
@@ -216,7 +216,7 @@ export default function StaffMyPage({ onBack }) {
             onClick={handleSwitchDashboard}
             style={{ fontSize: '0.8125rem', padding: '0.5rem 1rem', background: '#f1f5f9', color: 'var(--slate-700)', border: '1px solid var(--slate-300)', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            <i className="fa-solid fa-arrow-left"></i> Switch to Page Dashboard
+            <i className="fa-solid fa-right-left"></i> Switch to Page Dashboard
           </button>
         </div>
 

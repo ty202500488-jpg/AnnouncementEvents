@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import Auth from './pages/Auth';
 import ConfirmEmail from './pages/ConfirmEmail';
@@ -18,6 +18,7 @@ import StaffDashboard from './pages/Staff/StaffDashboard';
 import StaffAnnouncements from './pages/Staff/StaffAnnouncements';
 import StaffEvents from './pages/Staff/StaffEvents';
 import StaffMyPage from './pages/Staff/StaffMyPage';
+import MyPageDashboard from './pages/Staff/MyPageDashboard/MyPageDashboard';
 import StaffProfile from './pages/Staff/StaffProfile';
 import StaffNotifications from './pages/Staff/StaffNotification';
 import StaffMyEvents from './pages/Staff/StaffMyEvents';
@@ -51,6 +52,10 @@ function App() {
         <Route path="/staff/announcements" element={<StaffAnnouncements />} />
         <Route path="/staff/events" element={<StaffEvents />} />
         <Route path="/staff/mypage" element={<StaffMyPage />} />
+        <Route 
+          path="/staff/mypage/dashboard" 
+          element={<MyPageDashboard onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+        />
         <Route path="/staff/profile" element={<StaffProfile />} />
         <Route path="/staff/notifications" element={<StaffNotifications />} />
         <Route path="/staff/my-events" element={<StaffMyEvents />} />
