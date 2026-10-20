@@ -208,22 +208,33 @@ export default function Auth() {
       terms_accepted: regData.termsAccepted
     };
 
+    let response;
     try {
-      const response = await fetch('http://localhost:5000/users/', {
+      response = await fetch('http://localhost:5000/users/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
-      if (response.ok) {
-        alert(data.message || 'Student account created successfully!');
-        setActiveTab('login');
-      } else {
-        alert(data.message || 'Registration failed');
-      }
     } catch (err) {
       console.error('Backend connection error:', err);
-      alert('Could not connect to the backend server.');
+      alert('Could not reach the backend server. Make sure it is running at http://localhost:5000.');
+      return;
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (err) {
+      console.error('Invalid registration API response:', err);
+      alert('The backend returned an invalid response. Check the server terminal for errors.');
+      return;
+    }
+
+    if (response.ok) {
+      alert(data.message || 'Student account created successfully!');
+      setActiveTab('login');
+    } else {
+      alert(data.message || 'Registration failed');
     }
   };
 

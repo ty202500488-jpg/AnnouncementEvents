@@ -21,12 +21,13 @@ router.get('/test', (req, res) => {
 
 // -------- CREATE STUDENT ACCOUNT & SEND VERIFICATION EMAIL -------- //
 router.post('/', async (req, res) => {
-    const client = await pool.connect();
+    let client;
+    let transactionStarted = false;
     try {
+        client = await pool.connect();
         const {
             student_id,
             first_name,
-            middle_initial,
             last_name,
             department_id,
             program_id,
@@ -98,6 +99,7 @@ router.post('/', async (req, res) => {
 
         // Start transaction[cite: 1]
         await client.query('BEGIN');
+        transactionStarted = true;
 
         // 6. Find the STUDENT role securely from database[cite: 1]
         const roleResult = await client.query(
@@ -166,7 +168,6 @@ router.post('/', async (req, res) => {
                 student_id,
                 role_id,
                 first_name,
-                middle_initial,
                 last_name,
                 email,
                 password_hash,
@@ -177,14 +178,13 @@ router.post('/', async (req, res) => {
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6,
-                $7, $8, $9, $10, 'Pending'
+                $7, $8, $9, 'Pending'
             )
             RETURNING
                 user_id,
                 student_id,
                 role_id,
                 first_name,
-                middle_initial,
                 last_name,
                 email,
                 year_level,
@@ -196,7 +196,6 @@ router.post('/', async (req, res) => {
                 student_id.trim(),
                 studentRoleId,
                 first_name.trim(),
-                middle_initial?.trim() || null,
                 last_name.trim(),
                 normalizedEmail,
                 hashedPassword,
@@ -231,12 +230,14 @@ router.post('/', async (req, res) => {
         } catch (emailError) {
             console.error('Email sending failed:', emailError);
             await client.query('ROLLBACK');
+            transactionStarted = false;
             return res.status(500).json({ 
                 message: 'Failed to send verification email. Please check your email settings or app password.' 
             });
         }
 
         await client.query('COMMIT');
+        transactionStarted = false;
 
         return res.status(201).json({
             message: 'Student account created successfully! Please check your email inbox to verify your account before logging in.',
@@ -244,8 +245,26 @@ router.post('/', async (req, res) => {
         });
 
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('Create user error:', error);
+        if (client && transactionStarted) {
+            try {
+                await client.query('ROLLBACK');
+            } catch (rollbackError) {
+                console.error('Create user rollback failed:', rollbackError.message);
+            }
+        }
+        console.error('Create user error:', error.message);
+
+        if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+            return res.status(503).json({
+                message: 'The database is unavailable. Start PostgreSQL and check DB_HOST and DB_PORT in the server environment.'
+            });
+        }
+
+        if (error.code === '28P01' || error.code === '3D000') {
+            return res.status(503).json({
+                message: 'The database login or database name is incorrect. Check DB_USER, DB_PASSWORD, and DB_NAME in the server environment.'
+            });
+        }
 
         if (error.code === '23505') {
             if (error.constraint?.includes('student_id')) {
@@ -263,7 +282,7 @@ router.post('/', async (req, res) => {
 
         return res.status(500).json({ message: 'Server error while creating account.' });
     } finally {
-        client.release();
+        client?.release();
     }
 });
 
