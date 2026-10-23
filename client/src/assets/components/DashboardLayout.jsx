@@ -12,9 +12,12 @@ export default function DashboardLayout({ children, activePage }) {
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
 
+  // MOBILE MENU STATE
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // SEARCH BAR STATE & LOGIC
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all'); // 'all', 'announcements', 'events', 'departments'
+  const [filterCategory, setFilterCategory] = useState('all');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -30,9 +33,9 @@ export default function DashboardLayout({ children, activePage }) {
       try {
         const parsed = JSON.parse(storedUser);
         setUser({
-          firstName: parsed.first_name || 'Alex',
-          lastName: parsed.last_name || 'Rivera',
-          program: parsed.program_name || parsed.course || 'BS Computer Science'
+          firstName: parsed.first_name || parsed.firstName || 'Alex',
+          lastName: parsed.last_name || parsed.lastName || 'Rivera',
+          program: parsed.program_name || parsed.course || parsed.program || 'BS Computer Science'
         });
       } catch (err) {
         console.error('Failed to parse user from localStorage', err);
@@ -45,9 +48,13 @@ export default function DashboardLayout({ children, activePage }) {
 
     const fetchApprovedPages = async () => {
       try {
-        const response = await fetch('http://localhost:5000/users/approved-pages', {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:5000/api/approved-pages', {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          }
         });
         const data = await response.json();
         if (response.ok && data.pages) {
@@ -62,14 +69,6 @@ export default function DashboardLayout({ children, activePage }) {
 
     fetchApprovedPages();
 
-    // Mobile menu toggle
-    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-    const leftSidebar = document.getElementById('leftSidebar');
-    const handleMenuClick = () => {
-      leftSidebar?.classList.toggle('mobile-sidebar-active');
-    };
-    mobileMenuBtn?.addEventListener('click', handleMenuClick);
-
     // Click outside handler for dropdowns
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
@@ -81,20 +80,17 @@ export default function DashboardLayout({ children, activePage }) {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Live storage update listener for cross-component synchronization
     const handleStorageChange = () => {
       loadUserData();
     };
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      mobileMenuBtn?.removeEventListener('click', handleMenuClick);
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
-  // Live Search Query Handler
   const handleSearchChange = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -105,13 +101,13 @@ export default function DashboardLayout({ children, activePage }) {
 
       try {
         const deptMatches = departments
-          .filter(d => d.name.toLowerCase().includes(query.toLowerCase()))
+          .filter(d => d.name && d.name.toLowerCase().includes(query.toLowerCase()))
           .map(d => ({
             id: d.id,
             title: d.name,
             category: 'departments',
             type: 'Department Page',
-            url: d.url || '#'
+            url: `/student/page/${d.id}`
           }));
 
         const staticSystemRecords = [
@@ -150,15 +146,34 @@ export default function DashboardLayout({ children, activePage }) {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/';
+  };
+
   return (
-    <div className="student-dashboard-wrapper">
+    <div className="student-dashboard-wrapper" style={{ paddingBottom: '4rem' }}>
+      <style>{`
+        @media (min-width: 1024px) {
+          .mobile-bottom-nav {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       {/* TOP NAVBAR */}
       <header className="header">
         <div className="header-container">
           
-          {/* Left Logo & Branding */}
           <div className="flex items-center gap-3">
-            <button id="mobileMenuBtn" className="mobile-menu-btn icon-btn" style={{ color: 'var(--slate-600)' }}>
+            <button 
+              type="button" 
+              className="mobile-menu-btn icon-btn" 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              style={{ color: 'var(--slate-600)' }}
+              aria-label="Toggle Menu"
+            >
               <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
             </button>
             <div className="flex items-center gap-2">
@@ -249,7 +264,7 @@ export default function DashboardLayout({ children, activePage }) {
             )}
           </div>
 
-          {/* Right Profile & Quick Actions */}
+          {/* Profile & Quick Actions */}
           <div className="flex items-center gap-3"> 
             <div style={{ position: 'relative' }}>
               <button className="icon-btn" onClick={() => window.location.href = '/student/notifications'}>
@@ -260,7 +275,6 @@ export default function DashboardLayout({ children, activePage }) {
 
             <div className="divider-v"></div>
 
-            {/* Profile Pill with Dropdown */}
             <div ref={profileDropdownRef} style={{ position: 'relative' }}>
               <div 
                 className="profile-btn" 
@@ -276,7 +290,6 @@ export default function DashboardLayout({ children, activePage }) {
                 <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
               </div>
 
-              {/* Profile Dropdown Menu */}
               {showProfileDropdown && (
                 <div 
                   style={{
@@ -300,33 +313,19 @@ export default function DashboardLayout({ children, activePage }) {
                     <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user.program}</div>
                   </div>
 
-                  <a 
-                    href="/student/profile" 
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
+                  <a href="/student/profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
                     <i className="fa-regular fa-user" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Profile
                   </a>
-
-                  <a 
-                    href="/student/settings" 
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
+                  <a href="/student/settings" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
                     <i className="fa-solid fa-gear" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Settings
                   </a>
-
                   <div style={{ borderTop: '1px solid var(--slate-100)', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
-                    <a 
-                      href="/" 
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--rose-600)', textDecoration: 'none', transition: 'background 0.15s' }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--rose-50)'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    <button 
+                      onClick={handleLogout} 
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--rose-600)', background: 'none', border: 'none', width: '100%', cursor: 'pointer' }}
                     >
                       <i className="fa-solid fa-right-from-bracket" style={{ width: '16px' }}></i> Logout
-                    </a>
+                    </button>
                   </div>
                 </div>
               )}
@@ -335,14 +334,45 @@ export default function DashboardLayout({ children, activePage }) {
         </div>
       </header>
 
+      {/* MOBILE BACKDROP OVERLAY */}
+      {isMobileMenuOpen && (
+        <div 
+          className="mobile-overlay" 
+          onClick={() => setIsMobileMenuOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 45
+          }}
+        ></div>
+      )}
+
       {/* MAIN CONTAINER GRID */}
       <div className="main-container">
 
         {/* LEFT SIDEBAR */}
-        <aside id="leftSidebar" className="lg-col-3 space-y-6 hidden lg-block">
-          <div className="card space-y-5" style={{ padding: '1rem' }}>
+        <aside 
+          id="leftSidebar" 
+          className={`lg-col-3 space-y-6 ${isMobileMenuOpen ? 'mobile-sidebar-active' : 'hidden lg-block'}`}
+          style={isMobileMenuOpen ? {
+            display: 'block',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '280px',
+            height: '100vh',
+            zIndex: 50,
+            backgroundColor: '#ffffff',
+            boxShadow: '10px 0 25px rgba(0, 0, 0, 0.15)',
+            overflowY: 'auto',
+            padding: '1rem'
+          } : {}}
+        >
+          <div className="card space-y-5" style={{ padding: '1rem', height: '100%' }}>
             
-            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem' }}>
+            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ padding: '0 0.75rem', textAlign: 'left' }}>
                 <span style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem', display: 'block', lineHeight: 1.2 }}>
                   {user.firstName} {user.lastName}
@@ -351,6 +381,16 @@ export default function DashboardLayout({ children, activePage }) {
                   {user.program}
                 </span>
               </div>
+              {isMobileMenuOpen && (
+                <button 
+                  type="button" 
+                  className="icon-btn lg:hidden" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  style={{ color: 'var(--slate-600)' }}
+                >
+                  <i className="fa-solid fa-xmark" style={{ fontSize: '1.2rem' }}></i>
+                </button>
+              )}
             </div>
 
             <div>
@@ -410,12 +450,16 @@ export default function DashboardLayout({ children, activePage }) {
                     <span>Settings</span>
                   </div>
                 </a>
-                <a href="/" className="nav-item" style={{ color: 'var(--rose-600)' }}>
+                <button 
+                  onClick={handleLogout} 
+                  className="nav-item" 
+                  style={{ color: 'var(--rose-600)', background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-right-from-bracket nav-icon" style={{ color: 'var(--rose-600)' }}></i>
                     <span>Logout</span>
                   </div>
-                </a>
+                </button>
               </nav>
             </div>
           </div>
@@ -424,31 +468,58 @@ export default function DashboardLayout({ children, activePage }) {
         {/* DYNAMIC CENTER CONTENT */}
         {children}
 
-        {/* RIGHT SIDEBAR */}
-        <aside className="lg-col-3 space-y-6">
+        {/* RIGHT SIDEBAR WITH CATEGORIES DISPLAYED BELOW DEPARTMENT NAMES */}
+        <aside className="lg-col-3 space-y-6 hidden lg-block">
           <div className="card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
               <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.975rem' }}>Department Pages</h3>
-              <span style={{ color: 'var(--brand-600)', fontSize: '11px', fontWeight: 700, padding: '0.125rem 0.5rem', cursor: 'pointer' }}>View All</span>
+              <span style={{ color: '#881337', fontSize: '11px', fontWeight: 700, padding: '0.125rem 0.5rem', cursor: 'pointer' }}>View All</span>
             </div>
 
-            <div className="dept-list space-y-2">
+            <div className="dept-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {loadingDepts ? (
                 <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center', padding: '1rem' }}>Loading pages...</p>
               ) : departments.length === 0 ? (
                 <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center', padding: '1rem' }}>No approved pages found.</p>
               ) : (
                 departments.map((dept, index) => (
-                  <a key={dept.id || index} href={dept.url || '#'} className={`dept-item ${dept.is_university ? 'dept-item-university' : dept.is_user_dept ? 'dept-item-user' : ''}`}>
-                    <div className="dept-info">
-                      <span className="dept-title">{dept.name}</span>
-                      <span className="dept-sub">{dept.subtitle || dept.category || 'Official Page'}</span>
+                  <a 
+                    key={dept.id || index} 
+                    href={`/student/page/${dept.id}`} 
+                    className="dept-item"
+                    style={{
+                      display: 'block',
+                      padding: '0.75rem 1rem',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #e2e8f0',
+                      borderLeft: '4px solid #e2e8f0',
+                      textDecoration: 'none',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#fff5f6';
+                      e.currentTarget.style.borderColor = '#fecdd3';
+                      e.currentTarget.style.borderLeftColor = '#881337';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(136, 19, 55, 0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#ffffff';
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                      e.currentTarget.style.borderLeftColor = '#e2e8f0';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.02)';
+                    }}
+                  >
+                    <div className="dept-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span className="dept-title" style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem' }}>{dept.name}</span>
+                      <span className="dept-sub" style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 500 }}>{dept.category || dept.subtitle || 'Official Page'}</span>
                     </div>
                   </a>
                 ))
               )}
 
-              <a href="#" className="see-more-btn" style={{ marginTop: '0.75rem' }}>
+              <a href="/student/pages" className="see-more-btn" style={{ marginTop: '0.5rem', textAlign: 'center', display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#881337', textDecoration: 'none' }}>
                 <span>See More</span>
               </a>
             </div>
@@ -456,6 +527,93 @@ export default function DashboardLayout({ children, activePage }) {
         </aside>
 
       </div>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav 
+        className="mobile-bottom-nav"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '60px',
+          backgroundColor: '#ffffff',
+          borderTop: '1px solid var(--slate-200, #e2e8f0)',
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          zIndex: 100,
+          boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
+        }}
+      >
+        <a 
+          href="/student/dashboard" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'home' ? 700 : 500,
+            color: activePage === 'home' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-house" style={{ fontSize: '1.1rem' }}></i>
+          <span>Home</span>
+        </a>
+
+        <a 
+          href="/student/announcements" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'announcements' ? 700 : 500,
+            color: activePage === 'announcements' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-bullhorn" style={{ fontSize: '1.1rem' }}></i>
+          <span>Announcements</span>
+        </a>
+
+        <a 
+          href="/student/events" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'events' ? 700 : 500,
+            color: activePage === 'events' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
+          <span>Events</span>
+        </a>
+
+        <a 
+          href="/student/profile" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'profile' ? 700 : 500,
+            color: activePage === 'profile' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-regular fa-user" style={{ fontSize: '1.1rem' }}></i>
+          <span>Profile</span>
+        </a>
+      </nav>
     </div>
   );
 }

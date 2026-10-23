@@ -181,14 +181,51 @@ export default function StaffMyPage() {
 
   return (
     <StaffDashboardLayout activePage="mypage">
+      <style>{`
+        /* Hide scrollbars across Chrome, Safari, Edge, and Firefox */
+        ::-webkit-scrollbar {
+          display: none;
+        }
+        html, body, * {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
+
       <main className="lg-col-6 space-y-6" style={{ paddingBottom: '3rem' }}>
         
         {pageData ? (
           <>
-            {/* Page Header: Name, Category, Description, and Actions */}
+            {/* Page Header: Name, Category, Clean Status Badges, Description, and Actions */}
             <div style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.75rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.5rem' }}>
               <div style={{ flex: 1, minWidth: '280px' }}>
-                <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.25rem 0' }}>{pageData.name}</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                  <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>{pageData.name}</h1>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '9999px',
+                      backgroundColor: pageData.approvalStatus === 'Approved' ? '#dcfce7' : pageData.approvalStatus === 'Rejected' ? '#fee2e2' : '#fef3c7',
+                      color: pageData.approvalStatus === 'Approved' ? '#166534' : pageData.approvalStatus === 'Rejected' ? '#991b1b' : '#92400e',
+                      border: `1px solid ${pageData.approvalStatus === 'Approved' ? '#bbf7d0' : pageData.approvalStatus === 'Rejected' ? '#fecaca' : '#fde68a'}`
+                    }}>
+                      {pageData.approvalStatus}
+                    </span>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '9999px',
+                      backgroundColor: pageData.pageStatus === 'Active' ? '#fff5f6' : '#f1f5f9',
+                      color: pageData.pageStatus === 'Active' ? '#881337' : '#64748b',
+                      border: `1px solid ${pageData.pageStatus === 'Active' ? '#fecdd3' : '#cbd5e1'}`
+                    }}>
+                      {pageData.pageStatus}
+                    </span>
+                  </div>
+                </div>
                 <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#7B0D1E', margin: '0 0 0.75rem 0' }}>{pageData.category}</p>
                 <p style={{ fontSize: '0.9375rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>
                   {pageData.description || 'No description provided.'}
@@ -209,41 +246,6 @@ export default function StaffMyPage() {
                 >
                   <i className="fa-solid fa-chart-line"></i> Switch to Page Dashboard <i className="fa-solid fa-arrow-right" style={{ fontSize: '0.75rem' }}></i>
                 </button>
-              </div>
-            </div>
-
-            {/* Page Status Badges */}
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', background: '#ffffff', padding: '1.25rem 1.5rem', borderRadius: '0.875rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#475569' }}>Approval Status:</span>
-                <span style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '9999px',
-                  backgroundColor: pageData.approvalStatus === 'Approved' ? '#dcfce7' : pageData.approvalStatus === 'Rejected' ? '#fee2e2' : '#fef3c7',
-                  color: pageData.approvalStatus === 'Approved' ? '#166534' : pageData.approvalStatus === 'Rejected' ? '#991b1b' : '#92400e',
-                  border: `1px solid ${pageData.approvalStatus === 'Approved' ? '#bbf7d0' : pageData.approvalStatus === 'Rejected' ? '#fecaca' : '#fde68a'}`
-                }}>
-                  {pageData.approvalStatus}
-                </span>
-              </div>
-
-              <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#475569' }}>Page Status:</span>
-                <span style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  padding: '0.25rem 0.75rem',
-                  borderRadius: '9999px',
-                  backgroundColor: pageData.pageStatus === 'Active' ? '#f0fdf4' : '#f1f5f9',
-                  color: pageData.pageStatus === 'Active' ? '#15803d' : '#64748b',
-                  border: `1px solid ${pageData.pageStatus === 'Active' ? '#bbf7d0' : '#cbd5e1'}`
-                }}>
-                  {pageData.pageStatus}
-                </span>
               </div>
             </div>
 

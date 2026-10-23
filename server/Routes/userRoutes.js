@@ -16,23 +16,35 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Rate limiters for security-sensitive endpoints
+// Rate limiters for security-sensitive endpoints (adjusted for better UX & testing)
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
-    message: { message: 'Too many login attempts from this IP, please try again after 15 minutes.' }
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Too many login attempts. Please try again after 15 minutes.' }
 });
 
 const registerLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 5,
-    message: { message: 'Too many registration requests from this IP, please try again later.' }
+    windowMs: 15 * 60 * 1000, // Reduced window to 15 minutes (was 1 hour)
+    max: 15, // Increased attempts to 15 (was 5) so form typos and testing don't lock you out
+    standardHeaders: true,
+    legacyHeaders: false,
+    // Optional: Skip rate limiting entirely during local development if desired
+    skip: (req) => process.env.NODE_ENV === 'development' && (req.ip === '::1' || req.ip === '127.0.0.1' || req.ip === '::ffff:127.0.0.1'),
+    handler: (req, res) => {
+        return res.status(429).json({ 
+            message: 'Too many registration attempts. Please wait a few minutes before trying again.' 
+        });
+    }
 });
 
 const resendLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 3,
-    message: { message: 'Too many verification email requests. Please wait before trying again.' }
+    max: 5, // Increased from 3 to 5
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Too many verification email requests. Please wait a few minutes before trying again.' }
 });
 
 // -------- TEST ROUTE -------- //
@@ -319,7 +331,7 @@ router.post('/resend-verification', resendLimiter, async (req, res) => {
                     <h2 style="color: #800000;">New Verification Request</h2>
                     <p>Hello ${pending.first_name}, here is your new verification link:</p>
                     <div style="text-align: center; margin: 30px 0;">
-                        <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
+                        <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-security: none; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
                     </div>
                     <p style="font-size: 0.85rem; color: #777;">This link expires in 24 hours.</p>
                 </div>
@@ -359,7 +371,6 @@ router.post('/login', loginLimiter, async (req, res) => {
 
         const user = result.rows[0];
 
-        // Unverified accounts never exist in users table, but if status is anything other than Active:
         if (user.status?.toLowerCase() !== 'active') {
             return res.status(403).json({ message: 'Your account is not active.' });
         }
