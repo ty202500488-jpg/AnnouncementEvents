@@ -18,16 +18,30 @@ export default function StaffSettings() {
 
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
+  // Fetch settings from PostgreSQL backend on mount
   useEffect(() => {
-    const storedSettings = localStorage.getItem('staffSettings');
-    if (storedSettings) {
+    const fetchSettings = async () => {
+      const staffId = localStorage.getItem('staff_id') || '2024-STAFF01';
       try {
-        setSettings(JSON.parse(storedSettings));
+        const res = await fetch(`/api/settings?staff_id=${staffId}`);
+        const data = await res.json();
+        
+        if (res.ok && data.settings) {
+          setSettings(data.settings);
+        } else {
+          const storedSettings = localStorage.getItem('staffSettings');
+          if (storedSettings) setSettings(JSON.parse(storedSettings));
+        }
       } catch (err) {
-        console.error('Failed to parse settings from localStorage', err);
+        console.error('Database connection failed, loading local settings:', err);
+        const storedSettings = localStorage.getItem('staffSettings');
+        if (storedSettings) setSettings(JSON.parse(storedSettings));
       }
-    }
+    };
+
+    fetchSettings();
   }, []);
 
   const handleToggle = (e) => {
@@ -38,44 +52,66 @@ export default function StaffSettings() {
     }));
   };
 
-  const handleSaveSettings = (e) => {
+  const handleSaveSettings = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    const staffId = localStorage.getItem('staff_id') || '2024-STAFF01';
+
     try {
+      // 1. Save to PostgreSQL database
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staff_id: staffId, settings }),
+      });
+
+      if (!res.ok) throw new Error('Failed to persist in database');
+
+      // 2. Cache in localStorage
       localStorage.setItem('staffSettings', JSON.stringify(settings));
-      setMessage('Settings successfully updated!');
+
+      setMessage('Settings successfully updated and saved to server!');
       setErrorMessage('');
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
-      console.error('Failed to save settings', err);
-      setErrorMessage('Failed to save settings. Please try again.');
+      console.error('Failed to save settings:', err);
+      localStorage.setItem('staffSettings', JSON.stringify(settings));
+      setMessage('Settings saved locally.');
+      setTimeout(() => setMessage(''), 3000);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleLogoutAllSessions = async () => {
     if (window.confirm('Are you sure you want to log out of all other active sessions?')) {
+      const staffId = localStorage.getItem('staff_id') || '2024-STAFF01';
       try {
-        setMessage('Successfully logged out of all other sessions.');
+        await fetch('/api/logout-other-sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ staff_id: staffId }),
+        });
+
+        setMessage('Successfully logged out of all other active sessions.');
         setTimeout(() => setMessage(''), 3000);
       } catch (err) {
-        console.error('Failed to logout sessions', err);
+        console.error('Failed to logout sessions:', err);
+        setErrorMessage('Failed to revoke sessions. Please try again.');
       }
     }
   };
 
   const handleDeleteAccountRequest = () => {
     if (window.confirm('Are you sure you want to request account deactivation or deletion? An administrator will review your request.')) {
-      try {
-        setMessage('Deactivation request sent to administration.');
-        setTimeout(() => setMessage(''), 3000);
-      } catch (err) {
-        console.error('Failed to submit deactivation request', err);
-      }
+      setMessage('Deactivation request sent to administration.');
+      setTimeout(() => setMessage(''), 3000);
     }
   };
 
   return (
     <StaffDashboardLayout activePage="settings">
-      <main className="lg-col-6 space-y-6">
+      <main className="lg-col-6 space-y-6 settings-wrapper">
         {message && (
           <div className="alert-success">
             <i className="fa-solid fa-circle-check"></i>
@@ -90,94 +126,92 @@ export default function StaffSettings() {
           </div>
         )}
 
-        <div className="card" style={{ padding: '1.75rem' }}>
-          <div className="flex items-center justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
+        <div className="settings-container-card">
+          <div className="settings-header-box">
             <div>
-              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Settings & Preferences</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Manage your notifications, feed appearance, and session security.</p>
+              <h3>Settings & Preferences</h3>
+              <p>Manage your notifications, feed appearance, and session security.</p>
             </div>
           </div>
 
-          <form onSubmit={handleSaveSettings} className="space-y-6">
+          <form onSubmit={handleSaveSettings}>
             
             {/* SECTION 1: NOTIFICATIONS */}
-            <div>
-              <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--slate-800)', marginBottom: '0.25rem' }}>Notifications</h4>
-              <p style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginBottom: '0.75rem' }}>Control which updates appear.</p>
+            <div className="settings-section-group" style={{ paddingTop: 0 }}>
+              <h4 className="settings-section-title">Notifications</h4>
+              <p className="settings-section-desc">Control which updates appear.</p>
               
-              <div className="space-y-3">
-                <label className="flex items-center justify-between" style={{ cursor: 'pointer', fontSize: '0.875rem', color: 'var(--slate-700)' }}>
+              <div className="space-y-1">
+                <label className="settings-toggle-row">
                   <span>New campus announcements</span>
                   <input 
                     type="checkbox" 
                     name="newCampusAnnouncements" 
                     checked={settings.newCampusAnnouncements} 
                     onChange={handleToggle} 
-                    style={{ width: '1.125rem', height: '1.125rem', accentColor: 'var(--color-primary)' }}
+                    className="settings-toggle-input"
                   />
                 </label>
 
-                <label className="flex items-center justify-between" style={{ cursor: 'pointer', fontSize: '0.875rem', color: 'var(--slate-700)' }}>
+                <label className="settings-toggle-row">
                   <span>Urgent announcements</span>
                   <input 
                     type="checkbox" 
                     name="urgentAnnouncements" 
                     checked={settings.urgentAnnouncements} 
                     onChange={handleToggle} 
-                    style={{ width: '1.125rem', height: '1.125rem', accentColor: 'var(--color-primary)' }}
+                    className="settings-toggle-input"
                   />
                 </label>
 
-                <label className="flex items-center justify-between" style={{ cursor: 'pointer', fontSize: '0.875rem', color: 'var(--slate-700)' }}>
+                <label className="settings-toggle-row">
                   <span>Upcoming events</span>
                   <input 
                     type="checkbox" 
                     name="upcomingEvents" 
                     checked={settings.upcomingEvents} 
                     onChange={handleToggle} 
-                    style={{ width: '1.125rem', height: '1.125rem', accentColor: 'var(--color-primary)' }}
+                    className="settings-toggle-input"
                   />
                 </label>
 
-                <label className="flex items-center justify-between" style={{ cursor: 'pointer', fontSize: '0.875rem', color: 'var(--slate-700)' }}>
+                <label className="settings-toggle-row">
                   <span>Event registration reminders</span>
                   <input 
                     type="checkbox" 
                     name="eventRegistrationReminders" 
                     checked={settings.eventRegistrationReminders} 
                     onChange={handleToggle} 
-                    style={{ width: '1.125rem', height: '1.125rem', accentColor: 'var(--color-primary)' }}
+                    className="settings-toggle-input"
                   />
                 </label>
 
-                <label className="flex items-center justify-between" style={{ cursor: 'pointer', fontSize: '0.875rem', color: 'var(--slate-700)' }}>
+                <label className="settings-toggle-row">
                   <span>Notifications for followed pages</span>
                   <input 
                     type="checkbox" 
                     name="followedPagesNotifications" 
                     checked={settings.followedPagesNotifications} 
                     onChange={handleToggle} 
-                    style={{ width: '1.125rem', height: '1.125rem', accentColor: 'var(--color-primary)' }}
+                    className="settings-toggle-input"
                   />
                 </label>
               </div>
             </div>
 
-            <div style={{ height: '1px', backgroundColor: 'var(--slate-100)' }}></div>
-
             {/* SECTION 2: PREFERENCES */}
-            <div>
-              <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--slate-800)', marginBottom: '0.25rem' }}>Preferences</h4>
-              <p style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginBottom: '0.75rem' }}>Customize the experience.</p>
+            <div className="settings-section-group">
+              <h4 className="settings-section-title">Preferences</h4>
+              <p className="settings-section-desc">Customize the experience.</p>
               
-              <div className="space-y-4">
-                <div className="form-group full-span">
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--slate-600)' }}>Default announcement feed filters</label>
+              <div className="space-y-3">
+                <div className="settings-form-group">
+                  <label>Default announcement feed filters</label>
                   <select 
                     name="defaultFeedFilter" 
                     value={settings.defaultFeedFilter} 
                     onChange={handleToggle} 
-                    className="form-input"
+                    className="settings-select-input"
                   >
                     <option value="all">All Announcements</option>
                     <option value="university">University-Wide Only</option>
@@ -185,13 +219,13 @@ export default function StaffSettings() {
                   </select>
                 </div>
 
-                <div className="form-group full-span">
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--slate-600)' }}>Preferred notification delivery</label>
+                <div className="settings-form-group">
+                  <label>Preferred notification delivery</label>
                   <select 
                     name="notificationDelivery" 
                     value={settings.notificationDelivery} 
                     onChange={handleToggle} 
-                    className="form-input"
+                    className="settings-select-input"
                   >
                     <option value="instant">Instant (Real-time)</option>
                     <option value="daily">Daily Digest</option>
@@ -201,17 +235,16 @@ export default function StaffSettings() {
               </div>
             </div>
 
-            <div style={{ height: '1px', backgroundColor: 'var(--slate-100)' }}></div>
-
-            {/* SECTION 3: ACCOUNT SECURITY & ACTIONS */}
-            <div>
-              <h4 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--slate-800)', marginBottom: '0.75rem' }}>Security & Account Control</h4>
-              <div className="flex flex-col gap-3">
+            {/* SECTION 3: SECURITY & ACCOUNT CONTROL */}
+            <div className="settings-section-group">
+              <h4 className="settings-section-title">Security & Account Control</h4>
+              <p className="settings-section-desc">Manage your active sessions and account actions.</p>
+              
+              <div className="settings-action-stack">
                 <button 
                   type="button" 
                   onClick={handleLogoutAllSessions} 
-                  className="cancel-profile-btn" 
-                  style={{ textAlign: 'left', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                  className="settings-btn-secondary"
                 >
                   <span>Log out of all other sessions</span>
                   <i className="fa-solid fa-right-from-bracket"></i>
@@ -220,7 +253,7 @@ export default function StaffSettings() {
                 <button 
                   type="button" 
                   onClick={handleDeleteAccountRequest} 
-                  style={{ textAlign: 'left', width: '100%', backgroundColor: '#fff1f2', color: '#e11d48', border: '1px solid #ffe4e6', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                  className="settings-btn-danger"
                 >
                   <span>Delete or deactivate account request</span>
                   <i className="fa-solid fa-user-slash"></i>
@@ -228,11 +261,13 @@ export default function StaffSettings() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3" style={{ marginTop: '2rem' }}>
-              <button type="submit" className="save-profile-btn">
-                Save Preferences
+            {/* FOOTER ACTIONS */}
+            <div className="settings-footer-actions">
+              <button type="submit" disabled={loading} className="settings-save-btn">
+                {loading ? 'Saving...' : 'Save Preferences'}
               </button>
             </div>
+
           </form>
         </div>
       </main>

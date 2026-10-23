@@ -1,6 +1,21 @@
 /* ========================================================================== */
-/* CLEAN SETTINGS & PREFERENCES LAYOUT CSS                                    */
+/* HIDE SCROLLBAR UTILITIES & CLEAN SETTINGS LAYOUT                           */
 /* ========================================================================== */
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.settings-wrapper::-webkit-scrollbar,
+.settings-container-card::-webkit-scrollbar,
+body::-webkit-scrollbar {
+    display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.settings-wrapper,
+.settings-container-card,
+body {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
 
 .settings-wrapper *, 
 .settings-wrapper *::before, 
@@ -10,6 +25,96 @@
     padding: 0;
 }
 
+/* Sidebar Menu Navigation Layout */
+.settings-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    padding: 0.5rem;
+    background: #ffffff;
+    border-radius: 1rem;
+    border: 1px solid var(--slate-200, #e2e8f0);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+    height: fit-content;
+}
+
+.settings-nav-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.875rem;
+    border-radius: 0.75rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s ease;
+}
+
+.settings-nav-item:hover {
+    background-color: var(--slate-50, #f8fafc);
+}
+
+.settings-nav-item.active {
+    background-color: var(--rose-50, #fff1f2);
+}
+
+.settings-nav-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.settings-nav-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background-color: var(--slate-100, #f1f5f9);
+    color: var(--slate-600, #475569);
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.settings-nav-item.active .settings-nav-icon {
+    background-color: #881337;
+    color: #ffffff;
+}
+
+.settings-nav-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--slate-800, #1e293b);
+    line-height: 1.25;
+}
+
+.settings-nav-item.active .settings-nav-label {
+    color: #881337;
+    font-weight: 700;
+}
+
+.settings-nav-desc {
+    font-size: 0.75rem;
+    color: var(--slate-400, #94a3b8);
+    margin-top: 0.125rem;
+}
+
+.settings-nav-chevron {
+    font-size: 0.75rem;
+    color: var(--slate-400, #94a3b8);
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.settings-nav-item.active .settings-nav-chevron {
+    color: #881337;
+    transform: translateX(2px);
+}
+
+/* Main Content Card Container */
 .settings-container-card {
     background: #ffffff;
     border-radius: 1rem;
@@ -141,7 +246,7 @@
     background-color: #f8fafc;
     color: var(--slate-700, #334155);
     border: 1px solid var(--slate-300, #cbd5e1);
-    padding: 0.625rem 1rem;
+    padding: 0.75rem 1rem;
     border-radius: 0.5rem;
     font-size: 0.8125rem;
     font-weight: 600;
@@ -162,7 +267,7 @@
     background-color: #fff1f2;
     color: #e11d48;
     border: 1px solid #ffe4e6;
-    padding: 0.625rem 1rem;
+    padding: 0.75rem 1rem;
     border-radius: 0.5rem;
     font-size: 0.8125rem;
     font-weight: 600;
