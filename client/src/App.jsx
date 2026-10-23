@@ -61,8 +61,9 @@ function App() {
         <Route path="/staff/my-events" element={<StaffMyEvents />} />
         <Route path="/staff/settings" element={<StaffSettings />} />
 
-        {/* Admin Routes */}
-        <Route path="/admin" element={<AdminDashboard />}/>
+        {/* Admin Routes (Both paths supported to prevent redirection loops) */}
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
         {/* Fallback Catch-All Route */}
         <Route path="*" element={<Navigate to="/" replace />} />
