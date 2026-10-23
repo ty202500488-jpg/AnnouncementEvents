@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import '../../pages/styles/MyPageDashboard.css';
+import logo from '../../assets/images/logo.jpg'; // Updated logo import
 
 export default function MyPageDashboardLayout({ children, activeTab, onTabChange, onSwitchToStaffDashboard }) {
   const [user, setUser] = useState({
@@ -203,12 +204,9 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             <button id="mobileMenuBtn" className="mobile-menu-btn icon-btn" style={{ color: 'var(--slate-600)' }}>
               <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
             </button>
-            <div className="flex items-center gap-3">
-              <div>
-                <h1 style={{ fontFamily: 'Bungee, sans-serif', fontWeight: 700, color: '#561C24', fontSize: '1.525rem', lineHeight: 1.2, letterSpacing: '-0.025em' }}>
-                  CRIM<span style={{ color: '#881337' }}>SON</span>
-                </h1>
-              </div>
+            <div className="flex items-center gap-2">
+              <img src={logo} alt="CRIMSON Logo" style={{ height: '48px', width: 'auto', objectFit: 'contain', borderRadius: '50%' }} />
+              
             </div>
           </div>
 

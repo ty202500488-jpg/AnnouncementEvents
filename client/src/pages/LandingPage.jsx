@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './styles/LandingPage.css';
+import logo from '../assets/images/logo.jpg';
 import image1 from '../assets/images/image1.jpg';
 import image2 from '../assets/images/image2.jpg';
 import image3 from '../assets/images/image3.jpg';
@@ -56,8 +57,11 @@ export default function LandingPage() {
       {/* Navigation Bar */}
       <header className="navbar">
         <div className="nav-container">
-          <a href="#" className="nav-logo" style={{ fontFamily: 'Bungee, sans-serif' }}>
-            CRIM<span>SON</span>
+          <a href="#" className="nav-logo">
+            <img src={logo} alt="CRIMSON Logo" className="logo-img" />
+            <span className="logo-text" style={{ fontFamily: 'Bungee, sans-serif' }}>
+              CRIM<span className="logo-accent">SON</span>
+            </span>
           </a>
         
           <div className="nav-actions">
