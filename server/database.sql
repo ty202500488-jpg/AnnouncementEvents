@@ -261,3 +261,37 @@ CREATE TRIGGER update_announcement_modtime
 BEFORE UPDATE ON announcements
 FOR EACH ROW
 EXECUTE FUNCTION update_modified_column();
+
+-------------------------------------------------------------------
+-- 1. Table to isolate unverified student registrations
+CREATE TABLE IF NOT EXISTS pending_registrations (
+    pending_id SERIAL PRIMARY KEY,
+    student_id VARCHAR(50) UNIQUE NOT NULL,
+    role_id INT REFERENCES roles(role_id) ON DELETE CASCADE,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    year_level VARCHAR(20) NOT NULL,
+    department_id INT REFERENCES departments(department_id) ON DELETE CASCADE,
+    program_id INT REFERENCES programs(program_id) ON DELETE SET NULL,
+    token_hash VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Table to securely store password reset token hashes
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    token_id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    is_used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for optimal token lookup and query performance
+CREATE INDEX IF NOT EXISTS idx_pending_token_hash ON pending_registrations(token_hash);
+CREATE INDEX IF NOT EXISTS idx_pending_email ON pending_registrations(email);
+CREATE INDEX IF NOT EXISTS idx_pending_student_id ON pending_registrations(student_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_hash ON password_reset_tokens(token_hash);
