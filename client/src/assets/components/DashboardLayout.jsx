@@ -143,7 +143,16 @@ export default function DashboardLayout({ children, activePage }) {
   };
 
   return (
-    <div className="student-dashboard-wrapper">
+    <div className="student-dashboard-wrapper" style={{ paddingBottom: '4rem' }}>
+      {/* RESPONSIVE OVERRIDE STYLE */}
+      <style>{`
+        @media (min-width: 1024px) {
+          .mobile-bottom-nav {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       {/* TOP NAVBAR */}
       <header className="header">
         <div className="header-container">
@@ -362,7 +371,6 @@ export default function DashboardLayout({ children, activePage }) {
                   {user.program}
                 </span>
               </div>
-              {/* Close Button for Mobile Drawer */}
               {isMobileMenuOpen && (
                 <button 
                   type="button" 
@@ -446,8 +454,8 @@ export default function DashboardLayout({ children, activePage }) {
         {/* DYNAMIC CENTER CONTENT */}
         {children}
 
-        {/* RIGHT SIDEBAR */}
-        <aside className="lg-col-3 space-y-6">
+        {/* RIGHT SIDEBAR (DEPARTMENT PAGES - HIDDEN ON MOBILE TO KEEP OUT OF THE WAY) */}
+        <aside className="lg-col-3 space-y-6 hidden lg-block">
           <div className="card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
               <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.975rem' }}>Department Pages</h3>
@@ -478,6 +486,93 @@ export default function DashboardLayout({ children, activePage }) {
         </aside>
 
       </div>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav 
+        className="mobile-bottom-nav"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '60px',
+          backgroundColor: '#ffffff',
+          borderTop: '1px solid var(--slate-200, #e2e8f0)',
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          zIndex: 100,
+          boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
+        }}
+      >
+        <a 
+          href="/student/dashboard" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'home' ? 700 : 500,
+            color: activePage === 'home' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-house" style={{ fontSize: '1.1rem' }}></i>
+          <span>Home</span>
+        </a>
+
+        <a 
+          href="/student/announcements" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'announcements' ? 700 : 500,
+            color: activePage === 'announcements' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-bullhorn" style={{ fontSize: '1.1rem' }}></i>
+          <span>Announcements</span>
+        </a>
+
+        <a 
+          href="/student/events" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'events' ? 700 : 500,
+            color: activePage === 'events' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
+          <span>Events</span>
+        </a>
+
+        <a 
+          href="/student/profile" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'profile' ? 700 : 500,
+            color: activePage === 'profile' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-regular fa-user" style={{ fontSize: '1.1rem' }}></i>
+          <span>Profile</span>
+        </a>
+      </nav>
     </div>
   );
 }

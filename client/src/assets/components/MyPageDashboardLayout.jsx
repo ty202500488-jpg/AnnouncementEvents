@@ -191,7 +191,16 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
   };
 
   return (
-    <div className="staff-dashboard-wrapper student-dashboard-wrapper">
+    <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ paddingBottom: '4rem' }}>
+      {/* RESPONSIVE OVERRIDE STYLE TO HIDE BOTTOM NAV ON DESKTOP */}
+      <style>{`
+        @media (min-width: 1024px) {
+          .mobile-bottom-nav {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       {/* TOP NAVBAR */}
       <header className="header">
         <div className="header-container">
@@ -550,6 +559,115 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
         </aside>
 
       </div>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav 
+        className="mobile-bottom-nav"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '60px',
+          backgroundColor: '#ffffff',
+          borderTop: '1px solid var(--slate-200, #e2e8f0)',
+          display: 'flex',
+          justify: 'space-around',
+          alignItems: 'center',
+          zIndex: 100,
+          boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
+        }}
+      >
+        <a 
+          href="#overview" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('overview'); }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activeTab === 'overview' ? 700 : 500,
+            color: activeTab === 'overview' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-house" style={{ fontSize: '1.1rem' }}></i>
+          <span>Home</span>
+        </a>
+
+        <a 
+          href="#announcements" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('announcements'); }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activeTab === 'announcements' ? 700 : 500,
+            color: activeTab === 'announcements' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-bullhorn" style={{ fontSize: '1.1rem' }}></i>
+          <span>Announcements</span>
+        </a>
+
+        <a 
+          href="#events" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('events'); }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activeTab === 'events' ? 700 : 500,
+            color: activeTab === 'events' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
+          <span>Events</span>
+        </a>
+
+        <a 
+          href="#registrations" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('registrations'); }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activeTab === 'registrations' ? 700 : 500,
+            color: activeTab === 'registrations' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-users-rectangle" style={{ fontSize: '1.1rem' }}></i>
+          <span>Registrations</span>
+        </a>
+
+        <a 
+          href="#profile" 
+          onClick={(e) => { e.preventDefault(); handleNavigation('profile'); }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activeTab === 'profile' ? 700 : 500,
+            color: activeTab === 'profile' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-id-badge" style={{ fontSize: '1.1rem' }}></i>
+          <span>Profile</span>
+        </a>
+      </nav>
     </div>
   );
 }

@@ -174,7 +174,16 @@ export default function StaffDashboardLayout({ children, activePage }) {
   const isPageApproved = pageStatus.exists && (pageStatus.status === 'approved' || pageStatus.status === 'active');
 
   return (
-    <div className="staff-dashboard-wrapper student-dashboard-wrapper">
+    <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ paddingBottom: '4rem' }}>
+      {/* RESPONSIVE OVERRIDE STYLE TO HIDE BOTTOM NAV ON DESKTOP */}
+      <style>{`
+        @media (min-width: 1024px) {
+          .mobile-bottom-nav {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       {/* TOP NAVBAR */}
       <header className="header">
         <div className="header-container">
@@ -527,6 +536,110 @@ export default function StaffDashboardLayout({ children, activePage }) {
         </aside>
 
       </div>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav 
+        className="mobile-bottom-nav"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '60px',
+          backgroundColor: '#ffffff',
+          borderTop: '1px solid var(--slate-200, #e2e8f0)',
+          display: 'flex',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          zIndex: 100,
+          boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
+        }}
+      >
+        <a 
+          href="/staff/dashboard" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'home' ? 700 : 500,
+            color: activePage === 'home' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-house" style={{ fontSize: '1.1rem' }}></i>
+          <span>Home</span>
+        </a>
+
+        <a 
+          href="/staff/announcements" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'announcements' ? 700 : 500,
+            color: activePage === 'announcements' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-bullhorn" style={{ fontSize: '1.1rem' }}></i>
+          <span>Announcements</span>
+        </a>
+
+        <a 
+          href="/staff/events" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'events' ? 700 : 500,
+            color: activePage === 'events' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
+          <span>Events</span>
+        </a>
+
+        <a 
+          href="/staff/mypage" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'mypage' ? 700 : 500,
+            color: activePage === 'mypage' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-solid fa-flag" style={{ fontSize: '1.1rem' }}></i>
+          <span>My Page</span>
+        </a>
+
+        <a 
+          href="/staff/profile" 
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            textDecoration: 'none',
+            fontSize: '10px',
+            fontWeight: activePage === 'profile' ? 700 : 500,
+            color: activePage === 'profile' ? '#881337' : 'var(--slate-500, #64748b)'
+          }}
+        >
+          <i className="fa-regular fa-user" style={{ fontSize: '1.1rem' }}></i>
+          <span>Profile</span>
+        </a>
+      </nav>
     </div>
   );
 }
