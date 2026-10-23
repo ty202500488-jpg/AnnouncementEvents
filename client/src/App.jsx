@@ -49,10 +49,13 @@ function App() {
         <Route path="/staff/announcements" element={<StaffAnnouncements />} />
         <Route path="/staff/events" element={<StaffEvents />} />
         <Route path="/staff/mypage" element={<StaffMyPage />} />
+
+        {/* Mypage Routes */}
         <Route 
           path="/staff/mypage/dashboard" 
           element={<MyPageDashboard onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
         />
+        
         <Route path="/staff/profile" element={<StaffProfile />} />
         <Route path="/staff/notifications" element={<StaffNotifications />} />
         <Route path="/staff/my-events" element={<StaffMyEvents />} />
