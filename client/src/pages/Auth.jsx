@@ -500,7 +500,7 @@ export default function Auth() {
             </form>
 
             <div className="login-footer">
-              <p>Protected by CampusHub Identity System</p>
+              <p>Protected by CRIMSON Identity System</p>
             </div>
           </div>
         </div>

@@ -46,7 +46,7 @@ export default function StaffNotifications() {
         <div className="card" style={{ padding: '1.75rem' }}>
           <div className="flex items-center justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
             <div>
-              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Staff Notifications</h3>
+              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Notifications</h3>
               <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Stay updated with announcements and events.</p>
             </div>
             <span className="notif-badge-count">{notifications.filter(n => !n.is_read).length} Unread</span>

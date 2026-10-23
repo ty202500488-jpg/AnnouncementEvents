@@ -61,7 +61,7 @@ export default function StaffEvents() {
         <div className="card" style={{ padding: '1.75rem' }}>
           <div className="flex items-center justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
             <div>
-              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Staff Events & Activities</h3>
+              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Campus Events & Activities</h3>
               <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Monitor department events and university schedules.</p>
             </div>
             

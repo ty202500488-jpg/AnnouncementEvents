@@ -10,7 +10,6 @@ import StudentEvents from './pages/Student/Events';
 import StudentProfile from './pages/Student/Profile';
 import StudentNotifications from './pages/Student/Notification';
 import StudentMyEvents from './pages/Student/MyEvents';
-import StudentHelpSupport from './pages/Student/HelpSupport';
 import StudentSettings from './pages/Student/Settings';
 
 // Staff Imports
@@ -22,7 +21,6 @@ import MyPageDashboard from './pages/Staff/MyPageDashboard/MyPageDashboard';
 import StaffProfile from './pages/Staff/StaffProfile';
 import StaffNotifications from './pages/Staff/StaffNotification';
 import StaffMyEvents from './pages/Staff/StaffMyEvents';
-import StaffHelpSupport from './pages/Staff/StaffHelpSupport';
 import StaffSettings from './pages/Staff/StaffSettings';
 
 // Admin Imports
@@ -44,7 +42,6 @@ function App() {
         <Route path="/student/profile" element={<StudentProfile />} />
         <Route path="/student/notifications" element={<StudentNotifications />} />
         <Route path="/student/my-events" element={<StudentMyEvents />} />
-        <Route path="/student/help" element={<StudentHelpSupport />} />
         <Route path="/student/settings" element={<StudentSettings />} />
 
         {/* Staff Routes */}
@@ -59,7 +56,6 @@ function App() {
         <Route path="/staff/profile" element={<StaffProfile />} />
         <Route path="/staff/notifications" element={<StaffNotifications />} />
         <Route path="/staff/my-events" element={<StaffMyEvents />} />
-        <Route path="/staff/help" element={<StaffHelpSupport />} />
         <Route path="/staff/settings" element={<StaffSettings />} />
 
         {/* Admin Routes */}

@@ -5,11 +5,11 @@ import '../styles/Profile.css';
 
 export default function StaffProfile() {
   const [user, setUser] = useState({
-    firstName: 'Staff',
-    lastName: 'Coordinator',
-    program: 'Department Coordinator',
-    email: 'staff.member@wmsu.edu.ph',
-    employeeId: 'EMP-2025-01',
+    firstName: 'Alex',
+    lastName: 'Rivera',
+    program: 'BS Computer Science',
+    email: 'alex.rivera@wmsu.edu.ph',
+    studentId: '2025-01428',
   });
 
   const [isEditing, setIsEditing] = useState(false);
@@ -22,11 +22,11 @@ export default function StaffProfile() {
       try {
         const parsed = JSON.parse(storedUser);
         const initialData = {
-          firstName: parsed.first_name || 'Staff',
-          lastName: parsed.last_name || 'Coordinator',
-          program: parsed.program_name || 'Department Coordinator',
-          email: parsed.email || 'staff.member@wmsu.edu.ph',
-          employeeId: parsed.employee_id || parsed.student_id || 'EMP-2025-01',
+          firstName: parsed.first_name || 'Alex',
+          lastName: parsed.last_name || 'Rivera',
+          program: parsed.program_name || parsed.course || 'BS Computer Science',
+          email: parsed.email || 'alex.rivera@wmsu.edu.ph',
+          studentId: parsed.student_id || parsed.employee_id || '2025-01428',
         };
         setUser(initialData);
         setFormData(initialData);
@@ -54,9 +54,15 @@ export default function StaffProfile() {
         last_name: formData.lastName,
         program_name: formData.program,
         email: formData.email,
-        employee_id: formData.employeeId,
+        student_id: formData.studentId,
       };
+
+      // Save updated data to localStorage
       localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      // Dispatch event to dynamically trigger sidebar & header updates in layout
+      window.dispatchEvent(new Event('storage'));
+
       setSaveMessage('Profile successfully updated!');
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (err) {
@@ -66,7 +72,7 @@ export default function StaffProfile() {
 
   return (
     <StaffDashboardLayout activePage="profile">
-      {/* ==================== CENTER MAIN CONTENT (STAFF PROFILE MANAGEMENT) ==================== */}
+      {/* ==================== CENTER MAIN CONTENT (PROFILE MANAGEMENT) ==================== */}
       <main className="lg-col-6 space-y-6">
         {saveMessage && (
           <div className="alert-success">
@@ -79,21 +85,10 @@ export default function StaffProfile() {
         <div className="card profile-banner-card">
           <div className="profile-cover-bg"></div>
           <div className="profile-header-content">
-            <div className="profile-avatar-container">
-              <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" 
-                alt={`${user.firstName} ${user.lastName}`} 
-                className="profile-large-avatar"
-                onError={(e) => { e.target.src = 'https://placehold.co/150x150/2563eb/ffffff?text=SC'; }}
-              />
-              <button className="avatar-edit-btn" title="Change Avatar">
-                <i className="fa-solid fa-camera"></i>
-              </button>
-            </div>
             <div className="profile-header-text">
               <h2>{user.firstName} {user.lastName}</h2>
               <p className="profile-program-tag">{user.program}</p>
-              <p className="profile-institution">Western Mindanao State University • Employee ID: {user.employeeId}</p>
+              <p className="profile-institution">Western Mindanao State University • Student ID: {user.studentId}</p>
             </div>
           </div>
         </div>
@@ -102,8 +97,8 @@ export default function StaffProfile() {
         <div className="card" style={{ padding: '1.75rem' }}>
           <div className="flex items-center justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
             <div>
-              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Staff Information</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Manage your staff account details and department role settings.</p>
+              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Personal Information</h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Manage your personal details and academic program settings.</p>
             </div>
             {!isEditing ? (
               <button onClick={() => setIsEditing(true)} className="edit-profile-btn">
@@ -132,11 +127,11 @@ export default function StaffProfile() {
                 <span className="detail-value">{user.email}</span>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Employee ID</span>
-                <span className="detail-value">{user.employeeId}</span>
+                <span className="detail-label">Student ID</span>
+                <span className="detail-value">{user.studentId}</span>
               </div>
               <div className="detail-item full-span">
-                <span className="detail-label">Assigned Role</span>
+                <span className="detail-label">Program / Department</span>
                 <span className="detail-value">{user.program}</span>
               </div>
             </div>
@@ -177,18 +172,18 @@ export default function StaffProfile() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Employee ID</label>
+                  <label>Student ID</label>
                   <input 
                     type="text" 
-                    name="employeeId" 
-                    value={formData.employeeId} 
+                    name="studentId" 
+                    value={formData.studentId} 
                     onChange={handleChange} 
                     className="form-input" 
                     required 
                   />
                 </div>
                 <div className="form-group full-span">
-                  <label>Assigned Role</label>
+                  <label>Program / Department</label>
                   <input 
                     type="text" 
                     name="program" 

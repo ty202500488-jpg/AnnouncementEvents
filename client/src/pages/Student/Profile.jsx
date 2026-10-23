@@ -79,17 +79,6 @@ export default function Profile() {
         <div className="card profile-banner-card">
           <div className="profile-cover-bg"></div>
           <div className="profile-header-content">
-            <div className="profile-avatar-container">
-              <img 
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" 
-                alt={`${user.firstName} ${user.lastName}`} 
-                className="profile-large-avatar"
-                onError={(e) => { e.target.src = 'https://placehold.co/150x150/2563eb/ffffff?text=AR'; }}
-              />
-              <button className="avatar-edit-btn" title="Change Avatar">
-                <i className="fa-solid fa-camera"></i>
-              </button>
-            </div>
             <div className="profile-header-text">
               <h2>{user.firstName} {user.lastName}</h2>
               <p className="profile-program-tag">{user.program}</p>

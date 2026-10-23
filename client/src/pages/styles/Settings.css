@@ -26,6 +26,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1rem;
 }
 
 .settings-header-box h3 {
@@ -39,6 +40,7 @@
     font-size: 0.8125rem;
     color: var(--slate-500, #64748b);
     margin-top: 0.2rem;
+    word-break: break-word;
 }
 
 /* Section Groupings */
@@ -69,12 +71,15 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.5rem 0;
+    padding: 0.625rem 0;
     cursor: pointer;
     font-size: 0.875rem;
     color: var(--slate-700, #334155);
     font-weight: 500;
     transition: color 0.15s ease;
+    gap: 1rem;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .settings-toggle-row:hover {
@@ -82,11 +87,13 @@
 }
 
 .settings-toggle-input {
-    width: 1.125rem;
-    height: 1.125rem;
+    width: 1.25rem;
+    height: 1.25rem;
     accent-color: #881337;
     cursor: pointer;
     border-radius: 0.25rem;
+    flex-shrink: 0;
+    margin: 0;
 }
 
 /* Form Group Layouts */
@@ -200,4 +207,36 @@
 
 .settings-save-btn:active {
     transform: scale(0.98);
+}
+
+/* RESPONSIVE MEDIA QUERIES */
+@media (max-width: 768px) {
+    .settings-container-card {
+        padding: 1.25rem;
+    }
+
+    .settings-header-box {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .settings-toggle-row {
+        padding: 0.75rem 0;
+        font-size: 0.8125rem;
+    }
+
+    .settings-toggle-input {
+        width: 1.35rem;
+        height: 1.35rem;
+    }
+
+    .settings-footer-actions {
+        flex-direction: column;
+    }
+
+    .settings-save-btn {
+        width: 100%;
+        text-align: center;
+    }
 }

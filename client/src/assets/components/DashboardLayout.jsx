@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import '../../pages/styles/StudentDashboard.css';
 
 export default function DashboardLayout({ children, activePage }) {
@@ -11,7 +11,15 @@ export default function DashboardLayout({ children, activePage }) {
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
 
-  useEffect(() => {
+  // SEARCH BAR STATE & LOGIC
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all'); // 'all', 'announcements', 'events', 'departments'
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  const loadUserData = () => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
@@ -19,14 +27,17 @@ export default function DashboardLayout({ children, activePage }) {
         setUser({
           firstName: parsed.first_name || 'Alex',
           lastName: parsed.last_name || 'Rivera',
-          program: parsed.program_name || 'BS Computer Science'
+          program: parsed.program_name || parsed.course || 'BS Computer Science'
         });
       } catch (err) {
         console.error('Failed to parse user from localStorage', err);
       }
     }
+  };
 
-    // Fetch approved pages/departments from backend database API
+  useEffect(() => {
+    loadUserData();
+
     const fetchApprovedPages = async () => {
       try {
         const response = await fetch('http://localhost:5000/users/approved-pages', {
@@ -46,6 +57,7 @@ export default function DashboardLayout({ children, activePage }) {
 
     fetchApprovedPages();
 
+    // Mobile menu toggle
     const mobileMenuBtn = document.getElementById('mobileMenuBtn');
     const leftSidebar = document.getElementById('leftSidebar');
     const handleMenuClick = () => {
@@ -53,10 +65,84 @@ export default function DashboardLayout({ children, activePage }) {
     };
     mobileMenuBtn?.addEventListener('click', handleMenuClick);
 
+    // Click outside handler for search dropdown
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+
+    // Live storage update listener for cross-component synchronization
+    const handleStorageChange = () => {
+      loadUserData();
+    };
+    window.addEventListener('storage', handleStorageChange);
+
     return () => {
       mobileMenuBtn?.removeEventListener('click', handleMenuClick);
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
+
+  // Live Search Query Handler
+  const handleSearchChange = async (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+
+    if (query.trim().length > 0) {
+      setIsSearching(true);
+      setShowDropdown(true);
+
+      try {
+        // Query matching approved department pages existing in system
+        const deptMatches = departments
+          .filter(d => d.name.toLowerCase().includes(query.toLowerCase()))
+          .map(d => ({
+            id: d.id,
+            title: d.name,
+            category: 'departments',
+            type: 'Department Page',
+            url: d.url || '#'
+          }));
+
+        // Query existing system announcements & events
+        const staticSystemRecords = [
+          { id: 'ann-1', title: 'Midterm Examination Schedule', category: 'announcements', type: 'Announcement', url: '/student/announcements' },
+          { id: 'ann-2', title: 'Graduation Ceremony Guidelines', category: 'announcements', type: 'Announcement', url: '/student/announcements' },
+          { id: 'evt-1', title: 'Annual University Sports Fest 2026', category: 'events', type: 'Event', url: '/student/events' },
+          { id: 'evt-2', title: 'Hackathon & Tech Expo', category: 'events', type: 'Event', url: '/student/events' }
+        ].filter(item => item.title.toLowerCase().includes(query.toLowerCase()));
+
+        const combinedResults = [...deptMatches, ...staticSystemRecords].filter(item => {
+          return filterCategory === 'all' || item.category === filterCategory;
+        });
+
+        setSearchResults(combinedResults);
+      } catch (err) {
+        console.error('Search query failed:', err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    } else {
+      setSearchResults([]);
+      setShowDropdown(false);
+    }
+  };
+
+  const toggleFilterCategory = () => {
+    const categories = ['all', 'announcements', 'events', 'departments'];
+    const currentIndex = categories.indexOf(filterCategory);
+    const nextCategory = categories[(currentIndex + 1) % categories.length];
+    setFilterCategory(nextCategory);
+
+    if (searchQuery.trim().length > 0) {
+      const event = { target: { value: searchQuery } };
+      handleSearchChange(event);
+    }
+  };
 
   return (
     <div className="student-dashboard-wrapper">
@@ -78,15 +164,87 @@ export default function DashboardLayout({ children, activePage }) {
             </div>
           </div>
 
-          {/* Middle Search Bar */}
-          <div className="search-container">
+          {/* Search Bar */}
+          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative' }}>
             <div className="search-wrapper">
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
-              <input type="text" placeholder="Search Announcements, Events, Departments..." className="search-input" />
-              <button className="filter-btn">
+              <input 
+                type="text" 
+                placeholder={`Search ${filterCategory === 'all' ? 'Announcement, Events, Departments...' : filterCategory + '...'}`} 
+                className="search-input"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onFocus={() => searchQuery.trim() && setShowDropdown(true)}
+              />
+              <button 
+                type="button"
+                className="filter-btn" 
+                onClick={toggleFilterCategory}
+                title={`Current Filter: ${filterCategory.toUpperCase()}`}
+                style={{
+                  color: filterCategory !== 'all' ? '#881337' : 'inherit',
+                  fontWeight: filterCategory !== 'all' ? 700 : 400
+                }}
+              >
                 <i className="fa-sliders fa-solid" style={{ fontSize: '0.75rem' }}></i>
               </button>
             </div>
+
+            {/* Dropdown Results */}
+            {showDropdown && (
+              <div 
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: '0.5rem',
+                  backgroundColor: '#ffffff',
+                  borderRadius: '0.5rem',
+                  border: '1px solid var(--slate-200, #e2e8f0)',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+                  zIndex: 50,
+                  maxHeight: '300px',
+                  overflowY: 'auto',
+                  padding: '0.5rem'
+                }}
+              >
+                {isSearching ? (
+                  <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>Searching database...</p>
+                ) : searchResults.length === 0 ? (
+                  <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>No matching records found in system</p>
+                ) : (
+                  searchResults.map(result => (
+                    <a
+                      key={result.id}
+                      href={result.url}
+                      onClick={() => setShowDropdown(false)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.625rem 0.75rem',
+                        borderRadius: '0.375rem',
+                        textDecoration: 'none',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50, #f8fafc)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--slate-800, #1e293b)' }}>
+                          {result.title}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--slate-400, #94a3b8)' }}>
+                          {result.type}
+                        </div>
+                      </div>
+                      <i className="fa-solid fa-chevron-right" style={{ fontSize: '10px', color: 'var(--slate-300)' }}></i>
+                    </a>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right Profile & Quick Actions */}
@@ -101,23 +259,14 @@ export default function DashboardLayout({ children, activePage }) {
             <div className="divider-v"></div>
 
             {/* User Profile Pill */}
-            <div className="profile-btn" onClick={() => window.location.href = '/student/profile'}>
-              <div className="avatar-wrapper">
-                <img 
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" 
-                  alt={`${user.firstName} ${user.lastName}`} 
-                  className="avatar-img"
-                  onError={(e) => { e.target.src = 'https://placehold.co/100x100/2563eb/ffffff?text=AR'; }}
-                />
-                <span className="online-status"></span>
-              </div>
-              <div className="hidden-sm" style={{ display: 'none', textAlign: 'left', paddingRight: '0.25rem' }}>
-                <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.75rem', lineHeight: 1.2 }}>
+            <div className="profile-btn" onClick={() => window.location.href = '/student/profile'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.85rem', lineHeight: 1.2 }}>
                   {user.firstName} {user.lastName}
                 </div>
                 <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
               </div>
-              <i className="fa-solid fa-chevron-down hidden-sm" style={{ display: 'none', color: 'var(--slate-400)', fontSize: '10px', paddingRight: '0.25rem' }}></i>
+              <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
             </div>
           </div>
         </div>
@@ -131,16 +280,13 @@ export default function DashboardLayout({ children, activePage }) {
           <div className="card space-y-5" style={{ padding: '1rem' }}>
             
             {/* Section: MAIN USER HEADER */}
-            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)' }}>
-              <div className="flex items-center gap-3" style={{ padding: '0.5rem 0.75rem' }}>
-                <img 
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&auto=format&fit=crop" 
-                  alt={`${user.firstName} ${user.lastName}`} 
-                  className="avatar-img"
-                  onError={(e) => { e.target.src = 'https://placehold.co/100x100/2563eb/ffffff?text=AR'; }}
-                />
-                <span style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem' }}>
+            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem' }}>
+              <div style={{ padding: '0 0.75rem', textAlign: 'left' }}>
+                <span style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem', display: 'block', lineHeight: 1.2 }}>
                   {user.firstName} {user.lastName}
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--slate-500)', display: 'block', marginTop: '3px', lineHeight: 1.2 }}>
+                  {user.program}
                 </span>
               </div>
             </div>
@@ -218,7 +364,7 @@ export default function DashboardLayout({ children, activePage }) {
         {/* ==================== DYNAMIC CENTER CONTENT ==================== */}
         {children}
 
-        {/* ==================== RIGHT SIDEBAR (CONSISTENT DEPARTMENT PAGES) ==================== */}
+        {/* ==================== RIGHT SIDEBAR ==================== */}
         <aside className="lg-col-3 space-y-6">
           <div className="card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
@@ -234,9 +380,6 @@ export default function DashboardLayout({ children, activePage }) {
               ) : (
                 departments.map((dept, index) => (
                   <a key={dept.id || index} href={dept.url || '#'} className={`dept-item ${dept.is_university ? 'dept-item-university' : dept.is_user_dept ? 'dept-item-user' : ''}`}>
-                    <div className={`dept-badge ${dept.is_university ? 'dept-badge-university' : dept.is_user_dept ? 'dept-badge-user' : ''}`}>
-                      <i className={dept.icon || 'fa-solid fa-bookmark'}></i>
-                    </div>
                     <div className="dept-info">
                       <span className="dept-title">{dept.name}</span>
                       <span className="dept-sub">{dept.subtitle || dept.category || 'Official Page'}</span>
