@@ -345,7 +345,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading database feeds...</p>
         ) : announcements.length === 0 && events.length === 0 ? (
           <article className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-            <p style={{ color: 'var(--slate-600)' }}>No database announcements available yet.</p>
+            <p style={{ color: 'var(--slate-600)' }}>No Announcements available yet.</p>
           </article>
         ) : (
           <div className="space-y-4">
