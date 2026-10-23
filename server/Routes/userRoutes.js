@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Rate limiters for security-sensitive endpoints (adjusted for better UX & testing)
+// Rate limiters for security-sensitive endpoints
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
@@ -26,11 +26,11 @@ const loginLimiter = rateLimit({
 });
 
 const registerLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // Reduced window to 15 minutes (was 1 hour)
-    max: 15, // Increased attempts to 15 (was 5) so form typos and testing don't lock you out
+    windowMs: 15 * 60 * 1000,
+    max: 15,
     standardHeaders: true,
     legacyHeaders: false,
-    // Optional: Skip rate limiting entirely during local development if desired
+    // Skip rate limiting during local development for local loopback IPs
     skip: (req) => process.env.NODE_ENV === 'development' && (req.ip === '::1' || req.ip === '127.0.0.1' || req.ip === '::ffff:127.0.0.1'),
     handler: (req, res) => {
         return res.status(429).json({ 
@@ -41,7 +41,7 @@ const registerLimiter = rateLimit({
 
 const resendLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5, // Increased from 3 to 5
+    max: 5,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Too many verification email requests. Please wait a few minutes before trying again.' }
@@ -52,7 +52,7 @@ router.get('/test', (req, res) => {
     res.send('User routes are working securely with segregated pending registration!');
 });
 
-// -------- STEP 1 & 2 & 3 & 4 & 5: REGISTER & STORE IN PENDING_REGISTRATIONS -------- //
+// -------- REGISTRATION ROUTE -------- //
 router.post('/', registerLimiter, async (req, res) => {
     let client;
     let transactionStarted = false;
@@ -95,20 +95,23 @@ router.post('/', registerLimiter, async (req, res) => {
         await client.query('BEGIN');
         transactionStarted = true;
 
-        // Clean up any expired pending records for this email or student ID first
-        await client.query(`DELETE FROM pending_registrations WHERE email = $1 OR student_id = $2 AND expires_at < NOW()`, [normalizedEmail, student_id.trim()]);
+        // Clean up expired pending records with explicit parentheses for correct SQL operator precedence
+        await client.query(
+            `DELETE FROM pending_registrations WHERE (email = $1 OR student_id = $2) AND expires_at < NOW()`,
+            [normalizedEmail, student_id.trim()]
+        );
 
-        // Check for duplicate in main users table AND active pending table
+        // Check for duplicates in users and active pending tables
         const existingUser = await client.query(
             `SELECT email FROM users WHERE LOWER(email) = $1 OR student_id = $2
              UNION
-             SELECT email FROM pending_registrations WHERE LOWER(email) = $1 OR student_id = $2`,
+             SELECT email FROM pending_registrations WHERE LOWER(email) = $1 OR student_id = $2 AND expires_at >= NOW()`,
             [normalizedEmail, student_id.trim()]
         );
 
         if (existingUser.rowCount > 0) {
             await client.query('ROLLBACK');
-            return res.status(409).json({ message: 'An account or pending registration with this email or Student ID already exists.' });
+            return res.status(409).json({ message: 'An account or active pending registration with this email or Student ID already exists.' });
         }
 
         // Fetch STUDENT role ID
@@ -134,21 +137,24 @@ router.post('/', registerLimiter, async (req, res) => {
             }
         }
 
-        // Hash password with bcrypt (never store plaintext passwords in pending table)
         const hashedPassword = await bcrypt.hash(password, 12);
 
-        // Generate secure random verification token and store only its SHA-256 hash
         const rawToken = crypto.randomBytes(32).toString('hex');
         const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-        // Store in pending_registrations table (NOT users table)
         await client.query(
             `INSERT INTO pending_registrations (
                 student_id, role_id, first_name, last_name, email,
                 password_hash, year_level, department_id, program_id,
                 token_hash, expires_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (student_id) 
+             DO UPDATE SET 
+                email = EXCLUDED.email,
+                password_hash = EXCLUDED.password_hash,
+                token_hash = EXCLUDED.token_hash,
+                expires_at = EXCLUDED.expires_at`,
             [
                 student_id.trim(), studentRoleId, first_name.trim(), last_name.trim(),
                 normalizedEmail, hashedPassword, year_level, department_id,
@@ -158,7 +164,6 @@ router.post('/', registerLimiter, async (req, res) => {
 
         const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
 
-        // Attempt sending email. If it fails, transaction rolls back so no pending record is stranded.
         try {
             await transporter.sendMail({
                 from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
@@ -176,19 +181,25 @@ router.post('/', registerLimiter, async (req, res) => {
                 `
             });
         } catch (emailError) {
-            console.error('Email delivery failed:', emailError);
-            await client.query('ROLLBACK');
-            transactionStarted = false;
-            return res.status(500).json({ 
-                message: 'Failed to send verification email. Please verify your email address or try again later.' 
-            });
+            console.warn('\n⚠️ SMTP Email delivery failed.');
+            // Strict development-only fallback check: NEVER activate in production
+            if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true') {
+                console.log('====================================================');
+                console.log('🔗 [DEV FALLBACK] REGISTRATION CONFIRMATION LINK:');
+                console.log(confirmUrl);
+                console.log('====================================================\n');
+            } else {
+                console.error('Email transmission failed and development fallback is disabled.');
+                await client.query('ROLLBACK');
+                return res.status(502).json({ message: 'Failed to send verification email. Please try again later.' });
+            }
         }
 
         await client.query('COMMIT');
         transactionStarted = false;
 
         return res.status(201).json({
-            message: 'Registration submitted successfully! Please check your email inbox to confirm your account.'
+            message: 'Registration submitted successfully! Please check your email for the confirmation link.'
         });
 
     } catch (error) {
@@ -205,7 +216,7 @@ router.post('/', registerLimiter, async (req, res) => {
     }
 });
 
-// -------- STEP 6, 7 & 8: CONFIRM EMAIL & CREATE ACCOUNT IN MAIN USERS TABLE -------- //
+// -------- EMAIL CONFIRMATION ROUTE -------- //
 router.get('/confirm-email', async (req, res) => {
     let client;
     let transactionStarted = false;
@@ -220,7 +231,6 @@ router.get('/confirm-email', async (req, res) => {
         await client.query('BEGIN');
         transactionStarted = true;
 
-        // Lock and fetch pending registration record
         const pendingResult = await client.query(
             `SELECT * FROM pending_registrations WHERE token_hash = $1 FOR UPDATE`,
             [tokenHash]
@@ -234,13 +244,11 @@ router.get('/confirm-email', async (req, res) => {
         const pending = pendingResult.rows[0];
 
         if (new Date() > new Date(pending.expires_at)) {
-            // Clean up expired record
             await client.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
             await client.query('COMMIT');
             return res.status(400).json({ message: 'Verification token has expired. Please register again.' });
         }
 
-        // Double check uniqueness in users table before insertion
         const duplicateCheck = await client.query(
             `SELECT user_id FROM users WHERE LOWER(email) = $1 OR student_id = $2`,
             [pending.email, pending.student_id]
@@ -252,7 +260,6 @@ router.get('/confirm-email', async (req, res) => {
             return res.status(400).json({ message: 'An account with this email or student ID already exists.' });
         }
 
-        // Create the actual account in the main users table with status 'Active' (email verified)
         const newUserResult = await client.query(
             `INSERT INTO users (
                 student_id, role_id, first_name, last_name, email,
@@ -266,7 +273,6 @@ router.get('/confirm-email', async (req, res) => {
             ]
         );
 
-        // Consume and remove the pending registration
         await client.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
 
         await client.query('COMMIT');
@@ -299,18 +305,16 @@ router.post('/resend-verification', resendLimiter, async (req, res) => {
         client = await pool.connect();
 
         const pendingResult = await client.query(
-            `SELECT * FROM pending_registrations WHERE LOWER(email) = $1`,
+            `SELECT * FROM pending_registrations WHERE LOWER(email) = $1 AND expires_at >= NOW()`,
             [normalizedEmail]
         );
 
         if (pendingResult.rowCount === 0) {
-            // Return generic success to prevent email enumeration
             return res.status(200).json({ message: 'If a pending registration exists for this email, a new verification link has been sent.' });
         }
 
         const pending = pendingResult.rows[0];
 
-        // Generate new token & hash
         const rawToken = crypto.randomBytes(32).toString('hex');
         const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -322,21 +326,29 @@ router.post('/resend-verification', resendLimiter, async (req, res) => {
 
         const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
 
-        await transporter.sendMail({
-            from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
-            to: normalizedEmail,
-            subject: 'WMSU CampusHub - New Verification Link',
-            html: `
-                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
-                    <h2 style="color: #800000;">New Verification Request</h2>
-                    <p>Hello ${pending.first_name}, here is your new verification link:</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-security: none; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
+        try {
+            await transporter.sendMail({
+                from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
+                to: normalizedEmail,
+                subject: 'WMSU CampusHub - New Verification Link',
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
+                        <h2 style="color: #800000;">New Verification Request</h2>
+                        <p>Hello ${pending.first_name}, here is your new verification link:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
+                        </div>
+                        <p style="font-size: 0.85rem; color: #777;">This link expires in 24 hours.</p>
                     </div>
-                    <p style="font-size: 0.85rem; color: #777;">This link expires in 24 hours.</p>
-                </div>
-            `
-        });
+                `
+            });
+        } catch (emailError) {
+            console.warn('\n⚠️ Resend email SMTP failed.');
+            if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true') {
+                console.log('🔗 [DEV FALLBACK] RESEND CONFIRMATION LINK:');
+                console.log(confirmUrl);
+            }
+        }
 
         return res.status(200).json({ message: 'If a pending registration exists for this email, a new verification link has been sent.' });
 
