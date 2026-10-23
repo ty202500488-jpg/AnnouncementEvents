@@ -33,9 +33,9 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       try {
         const parsed = JSON.parse(storedUser);
         setUser({
-          firstName: parsed.first_name || 'Charm',
-          lastName: parsed.last_name || 'Lagare',
-          program: parsed.program_name || parsed.role || 'Staff / Department Coordinator'
+          firstName: parsed.first_name || parsed.firstName || 'Charm',
+          lastName: parsed.last_name || parsed.lastName || 'Lagare',
+          program: parsed.program_name || parsed.role || parsed.program || 'Staff / Department Coordinator'
         });
       } catch (err) {
         console.error('Failed to parse user from localStorage', err);
@@ -55,9 +55,13 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
 
     const fetchApprovedPages = async () => {
       try {
+        const token = localStorage.getItem('token');
         const response = await fetch('http://localhost:5000/api/approved-pages', {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          }
         });
         const data = await response.json();
         if (response.ok && data.pages) {
@@ -130,13 +134,13 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
 
       try {
         const deptMatches = departments
-          .filter(d => d.name.toLowerCase().includes(query.toLowerCase()))
+          .filter(d => d.name && d.name.toLowerCase().includes(query.toLowerCase()))
           .map(d => ({
             id: d.id,
             title: d.name,
             category: 'departments',
             type: 'Department Page',
-            url: d.url || '/staff/mypage/dashboard'
+            url: d.url || `/student/page/${d.id}`
           }));
 
         const staticSystemRecords = [
@@ -192,7 +196,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
 
   return (
     <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ paddingBottom: '4rem' }}>
-      {/* RESPONSIVE OVERRIDE STYLE TO HIDE BOTTOM NAV ON DESKTOP */}
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
@@ -205,7 +208,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       <header className="header">
         <div className="header-container">
           
-          {/* Left Logo & Branding */}
           <div className="flex items-center gap-3">
             <button 
               type="button" 
@@ -221,7 +223,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             </div>
           </div>
 
-          {/* Middle Search Bar */}
+          {/* Search Bar */}
           <div className="search-container" ref={searchContainerRef} style={{ position: 'relative' }}>
             <div className="search-wrapper">
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
@@ -303,7 +305,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             )}
           </div>
 
-          {/* Right Profile & Quick Actions */}
+          {/* Profile & Quick Actions */}
           <div className="flex items-center gap-3"> 
             <div style={{ position: 'relative' }}>
               <button className="icon-btn" onClick={() => window.location.href = '/staff/notifications'}>
@@ -527,31 +529,58 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
         {/* DYNAMIC CENTER CONTENT */}
         {children}
 
-        {/* RIGHT SIDEBAR */}
-        <aside className="lg-col-3 space-y-6">
+        {/* RIGHT SIDEBAR WITH SEPARATE DEPARTMENT CONTAINERS & CRIMSON HOVER */}
+        <aside className="lg-col-3 space-y-6 hidden lg-block">
           <div className="card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
               <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.975rem' }}>Department Pages</h3>
-              <span style={{ color: 'var(--brand-600)', fontSize: '11px', fontWeight: 700, padding: '0.125rem 0.5rem', cursor: 'pointer' }}>View All</span>
+              <span style={{ color: '#881337', fontSize: '11px', fontWeight: 700, padding: '0.125rem 0.5rem', cursor: 'pointer' }}>View All</span>
             </div>
 
-            <div className="dept-list space-y-2">
+            <div className="dept-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {loadingDepts ? (
                 <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center', padding: '1rem' }}>Loading pages...</p>
               ) : departments.length === 0 ? (
                 <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center', padding: '1rem' }}>No approved pages found.</p>
               ) : (
                 departments.map((dept, index) => (
-                  <a key={dept.id || index} href={dept.url || '#'} className={`dept-item ${dept.is_university ? 'dept-item-university' : dept.is_user_dept ? 'dept-item-user' : ''}`}>
-                    <div className="dept-info">
-                      <span className="dept-title">{dept.name}</span>
-                      <span className="dept-sub">{dept.subtitle || dept.category || 'Official Page'}</span>
+                  <a 
+                    key={dept.id || index} 
+                    href={dept.url || `/student/page/${dept.id}`} 
+                    className="dept-item"
+                    style={{
+                      display: 'block',
+                      padding: '0.75rem 1rem',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #e2e8f0',
+                      borderLeft: '4px solid #e2e8f0',
+                      textDecoration: 'none',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#fff5f6';
+                      e.currentTarget.style.borderColor = '#fecdd3';
+                      e.currentTarget.style.borderLeftColor = '#881337';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(136, 19, 55, 0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#ffffff';
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                      e.currentTarget.style.borderLeftColor = '#e2e8f0';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.02)';
+                    }}
+                  >
+                    <div className="dept-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span className="dept-title" style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem' }}>{dept.name}</span>
+                      <span className="dept-sub" style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>{dept.description || dept.subtitle || dept.category || 'Official Page'}</span>
                     </div>
                   </a>
                 ))
               )}
 
-              <a href="#" className="see-more-btn" style={{ marginTop: '0.75rem' }}>
+              <a href="#" className="see-more-btn" style={{ marginTop: '0.5rem', textAlign: 'center', display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#881337', textDecoration: 'none' }}>
                 <span>See More</span>
               </a>
             </div>
@@ -572,7 +601,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
           backgroundColor: '#ffffff',
           borderTop: '1px solid var(--slate-200, #e2e8f0)',
           display: 'flex',
-          justify: 'space-around',
+          justifyContent: 'space-around',
           alignItems: 'center',
           zIndex: 100,
           boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
