@@ -529,7 +529,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
         {/* DYNAMIC CENTER CONTENT */}
         {children}
 
-        {/* RIGHT SIDEBAR WITH SEPARATE DEPARTMENT CONTAINERS & CRIMSON HOVER */}
+        {/* RIGHT SIDEBAR WITH CATEGORY BELOW DEPARTMENT NAME */}
         <aside className="lg-col-3 space-y-6 hidden lg-block">
           <div className="card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
@@ -574,7 +574,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
                   >
                     <div className="dept-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                       <span className="dept-title" style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem' }}>{dept.name}</span>
-                      <span className="dept-sub" style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>{dept.description || dept.subtitle || dept.category || 'Official Page'}</span>
+                      <span className="dept-sub" style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 500 }}>{dept.category || dept.subtitle || 'Official Page'}</span>
                     </div>
                   </a>
                 ))

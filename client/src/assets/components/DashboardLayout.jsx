@@ -468,7 +468,7 @@ export default function DashboardLayout({ children, activePage }) {
         {/* DYNAMIC CENTER CONTENT */}
         {children}
 
-        {/* RIGHT SIDEBAR WITH REFINED DEPARTMENT CONTAINERS & THEME HOVER */}
+        {/* RIGHT SIDEBAR WITH CATEGORIES DISPLAYED BELOW DEPARTMENT NAMES */}
         <aside className="lg-col-3 space-y-6 hidden lg-block">
           <div className="card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
@@ -476,7 +476,6 @@ export default function DashboardLayout({ children, activePage }) {
               <span style={{ color: '#881337', fontSize: '11px', fontWeight: 700, padding: '0.125rem 0.5rem', cursor: 'pointer' }}>View All</span>
             </div>
 
-            {/* Department List with Separators and Crimson Theme Hover Effects */}
             <div className="dept-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {loadingDepts ? (
                 <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center', padding: '1rem' }}>Loading pages...</p>
@@ -500,9 +499,9 @@ export default function DashboardLayout({ children, activePage }) {
                       boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#fff5f6'; // Crimson subtle tint
+                      e.currentTarget.style.backgroundColor = '#fff5f6';
                       e.currentTarget.style.borderColor = '#fecdd3';
-                      e.currentTarget.style.borderLeftColor = '#881337'; // Active brand color accent
+                      e.currentTarget.style.borderLeftColor = '#881337';
                       e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(136, 19, 55, 0.06)';
                     }}
                     onMouseLeave={(e) => {
@@ -514,7 +513,7 @@ export default function DashboardLayout({ children, activePage }) {
                   >
                     <div className="dept-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                       <span className="dept-title" style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem' }}>{dept.name}</span>
-                      <span className="dept-sub" style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>{dept.description || dept.category || 'Official Page'}</span>
+                      <span className="dept-sub" style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 500 }}>{dept.category || dept.subtitle || 'Official Page'}</span>
                     </div>
                   </a>
                 ))
