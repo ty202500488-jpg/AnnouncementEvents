@@ -133,7 +133,7 @@
 .student-dashboard-wrapper .header {
     position: sticky;
     top: 0;
-    z-index: 30;
+    z-index: 40;
     background-color: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(226, 232, 240, 0.8);
@@ -328,16 +328,21 @@
     outline: 2px solid #ffffff;
 }
 
-/* Main Grid Layout */
+/* Main Grid Layout - Responsive defaults for Mobile/Tablet */
 .student-dashboard-wrapper .main-container {
     max-width: 1600px;
     margin: 0 auto;
     width: 100%;
     padding: clamp(0.875rem, 2vw, 1.5rem) clamp(0.75rem, 2vw, 1rem);
     flex: 1;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 1.25rem;
+}
+
+/* Hide desktop sidebars by default on mobile/tablet views so they don't get in the way */
+.student-dashboard-wrapper .lg-col-3 {
+    display: none;
 }
 
 /* Card Utility */
@@ -632,38 +637,22 @@
     
     .student-dashboard-wrapper .main-container {
         padding: 1.25rem 2rem;
+        display: grid;
         grid-template-columns: repeat(12, minmax(0, 1fr));
         height: calc(100vh - 65px);
         overflow: hidden;
     }
 
-    /* Fixed Left Sidebar Column */
-    .student-dashboard-wrapper .lg-col-3:first-child {
-        height: 100%;
-        overflow-y: auto;
+    .student-dashboard-wrapper .lg-col-3 {
         display: flex;
         flex-direction: column;
+        height: 100%;
+        overflow-y: auto;
         grid-column: span 3 / span 3;
     }
 
-    /* Full height card container for Left Sidebar */
-    .student-dashboard-wrapper #leftSidebar .card {
-        min-height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-    }
-
-    /* Fixed Right Sidebar Column */
-    .student-dashboard-wrapper .lg-col-3:last-child {
-        height: 100%;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        grid-column: span 3 / span 3;
-    }
-
-    /* Full height card container for Right Sidebar */
+    /* Full height card containers for Sidebars */
+    .student-dashboard-wrapper #leftSidebar .card,
     .student-dashboard-wrapper .lg-col-3:last-child .card {
         min-height: 100%;
         display: flex;
@@ -726,7 +715,7 @@
 .student-dashboard-wrapper .flex { display: flex; }
 .student-dashboard-wrapper .items-center { align-items: center; }
 .student-dashboard-wrapper .items-start { align-items: flex-start; }
-.student-dashboard-wrapper .justify-between { justify-content: space-between; }
+.student-dashboard-wrapper .justify-between { justify-content: space-y-0; justify-content: space-between; }
 .student-dashboard-wrapper .justify-center { justify-content: center; }
 .student-dashboard-wrapper .gap-2 { gap: 0.5rem; }
 .student-dashboard-wrapper .gap-3 { gap: 0.75rem; }

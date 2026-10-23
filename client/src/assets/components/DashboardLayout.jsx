@@ -12,9 +12,12 @@ export default function DashboardLayout({ children, activePage }) {
   const [departments, setDepartments] = useState([]);
   const [loadingDepts, setLoadingDepts] = useState(true);
 
+  // MOBILE MENU STATE
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // SEARCH BAR STATE & LOGIC
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all'); // 'all', 'announcements', 'events', 'departments'
+  const [filterCategory, setFilterCategory] = useState('all');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -62,14 +65,6 @@ export default function DashboardLayout({ children, activePage }) {
 
     fetchApprovedPages();
 
-    // Mobile menu toggle
-    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-    const leftSidebar = document.getElementById('leftSidebar');
-    const handleMenuClick = () => {
-      leftSidebar?.classList.toggle('mobile-sidebar-active');
-    };
-    mobileMenuBtn?.addEventListener('click', handleMenuClick);
-
     // Click outside handler for dropdowns
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
@@ -81,20 +76,17 @@ export default function DashboardLayout({ children, activePage }) {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Live storage update listener for cross-component synchronization
     const handleStorageChange = () => {
       loadUserData();
     };
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      mobileMenuBtn?.removeEventListener('click', handleMenuClick);
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
-  // Live Search Query Handler
   const handleSearchChange = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -158,7 +150,13 @@ export default function DashboardLayout({ children, activePage }) {
           
           {/* Left Logo & Branding */}
           <div className="flex items-center gap-3">
-            <button id="mobileMenuBtn" className="mobile-menu-btn icon-btn" style={{ color: 'var(--slate-600)' }}>
+            <button 
+              type="button" 
+              className="mobile-menu-btn icon-btn" 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              style={{ color: 'var(--slate-600)' }}
+              aria-label="Toggle Menu"
+            >
               <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
             </button>
             <div className="flex items-center gap-2">
@@ -276,7 +274,6 @@ export default function DashboardLayout({ children, activePage }) {
                 <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
               </div>
 
-              {/* Profile Dropdown Menu */}
               {showProfileDropdown && (
                 <div 
                   style={{
@@ -300,31 +297,14 @@ export default function DashboardLayout({ children, activePage }) {
                     <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user.program}</div>
                   </div>
 
-                  <a 
-                    href="/student/profile" 
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
+                  <a href="/student/profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
                     <i className="fa-regular fa-user" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Profile
                   </a>
-
-                  <a 
-                    href="/student/settings" 
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                  >
+                  <a href="/student/settings" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
                     <i className="fa-solid fa-gear" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Settings
                   </a>
-
                   <div style={{ borderTop: '1px solid var(--slate-100)', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
-                    <a 
-                      href="/" 
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--rose-600)', textDecoration: 'none', transition: 'background 0.15s' }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--rose-50)'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
+                    <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--rose-600)', textDecoration: 'none' }}>
                       <i className="fa-solid fa-right-from-bracket" style={{ width: '16px' }}></i> Logout
                     </a>
                   </div>
@@ -335,14 +315,45 @@ export default function DashboardLayout({ children, activePage }) {
         </div>
       </header>
 
+      {/* MOBILE BACKDROP OVERLAY */}
+      {isMobileMenuOpen && (
+        <div 
+          className="mobile-overlay" 
+          onClick={() => setIsMobileMenuOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 45
+          }}
+        ></div>
+      )}
+
       {/* MAIN CONTAINER GRID */}
       <div className="main-container">
 
         {/* LEFT SIDEBAR */}
-        <aside id="leftSidebar" className="lg-col-3 space-y-6 hidden lg-block">
-          <div className="card space-y-5" style={{ padding: '1rem' }}>
+        <aside 
+          id="leftSidebar" 
+          className={`lg-col-3 space-y-6 ${isMobileMenuOpen ? 'mobile-sidebar-active' : 'hidden lg-block'}`}
+          style={isMobileMenuOpen ? {
+            display: 'block',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '280px',
+            height: '100vh',
+            zIndex: 50,
+            backgroundColor: '#ffffff',
+            boxShadow: '10px 0 25px rgba(0, 0, 0, 0.15)',
+            overflowY: 'auto',
+            padding: '1rem'
+          } : {}}
+        >
+          <div className="card space-y-5" style={{ padding: '1rem', height: '100%' }}>
             
-            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem' }}>
+            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ padding: '0 0.75rem', textAlign: 'left' }}>
                 <span style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem', display: 'block', lineHeight: 1.2 }}>
                   {user.firstName} {user.lastName}
@@ -351,6 +362,17 @@ export default function DashboardLayout({ children, activePage }) {
                   {user.program}
                 </span>
               </div>
+              {/* Close Button for Mobile Drawer */}
+              {isMobileMenuOpen && (
+                <button 
+                  type="button" 
+                  className="icon-btn lg:hidden" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  style={{ color: 'var(--slate-600)' }}
+                >
+                  <i className="fa-solid fa-xmark" style={{ fontSize: '1.2rem' }}></i>
+                </button>
+              )}
             </div>
 
             <div>
