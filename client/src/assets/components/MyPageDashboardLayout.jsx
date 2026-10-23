@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import '../../pages/styles/MyPageDashboard.css';
-import logo from '../../assets/images/logo.jpg'; // Updated logo import
+import logo from '../../assets/images/logo.jpg';
 
 export default function MyPageDashboardLayout({ children, activeTab, onTabChange, onSwitchToStaffDashboard }) {
   const [user, setUser] = useState({
@@ -19,6 +19,10 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchContainerRef = useRef(null);
+
+  // PROFILE DROPDOWN STATE & LOGIC
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef(null);
 
   const loadUserData = () => {
     const storedUser = localStorage.getItem('user');
@@ -100,10 +104,13 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     };
     mobileMenuBtn?.addEventListener('click', handleMenuClick);
 
-    // Click outside handler for search dropdown
+    // Click outside handler for dropdowns
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setShowDropdown(false);
+      }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
+        setShowProfileDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -131,7 +138,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       setShowDropdown(true);
 
       try {
-        // Query approved department pages existing in system
         const deptMatches = departments
           .filter(d => d.name.toLowerCase().includes(query.toLowerCase()))
           .map(d => ({
@@ -142,7 +148,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             url: d.url || '/staff/mypage/dashboard'
           }));
 
-        // Query existing announcements & events in system
         const staticSystemRecords = [
           { id: 'ann-1', title: 'Midterm Examination Schedule', category: 'announcements', type: 'Announcement', url: '/staff/mypage/dashboard' },
           { id: 'ann-2', title: 'Graduation Ceremony Guidelines', category: 'announcements', type: 'Announcement', url: '/staff/mypage/dashboard' },
@@ -206,7 +211,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             </button>
             <div className="flex items-center gap-2">
               <img src={logo} alt="CRIMSON Logo" style={{ height: '48px', width: 'auto', objectFit: 'contain', borderRadius: '50%' }} />
-              
             </div>
           </div>
 
@@ -304,15 +308,86 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
 
             <div className="divider-v"></div>
 
-            {/* User Profile Pill */}
-            <div className="profile-btn" onClick={() => window.location.href = '/staff/profile'} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 700, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2 }}>
-                  {user.firstName} {user.lastName}
+            {/* Profile Pill with Dropdown */}
+            <div ref={profileDropdownRef} style={{ position: 'relative' }}>
+              <div 
+                className="profile-btn" 
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)} 
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', userSelect: 'none' }}
+              >
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 700, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2 }}>
+                    {user.firstName} {user.lastName}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
+                <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
               </div>
-              <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
+
+              {/* Profile Dropdown Menu */}
+              {showProfileDropdown && (
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 0.5rem)',
+                    right: 0,
+                    width: '220px',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '0.75rem',
+                    border: '1px solid var(--slate-200, #e2e8f0)',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+                    zIndex: 100,
+                    padding: '0.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem'
+                  }}
+                >
+                  <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--slate-100)', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)' }}>{user.firstName} {user.lastName}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user.program}</div>
+                  </div>
+
+                  <a 
+                    href="/staff/profile" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <i className="fa-regular fa-user" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Profile
+                  </a>
+
+                  <a 
+                    href="/staff/mypage" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <i className="fa-solid fa-flag" style={{ width: '16px', color: '#7B0D1E' }}></i> My Page
+                  </a>
+
+                  <a 
+                    href="#" 
+                    onClick={(e) => { e.preventDefault(); if (onSwitchToStaffDashboard) onSwitchToStaffDashboard(); else window.location.href = '/staff/dashboard'; }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <i className="fa-solid fa-chart-line" style={{ width: '16px', color: '#7B0D1E' }}></i> Staff Dashboard
+                  </a>
+
+                  <div style={{ borderTop: '1px solid var(--slate-100)', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
+                    <a 
+                      href="/" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--rose-600)', textDecoration: 'none', transition: 'background 0.15s' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--rose-50)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <i className="fa-solid fa-right-from-bracket" style={{ width: '16px' }}></i> Logout
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -321,11 +396,10 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       {/* MAIN CONTAINER GRID */}
       <div className="main-container">
 
-        {/* ==================== LEFT SIDEBAR ==================== */}
+        {/* LEFT SIDEBAR */}
         <aside id="leftSidebar" className="lg-col-3 space-y-6 hidden lg-block">
           <div className="card space-y-5" style={{ padding: '1rem' }}>
             
-            {/* Section: PAGE IDENTITY HEADER */}
             <div style={{ paddingBottom: '0.75rem', borderBottom: '1px solid var(--slate-200)' }}>
               <div style={{ padding: '0.375rem 0.5rem' }}>
                 <div className="dept-info" style={{ overflow: 'hidden' }}>
@@ -339,7 +413,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
               </div>
             </div>
 
-            {/* Section: MAIN NAVIGATION */}
             <div>
               <div className="nav-group-title">MAIN</div>
               <nav className="space-y-1">
@@ -395,7 +468,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
                 </a>
                 <a 
                   href="#" 
-                  onClick={(e) => { e.preventDefault(); if (onSwitchToStaffDashboard) onSwitchToStaffDashboard(); }}
+                  onClick={(e) => { e.preventDefault(); if (onSwitchToStaffDashboard) onSwitchToStaffDashboard(); else window.location.href = '/staff/dashboard'; }}
                   className="nav-item"
                 >
                   <div className="nav-item-content">
@@ -406,7 +479,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
               </nav>
             </div>
 
-            {/* Section: SYSTEM */}
             <div>
               <div className="nav-group-title">SYSTEM</div>
               <nav className="space-y-1">
@@ -431,10 +503,10 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
           </div>
         </aside>
 
-        {/* ==================== DYNAMIC CENTER CONTENT ==================== */}
+        {/* DYNAMIC CENTER CONTENT */}
         {children}
 
-        {/* ==================== RIGHT SIDEBAR ==================== */}
+        {/* RIGHT SIDEBAR */}
         <aside className="lg-col-3 space-y-6">
           <div className="card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>

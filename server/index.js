@@ -7,7 +7,6 @@ const pool = require('./db');
 const userRoutes = require('./Routes/userRoutes');
 const pageRoutes = require('./Routes/pageRoutes'); 
 const studentRoutes = require('./Routes/studentRoutes');
-const adminRoutes = require('./Routes/adminRoutes');
 
 // ---- Global Middleware ----//
 app.use(cors());
@@ -17,7 +16,6 @@ app.use(express.json());
 app.use('/users', userRoutes);
 app.use('/api', pageRoutes);
 app.use('/api/student', studentRoutes);
-app.use('/api/admin', adminRoutes);
 
 // Test route
 app.get('/', (req, res) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import '../../pages/styles/StudentDashboard.css';
-import logo from '../../assets/images/logo.jpg'; // Updated logo import
+import logo from '../../assets/images/logo.jpg';
 
 export default function StaffDashboardLayout({ children, activePage }) {
   const [user, setUser] = useState({
@@ -24,6 +24,10 @@ export default function StaffDashboardLayout({ children, activePage }) {
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchContainerRef = useRef(null);
+
+  // PROFILE DROPDOWN STATE & LOGIC
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef(null);
 
   const loadUserData = () => {
     const storedUser = localStorage.getItem('user');
@@ -96,10 +100,13 @@ export default function StaffDashboardLayout({ children, activePage }) {
     };
     mobileMenuBtn?.addEventListener('click', handleMenuClick);
 
-    // Close search on click outside
+    // Close dropdowns on click outside
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setShowDropdown(false);
+      }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
+        setShowProfileDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -127,7 +134,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
       setShowDropdown(true);
 
       try {
-        // Fetch matching database entries or filter from loaded system state
         const deptMatches = departments
           .filter(d => d.name.toLowerCase().includes(query.toLowerCase()))
           .map(d => ({
@@ -138,7 +144,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
             url: d.url || '#'
           }));
 
-        // Static system records for announcements & events that can also be fetched from DB API if available
         const staticSystemRecords = [
           { id: 'ann-1', title: 'Midterm Examination Schedule', category: 'announcements', type: 'Announcement', url: '/staff/announcements' },
           { id: 'ann-2', title: 'Graduation Ceremony Guidelines', category: 'announcements', type: 'Announcement', url: '/staff/announcements' },
@@ -170,13 +175,12 @@ export default function StaffDashboardLayout({ children, activePage }) {
     setFilterCategory(nextCategory);
 
     if (searchQuery.trim().length > 0) {
-      // Re-run filter on current query
       const event = { target: { value: searchQuery } };
       handleSearchChange(event);
     }
   };
 
-  const isPageApproved = pageStatus.exists && pageStatus.status === 'approved';
+  const isPageApproved = pageStatus.exists && (pageStatus.status === 'approved' || pageStatus.status === 'active');
 
   return (
     <div className="staff-dashboard-wrapper student-dashboard-wrapper">
@@ -191,7 +195,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
             </button>
             <div className="flex items-center gap-2">
               <img src={logo} alt="CRIMSON Logo" style={{ height: '48px', width: 'auto', objectFit: 'contain', borderRadius: '50%' }} />
-        
             </div>
           </div>
 
@@ -280,29 +283,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-3"> 
-            {isPageApproved && (
-              <a 
-                href="/staff/mypage/dashboard" 
-                className="btn-switch-page hidden-sm" 
-                style={{ 
-                  fontSize: '0.75rem', 
-                  fontWeight: 600, 
-                  padding: '0.375rem 0.75rem', 
-                  background: 'var(--brand-700, #561C24)', 
-                  color: '#fff', 
-                  borderRadius: '6px', 
-                  textDecoration: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.375rem',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                }}
-              >
-                <i className="fa-solid fa-right-left" style={{ fontSize: '0.65rem' }}></i>
-                <span>Switch to Page</span>
-              </a>
-            )}
-
             <div style={{ position: 'relative' }}>
               <button className="icon-btn" onClick={() => window.location.href = '/staff/notifications'}>
                 <i className="fa-regular fa-bell" style={{ fontSize: '1rem' }}></i>
@@ -312,14 +292,96 @@ export default function StaffDashboardLayout({ children, activePage }) {
 
             <div className="divider-v"></div>
 
-            <div className="profile-btn" onClick={() => window.location.href = '/staff/profile'} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.85rem', lineHeight: 1.2 }}>
-                  {user.firstName} {user.lastName}
+            {/* Profile Pill with Dropdown */}
+            <div ref={profileDropdownRef} style={{ position: 'relative' }}>
+              <div 
+                className="profile-btn" 
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)} 
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', userSelect: 'none' }}
+              >
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.85rem', lineHeight: 1.2 }}>
+                    {user.firstName} {user.lastName}
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
                 </div>
-                <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
+                <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
               </div>
-              <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
+
+              {/* Profile Dropdown Menu */}
+              {showProfileDropdown && (
+                <div 
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 0.5rem)',
+                    right: 0,
+                    width: '220px',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '0.75rem',
+                    border: '1px solid var(--slate-200, #e2e8f0)',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+                    zIndex: 100,
+                    padding: '0.5rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.25rem'
+                  }}
+                >
+                  <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--slate-100)', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)' }}>{user.firstName} {user.lastName}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user.program}</div>
+                  </div>
+
+                  <a 
+                    href="/staff/profile" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <i className="fa-regular fa-user" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Profile
+                  </a>
+
+                  <a 
+                    href="/staff/mypage" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <i className="fa-solid fa-flag" style={{ width: '16px', color: '#7B0D1E' }}></i> My Page
+                  </a>
+
+                  {isPageApproved && (
+                    <a 
+                      href="/staff/mypage/dashboard" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <i className="fa-solid fa-chart-line" style={{ width: '16px', color: '#7B0D1E' }}></i> Page Dashboard
+                    </a>
+                  )}
+
+                  <a 
+                    href="/staff/settings" 
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none', transition: 'background 0.15s' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <i className="fa-solid fa-gear" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Settings
+                  </a>
+
+                  <div style={{ borderTop: '1px solid var(--slate-100)', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
+                    <a 
+                      href="/" 
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--rose-600)', textDecoration: 'none', transition: 'background 0.15s' }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--rose-50)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <i className="fa-solid fa-right-from-bracket" style={{ width: '16px' }}></i> Logout
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

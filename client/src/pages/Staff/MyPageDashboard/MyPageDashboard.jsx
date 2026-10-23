@@ -250,9 +250,6 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         <div className="card" style={{ padding: '0.875rem 1.25rem', width: '100%' }}>
           {!isExpanded ? (
             <div className="flex items-center gap-3">
-              <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', backgroundColor: '#881337', color: '#fff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', flexShrink: 0 }}>
-                {pageCode ? pageCode.substring(0, 3).toUpperCase() : pageName.substring(0, 2).toUpperCase()}
-              </div>
               <div 
                 onClick={() => { setEditingPost(null); setIsExpanded(true); }}
                 style={{ flex: 1, backgroundColor: 'var(--slate-100)', borderRadius: '9999px', padding: '0.625rem 1.25rem', color: 'var(--slate-500)', fontSize: '0.875rem', cursor: 'pointer' }}
