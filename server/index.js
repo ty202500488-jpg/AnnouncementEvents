@@ -1,4 +1,4 @@
-require('dotenv').config(); // <--- Add this at the very top!
+require('dotenv').config();
 
 const express = require('express');
 const app = express();
@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // ---- Routes ----//
-app.use('/users', userRoutes);
+app.use('/api/users', userRoutes); 
 app.use('/api', pageRoutes);
 app.use('/api/student', studentRoutes);
 

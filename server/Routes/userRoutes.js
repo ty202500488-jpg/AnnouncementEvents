@@ -168,7 +168,7 @@ router.post('/', registerLimiter, async (req, res) => {
             await transporter.sendMail({
                 from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
                 to: normalizedEmail,
-                subject: 'WMSU CampusHub - Confirm Your Email Address',
+                subject: 'CRIMSON - Confirm Your Email Address',
                 html: `
                     <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
                         <h2 style="color: #800000;">Welcome to CRIMSON, ${first_name}!</h2>
