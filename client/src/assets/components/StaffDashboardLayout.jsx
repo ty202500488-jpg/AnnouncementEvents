@@ -432,7 +432,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
                     <span>Events</span>
                   </div>
                 </a>
-                <a href={isPageApproved ? "/staff/mypage/dashboard" : "/staff/mypage"} className={`nav-item ${activePage === 'mypage' ? 'active btn-nav' : ''}`}>
+                <a href="/staff/mypage" className={`nav-item ${activePage === 'mypage' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <i className="fa-solid fa-flag nav-icon"></i>
