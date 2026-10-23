@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import Auth from './pages/Auth';
 import ConfirmEmail from './pages/ConfirmEmail';
@@ -26,7 +26,14 @@ import StaffHelpSupport from './pages/Staff/StaffHelpSupport';
 import StaffSettings from './pages/Staff/StaffSettings';
 
 // Admin Imports
-import AdminDashboard from './pages/Admin/AdminDashboard';
+import AdminDashboard from './pages/Admin/AdminDashboard.jsx';
+import AdminOverview from './pages/Admin/pages/Overview.jsx';
+import AdminUsers from './pages/Admin/pages/Users.jsx';
+import AdminPageRequests from './pages/Admin/pages/PageRequests.jsx';
+import AdminManagePages from './pages/Admin/pages/ManagePages.jsx';
+import AdminArchives from './pages/Admin/pages/Archives.jsx';
+import AdminReports from './pages/Admin/pages/Reports.jsx';
+import AdminSettings from './pages/Admin/pages/Settings.jsx';
 
 function App() {
   return (
@@ -63,7 +70,19 @@ function App() {
         <Route path="/staff/settings" element={<StaffSettings />} />
 
         {/* Admin Routes */}
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route
+          path="/admin"
+          element={<AdminDashboard />}
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<AdminOverview />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="page-requests" element={<AdminPageRequests />} />
+          <Route path="pages" element={<AdminManagePages />} />
+          <Route path="archives" element={<AdminArchives />} />
+          <Route path="reports" element={<AdminReports />} />
+          <Route path="settings" element={<AdminSettings />} />
+        </Route>
 
         {/* Fallback Catch-All Route */}
         <Route path="*" element={<Navigate to="/" replace />} />
