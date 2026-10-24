@@ -290,6 +290,9 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       case 'registrations':
         navigate('/staff/mypage/registrations');
         break;
+      case 'attendance':
+        navigate('/staff/mypage/attendance');
+        break;
       case 'settings':
         navigate('/staff/mypage/settings');
         break;
@@ -822,13 +825,13 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
                   </div>
                 </a>
                 <a 
-                  href="#" 
-                  onClick={(e) => { e.preventDefault(); setIsMobileMenuOpen(false); if (onSwitchToStaffDashboard) onSwitchToStaffDashboard(); else navigate('/staff/dashboard'); }}
-                  className="nav-item"
+                  href="/staff/mypage/attendance" 
+                  onClick={(e) => { e.preventDefault(); handleNavigation('attendance'); }}
+                  className={`nav-item ${activeTab === 'attendance' ? 'active btn-nav' : ''}`}
                 >
                   <div className="nav-item-content">
-                    <i className="fa-solid fa-flag nav-icon"></i>
-                    <span>Staff Dashboard</span>
+                    <i className="fa-solid fa-clipboard-user nav-icon"></i>
+                    <span>Attendance</span>
                   </div>
                 </a>
               </nav>

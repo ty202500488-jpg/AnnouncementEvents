@@ -21,6 +21,8 @@ import MyPageDashboard from './pages/Staff/MyPageDashboard/MyPageDashboard';
 import MyPageProfile from './pages/Staff/MyPageDashboard/MyPageProfile';
 import MyPageAnnouncements from './pages/Staff/MyPageDashboard/MyPageAnnouncements';
 import MyPageEvents from './pages/Staff/MyPageDashboard/MyPageEvents';
+import MyPageRegistration from './pages/Staff/MyPageDashboard/MyPageRegistration';
+import MyPageAttendance from './pages/Staff/MyPageDashboard/MyPageAttendance';
 import MyPageNotifications from './pages/Staff/MyPageDashboard/MyPageNotifications';
 import MyPageSettings from './pages/Staff/MyPageDashboard/MyPageSettings';
 import StaffProfile from './pages/Staff/StaffProfile';
@@ -71,6 +73,14 @@ function App() {
         <Route 
           path="/staff/mypage/events" 
           element={<MyPageEvents onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+        />
+        <Route 
+          path="/staff/mypage/registrations" 
+          element={<MyPageRegistration onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+        />
+        <Route 
+          path="/staff/mypage/attendance" 
+          element={<MyPageAttendance onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
         />
         <Route 
           path="/staff/mypage/notifications" 
