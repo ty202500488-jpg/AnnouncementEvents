@@ -50,80 +50,252 @@ export default function Archives() {
     URL.revokeObjectURL(url);
   };
 
+  const styles = {
+    pageHead: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: "20px",
+      marginBottom: "24px",
+      flexWrap: "wrap",
+    },
+    badge: {
+      display: "inline-block",
+      background: "#fbe4e8",
+      color: "#9b1034",
+      fontWeight: 800,
+      fontSize: "11.5px",
+      letterSpacing: "0.5px",
+      padding: "7px 14px",
+      borderRadius: "999px",
+      wordBreak: "break-word",
+    },
+    heading: {
+      fontSize: "clamp(26px, 4vw, 36px)",
+      fontWeight: 800,
+      letterSpacing: "-0.5px",
+      margin: "12px 0 6px",
+      lineHeight: 1.15,
+      wordBreak: "break-word",
+    },
+    muted: {
+      color: "#64748b",
+    },
+    mutedSmall: {
+      color: "#64748b",
+      fontSize: "13.5px",
+    },
+    card: {
+      background: "#ffffff",
+      border: "1px solid #e6ebf0",
+      borderRadius: "24px",
+      overflow: "hidden",
+      width: "100%",
+      boxSizing: "border-box",
+    },
+    filtersCard: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gap: "16px",
+      padding: "24px",
+      marginBottom: "24px",
+      alignItems: "flex-end",
+    },
+    fieldLabel: {
+      display: "flex",
+      flexDirection: "column",
+      gap: "8px",
+      fontSize: "11.5px",
+      fontWeight: 800,
+      letterSpacing: "0.7px",
+      color: "#64748b",
+      width: "100%",
+      marginBottom: 0,
+    },
+    select: {
+      minHeight: "48px",
+      padding: "0 16px",
+      border: "1px solid #e6ebf0",
+      borderRadius: "14px",
+      fontSize: "15px",
+      background: "#ffffff",
+      color: "#16162b",
+      outline: "none",
+      width: "100%",
+      boxSizing: "border-box",
+    },
+    tableCard: {
+      width: "100%",
+      overflowX: "auto",
+      WebkitOverflowScrolling: "touch",
+    },
+    tableHead: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: "16px",
+      padding: "22px 28px",
+    },
+    tableHeadTitle: {
+      fontSize: "20px",
+      fontWeight: 800,
+      margin: 0,
+    },
+    btnSoft: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "8px",
+      minHeight: "48px",
+      padding: "10px 22px",
+      borderRadius: "14px",
+      background: "#fdf0f3",
+      color: "#7a0f2b",
+      fontSize: "15px",
+      fontWeight: 600,
+      marginTop: 0,
+      border: "none",
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      boxSizing: "border-box",
+    },
+    table: {
+      width: "100%",
+      minWidth: "650px",
+      borderCollapse: "collapse",
+    },
+    theadTr: {
+      background: "#f7f9fb",
+    },
+    th: {
+      textAlign: "left",
+      fontSize: "11px",
+      letterSpacing: "1px",
+      color: "#8a97a6",
+      padding: "14px 10px",
+      fontWeight: 800,
+    },
+    thFirst: {
+      paddingLeft: "28px",
+    },
+    thLast: {
+      paddingRight: "28px",
+    },
+    td: {
+      padding: "18px 10px",
+      borderTop: "1px solid #e6ebf0",
+      fontSize: "14.5px",
+      verticalAlign: "middle",
+    },
+    titleText: {
+      fontWeight: 700,
+      fontSize: "15px",
+      maxWidth: "320px",
+      lineHeight: 1.35,
+      wordBreak: "break-word",
+    },
+    yearPill: {
+      display: "inline-block",
+      padding: "4px 10px",
+      background: "#eef2f6",
+      color: "#475569",
+      fontSize: "12.5px",
+      fontWeight: 700,
+      borderRadius: "8px",
+      whiteSpace: "nowrap",
+    },
+    emptyTd: {
+      textAlign: "center",
+      color: "#64748b",
+      padding: "28px",
+    },
+  };
+
   return (
     <>
-      <div className="page-head">
+      <div style={styles.pageHead}>
         <div>
-          <span className="badge">ADMINISTRATOR WORKSPACE</span>
-          <h1>Academic archives</h1>
-          <p className="muted">Browse historical announcements and events.</p>
+          <span style={styles.badge}>ADMINISTRATOR WORKSPACE</span>
+          <h1 style={styles.heading}>Academic archives</h1>
+          <p style={styles.muted}>Browse historical announcements and events.</p>
         </div>
       </div>
 
-      <div className="card filters">
-        <label className="field-label">
+      <div style={{ ...styles.card, ...styles.filtersCard }}>
+        <label style={styles.fieldLabel}>
           SCHOOL YEAR
-          <select className="select" value={filters.year} onChange={set("year")}>
+          <select style={styles.select} value={filters.year} onChange={set("year")}>
             <option value="">All school years</option>
             {unique("year").map((year) => <option key={year}>{year}</option>)}
           </select>
         </label>
-        <label className="field-label">
+        <label style={styles.fieldLabel}>
           COLLEGE / ORGANIZATION
-          <select className="select" value={filters.college} onChange={set("college")}>
+          <select style={styles.select} value={filters.college} onChange={set("college")}>
             <option value="">All</option>
             {unique("college").map((college) => <option key={college}>{college}</option>)}
           </select>
         </label>
-        <label className="field-label">
+        <label style={styles.fieldLabel}>
           DEPARTMENT
-          <select className="select" value={filters.dept} onChange={set("dept")}>
+          <select style={styles.select} value={filters.dept} onChange={set("dept")}>
             <option value="">All departments</option>
             {unique("dept").map((dept) => <option key={dept}>{dept}</option>)}
           </select>
         </label>
-        <label className="field-label">
+        <label style={styles.fieldLabel}>
           FROM DATE
-          <input type="date" className="select" value={filters.from} onChange={set("from")} />
+          <input type="date" style={styles.select} value={filters.from} onChange={set("from")} />
         </label>
-        <label className="field-label">
+        <label style={styles.fieldLabel}>
           TO DATE
-          <input type="date" className="select" value={filters.to} onChange={set("to")} />
+          <input type="date" style={styles.select} value={filters.to} onChange={set("to")} />
         </label>
       </div>
 
-      <div className="card table-card">
-        <div className="table-head">
+      <div style={{ ...styles.card, ...styles.tableCard }}>
+        <div style={styles.tableHead}>
           <div>
-            <h3>Archived records</h3>
-            <div className="muted small">{rows.length} records found</div>
+            <h3 style={styles.tableHeadTitle}>Archived records</h3>
+            <div style={styles.mutedSmall}>{rows.length} records found</div>
           </div>
-          <button className="btn-soft" style={{ marginTop: 0 }} onClick={exportCsv}>
+          <button style={styles.btnSoft} onClick={exportCsv}>
             <Bookmark size={18} /> Export list
           </button>
         </div>
-        <table>
+        <table style={styles.table}>
           <thead>
-            <tr>
-              <th>RECORD</th><th>COLLEGE / ORGANIZATION</th><th>DEPARTMENT</th>
-              <th>SCHOOL YEAR</th><th>DATE</th>
+            <tr style={styles.theadTr}>
+              <th style={{ ...styles.th, ...styles.thFirst }}>RECORD</th>
+              <th style={styles.th}>COLLEGE / ORGANIZATION</th>
+              <th style={styles.th}>DEPARTMENT</th>
+              <th style={styles.th}>SCHOOL YEAR</th>
+              <th style={{ ...styles.th, ...styles.thLast }}>DATE</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((record) => (
               <tr key={record.id}>
-                <td>
-                  <div className="t-title">{record.title}</div>
-                  <div className="muted small">{record.type}</div>
+                <td style={{ ...styles.td, ...styles.thFirst }}>
+                  <div style={styles.titleText}>{record.title}</div>
+                  <div style={styles.mutedSmall}>{record.type}</div>
                 </td>
-                <td style={{ fontWeight: 600 }}>{record.college}</td>
-                <td className="muted">{record.dept}</td>
-                <td><span className="year-pill">{record.year}</span></td>
-                <td className="muted">{formatDate(record.date)}</td>
+                <td style={{ ...styles.td, fontWeight: 600 }}>{record.college}</td>
+                <td style={{ ...styles.td, ...styles.muted }}>{record.dept}</td>
+                <td style={styles.td}>
+                  <span style={styles.yearPill}>{record.year}</span>
+                </td>
+                <td style={{ ...styles.td, ...styles.thLast, ...styles.muted }}>
+                  {formatDate(record.date)}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="empty">No archived records match your filters.</td></tr>
+              <tr>
+                <td colSpan={5} style={{ ...styles.td, ...styles.emptyTd }}>
+                  No archived records match your filters.
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

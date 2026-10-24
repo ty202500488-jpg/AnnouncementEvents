@@ -21,6 +21,7 @@ import {
 import ProfileModal from "./ProfileModal.jsx";
 import { useData } from "../../pages/Admin/context/DataContext.jsx";
 import "../../pages/styles/admin.css";
+import logo from "../../assets/images/logo.jpg";
 
 const MAIN = [
   { to: "/admin/dashboard", label: "Overview", icon: LayoutGrid, end: true },
@@ -123,11 +124,7 @@ export default function Layout() {
     .filter(Boolean)
     .join(" ") || "System Administrator";
   const adminEmail = profile?.email || currentUser.email || "";
-  const initials = adminName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
+
   const signOut = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -147,7 +144,16 @@ export default function Layout() {
     <div className="admin-app">
       <header className="topbar" ref={headerRef}>
         <Link to="/admin/dashboard" className="brand">
-          <span className="wordmark">CRIMSON</span>
+          <img
+            src={logo}
+            alt="CRIMSON Logo"
+            style={{
+              height: "48px",
+              width: "auto",
+              objectFit: "contain",
+              borderRadius: "50%",
+            }}
+          />
         </Link>
 
         <div className="search">
@@ -186,10 +192,6 @@ export default function Layout() {
               className="user-btn"
               onClick={() => setMenu(menu === "user" ? null : "user")}
             >
-              <span className="avatar-wrap">
-                <span className="avatar">{initials}</span>
-                <span className="status-dot" />
-              </span>
               <span className="user-text">
                 <b>{adminName}</b>
                 <span>{currentUser.role_name || "Administrator"}</span>
@@ -223,7 +225,6 @@ export default function Layout() {
       <div className={"shell" + (hasRail ? " has-rail" : "")}>
         <aside className="sidebar">
           <button className="side-profile" onClick={() => setProfileOpen(true)}>
-            <span className="avatar">{initials}</span>
             <b>{adminName}</b>
           </button>
 
@@ -240,10 +241,7 @@ export default function Layout() {
 
             <div className="nav-label">System</div>
             <NavItem to="/admin/settings" label="System Settings" icon={Settings} />
-            <button
-              className="nav-item logout"
-              onClick={signOut}
-            >
+            <button className="nav-item logout" onClick={signOut}>
               <LogOut size={20} /> Logout
             </button>
           </nav>
@@ -255,7 +253,11 @@ export default function Layout() {
               {error}
               <button
                 className="btn-text"
-                onClick={() => refresh().catch((retryError) => console.error("Admin data refresh failed:", retryError))}
+                onClick={() =>
+                  refresh().catch((retryError) =>
+                    console.error("Admin data refresh failed:", retryError)
+                  )
+                }
               >
                 Retry
               </button>
@@ -281,7 +283,7 @@ export default function Layout() {
                   ...currentUser,
                   first_name: result.profile.firstName,
                   last_name: result.profile.lastName,
-                }),
+                })
               );
               setProfileOpen(false);
             }
