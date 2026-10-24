@@ -64,7 +64,7 @@ async function getUserPageDetails(userId) {
 // HELPER: Fetch default category_id if null to satisfy NOT-NULL constraint
 async function getDefaultCategoryId() {
     try {
-        const catRes = await pool.query(`SELECT category_id FROM categories ORDER BY category_id ASC LIMIT 1`);
+        const catRes = await pool.query(`SELECT category_id FROM announcement_categories ORDER BY category_id ASC LIMIT 1`);
         if (catRes.rows.length > 0) {
             return catRes.rows[0].category_id;
         }
@@ -122,7 +122,7 @@ const handleDashboardFetch = async (req, res) => {
                     COALESCE(p.page_name, 'Student Affairs Office') as page_name 
              FROM announcements a 
              LEFT JOIN pages p ON a.page_id = p.page_id 
-             LEFT JOIN categories c ON a.category_id = c.category_id
+             LEFT JOIN announcement_categories c ON a.category_id = c.category_id
              ORDER BY a.created_at DESC`
         ).catch((err) => {
             console.error('Error fetching announcements:', err.message);
@@ -163,7 +163,7 @@ router.get('/mypage/posts', async (req, res) => {
 
         const { pageId } = req.query;
 
-        let annQuery = `SELECT a.*, a.category_id, COALESCE(c.category_name, 'General') as category_name, COALESCE(p.page_name, 'Student Affairs Office') as page_name FROM announcements a LEFT JOIN pages p ON a.page_id = p.page_id LEFT JOIN categories c ON a.category_id = c.category_id`;
+        let annQuery = `SELECT a.*, a.category_id, COALESCE(c.category_name, 'General') as category_name, COALESCE(p.page_name, 'Student Affairs Office') as page_name FROM announcements a LEFT JOIN pages p ON a.page_id = p.page_id LEFT JOIN announcement_categories c ON a.category_id = c.category_id`;
         let evQuery = `SELECT e.*, COALESCE(p.page_name, 'Student Affairs Office') as page_name FROM events e LEFT JOIN pages p ON e.page_id = p.page_id`;
         const params = [];
 
@@ -193,7 +193,7 @@ router.get('/mypage/posts', async (req, res) => {
 // GET /api/categories (Fetches all announcement categories for dropdowns)
 router.get('/categories', async (req, res) => {
     try {
-        const result = await pool.query(`SELECT category_id, category_name FROM categories ORDER BY category_name ASC`);
+        const result = await pool.query(`SELECT category_id, category_name FROM announcement_categories ORDER BY category_name ASC`);
         return res.status(200).json({ categories: result.rows });
     } catch (err) {
         console.error('Error fetching categories:', err.message);

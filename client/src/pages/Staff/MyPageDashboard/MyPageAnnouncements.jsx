@@ -5,25 +5,47 @@ import '../../styles/MyPageDashboard.css';
 export default function MyPageAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     const fetchAnnouncements = async () => {
+      setLoading(true);
+      setError(null);
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/dashboard-data', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const data = await response.json();
-        if (response.ok && data.announcements) {
-          setAnnouncements(data.announcements);
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        };
+
+        // Step 1: get this staff member's page ID
+        const statusRes = await fetch('http://localhost:5000/api/my-page-status', { headers });
+        if (!statusRes.ok) {
+          setError('Could not load page status.');
+          return;
         }
+        const statusData = await statusRes.json();
+        if (!statusData.exists || !statusData.pageId) {
+          // No page yet — show empty state
+          setAnnouncements([]);
+          return;
+        }
+
+        // Step 2: fetch only this page's announcements
+        const res = await fetch(
+          `http://localhost:5000/api/mypage/posts?pageId=${statusData.pageId}`,
+          { headers }
+        );
+        if (!res.ok) {
+          setError('Failed to load announcements.');
+          return;
+        }
+        const data = await res.json();
+        setAnnouncements(data.announcements || []);
       } catch (err) {
         console.error('Failed to fetch page announcements:', err);
+        setError('Unable to reach the server.');
       } finally {
         setLoading(false);
       }
@@ -102,6 +124,10 @@ export default function MyPageAnnouncements() {
 
           {loading ? (
             <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading announcements...</p>
+          ) : error ? (
+            <div style={{ textAlign: 'center', padding: '2rem', color: '#991b1b', background: '#fef2f2', borderRadius: '0.5rem' }}>
+              {error}
+            </div>
           ) : filteredAnnouncements.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)' }}>
               <i className="fa-solid fa-bullhorn" style={{ fontSize: '2rem', marginBottom: '0.75rem', color: 'var(--slate-300)' }}></i>
@@ -110,7 +136,7 @@ export default function MyPageAnnouncements() {
           ) : (
             <div className="space-y-4">
               {filteredAnnouncements.map((item, index) => (
-                <article key={item.id || index} className="card card-interactive" style={{ padding: '1.25rem', border: '1px solid var(--slate-100)' }}>
+                <article key={item.announcement_id || item.id || index} className="card card-interactive" style={{ padding: '1.25rem', border: '1px solid var(--slate-100)' }}>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div style={{
@@ -126,11 +152,11 @@ export default function MyPageAnnouncements() {
                         fontSize: '0.75rem',
                         border: '1px solid #fecdd3'
                       }}>
-                        {item.department_code || 'CCS'}
+                        {item.department_code || item.page_name?.slice(0, 3).toUpperCase() || 'PG'}
                       </div>
                       <div>
                         <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>
-                          {item.department_name || 'College of Computing Studies'}
+                          {item.page_name || item.department_name || 'My Page'}
                         </h4>
                         <p style={{ fontSize: '11px', color: 'var(--slate-400)' }}>
                           {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}
@@ -144,7 +170,7 @@ export default function MyPageAnnouncements() {
                       {item.title}
                     </h5>
                     <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.375rem', lineHeight: 1.5 }}>
-                      {item.content}
+                      {item.content || item.description}
                     </p>
                   </div>
                 </article>
