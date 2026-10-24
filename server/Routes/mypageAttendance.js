@@ -2,313 +2,408 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const pool = require('../db');
-const jwt = require('jsonwebtoken');
+const { authenticateToken, requireEventOwner, ownsEvent } = require('../middleware/auth');
 
-// =====================================================
-// INLINE JWT AUTHENTICATION MIDDLEWARE
-// =====================================================
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+// Mounted at /api/mypage/attendance
+//
+// Who can do what:
+//   - Page owner (pages.created_by, Page approved): view events, open/close the
+//     attendance window, show the QR code, correct records, export CSV.
+//   - Registered student: check in by scanning the QR code.
 
-  if (!token) {
-    return res.status(401).json({ message: 'Authentication token required.' });
-  }
+const CLIENT_URL = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
-  const jwtSecret = process.env.JWT_SECRET || 'fallback_secret';
+// The QR on screen refreshes every 30s; tokens stay valid a little longer
+// so a student who scans right before a refresh is not rejected.
+const QR_TOKEN_TTL_MS = 45 * 1000;
 
-  jwt.verify(token, jwtSecret, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ message: 'Invalid or expired token.' });
-    }
-    
-    req.user = {
-      id: Number(decoded.userId ?? decoded.id ?? decoded.user_id),
-      ...decoded
-    };
+const RECORD_STATUSES = ['PRESENT', 'ABSENT', 'NOT_MARKED'];
 
-    next();
-  });
+const hashToken = (raw) => crypto.createHash('sha256').update(raw).digest('hex');
+
+// Escapes a value for CSV and blocks spreadsheet formula injection.
+const csvCell = (val) => {
+  if (val === null || val === undefined) return '""';
+  let str = String(val).replace(/"/g, '""');
+  if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+  return `"${str}"`;
 };
 
-// Middleware: Verify logged-in user is staff for the target event's page
-const authorizeStaffForEvent = async (req, res, next) => {
-  const userId = req.user.id;
-  const eventId = req.params.eventId || req.body.eventId;
+// Shared roster query: one row per attendance record for an event.
+const ROSTER_SQL = `
+  SELECT
+    ar.id,
+    ar.status,
+    ar.checkin_time,
+    u.user_id,
+    u.student_id,
+    COALESCE(NULLIF(TRIM(u.first_name || ' ' || u.last_name), ''), u.email) AS student_name
+  FROM event_attendance_records ar
+  JOIN event_registrations er ON ar.registration_id = er.registration_id
+  JOIN users u ON er.registrant_user_id = u.user_id
+  WHERE ar.event_id = $1
+  ORDER BY u.last_name, u.first_name
+`;
 
-  try {
-    const query = `
-      SELECT e.event_id FROM events e
-      JOIN page_staff ps ON e.page_id = ps.page_id
-      WHERE e.event_id = $1 AND ps.user_id = $2
-    `;
-    const result = await pool.query(query, [eventId, userId]);
-    if (result.rows.length === 0) {
-      return res.status(403).json({ message: 'Unauthorized: You are not staff for this page event.' });
-    }
-    next();
-  } catch (err) {
-    console.error('Authorization error:', err);
-    res.status(500).json({ message: 'Internal server error during authorization.' });
-  }
-};
-
-// Get Authorized Events for Staff
+// =====================================================
+// GET /events
+// Events on Pages the current user owns.
+// =====================================================
 router.get('/events', authenticateToken, async (req, res) => {
   try {
-    const query = `
-      SELECT DISTINCT e.event_id AS id, COALESCE(e.event_title, e.title) AS title, e.event_date, e.venue
-      FROM events e
-      JOIN page_staff ps ON e.page_id = ps.page_id
-      WHERE ps.user_id = $1
-      ORDER BY e.event_date DESC
-    `;
-    const { rows } = await pool.query(query, [req.user.id]);
+    const { rows } = await pool.query(
+      `SELECT e.event_id AS id, e.event_title AS title, e.event_date, e.location AS venue
+       FROM events e
+       JOIN pages p ON e.page_id = p.page_id
+       WHERE p.created_by = $1 AND LOWER(p.status) = 'approved'
+       ORDER BY e.event_date DESC`,
+      [req.user.id]
+    );
     res.json({ events: rows });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error fetching staff events' });
+    console.error('[attendance] Failed to fetch events:', err);
+    res.status(500).json({ message: 'Failed to fetch your events.' });
   }
 });
 
-// Get Event Overview, Session Status & Attendance Roster
-router.get('/events/:eventId', authenticateToken, authorizeStaffForEvent, async (req, res) => {
-  const { eventId } = req.params;
+// =====================================================
+// GET /events/:eventId
+// Event details, attendance window status, roster and summary.
+// =====================================================
+router.get('/events/:eventId', authenticateToken, requireEventOwner, async (req, res) => {
+  const { eventId } = req;
   try {
-    const eventRes = await pool.query('SELECT * FROM events WHERE event_id = $1', [eventId]);
-    const sessionRes = await pool.query('SELECT * FROM event_attendance_sessions WHERE event_id = $1', [eventId]);
-
-    const recordsRes = await pool.query(`
-      SELECT ar.id, ar.status, ar.checkin_time, u.first_name || ' ' || u.last_name as student_name, u.user_id as student_id
-      FROM event_attendance_records ar
-      JOIN event_registrations er ON ar.registration_id = er.registration_id
-      JOIN users u ON er.registrant_user_id = u.user_id
-      WHERE ar.event_id = $1
-    `, [eventId]).catch(() => ({ rows: [] }));
+    const [eventRes, sessionRes, recordsRes] = await Promise.all([
+      pool.query(
+        `SELECT e.*, e.event_title AS title, e.location AS venue
+         FROM events e WHERE e.event_id = $1`,
+        [eventId]
+      ),
+      pool.query('SELECT * FROM event_attendance_sessions WHERE event_id = $1', [eventId]),
+      pool.query(ROSTER_SQL, [eventId])
+    ]);
 
     const records = recordsRes.rows;
-    const totalEligible = records.length;
-    const present = records.filter(r => r.status === 'PRESENT').length;
-    const absent = records.filter(r => r.status === 'ABSENT').length;
-    const unmarked = records.filter(r => r.status === 'NOT_MARKED').length;
+    const total = records.length;
+    const count = (status) => records.filter((r) => r.status === status).length;
+    const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+
+    const present = count('PRESENT');
+    const absent = count('ABSENT');
+    const unmarked = count('NOT_MARKED');
 
     res.json({
       event: eventRes.rows[0],
       session: sessionRes.rows[0] || { status: 'CLOSED' },
       records,
       summary: {
-        totalEligible,
+        totalEligible: total,
         present,
         absent,
         unmarked,
-        presentPct: totalEligible ? Math.round((present / totalEligible) * 100) : 0,
-        absentPct: totalEligible ? Math.round((absent / totalEligible) * 100) : 0,
-        unmarkedPct: totalEligible ? Math.round((unmarked / totalEligible) * 100) : 0
+        presentPct: pct(present),
+        absentPct: pct(absent),
+        unmarkedPct: pct(unmarked)
       }
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error fetching attendance details' });
+    console.error('[attendance] Failed to fetch event details:', err);
+    res.status(500).json({ message: 'Failed to fetch attendance details.' });
   }
 });
 
-// Control Attendance Window (OPEN / CLOSE)
-router.post('/events/:eventId/window', authenticateToken, authorizeStaffForEvent, async (req, res) => {
-  const { eventId } = req.params;
-  const { action } = req.body;
-  const client = await pool.connect();
+// =====================================================
+// POST /events/:eventId/window
+// Body: { action: 'OPEN' | 'CLOSE', closeTime?: ISO date string }
+//
+// OPEN  - opens the window and creates a NOT_MARKED record for every active
+//         registration. If closeTime is given, the background worker
+//         (attendanceWorker.js) closes the window automatically at that time.
+// CLOSE - closes the window now and marks everyone still NOT_MARKED as ABSENT.
+// =====================================================
+router.post('/events/:eventId/window', authenticateToken, requireEventOwner, async (req, res) => {
+  const { eventId } = req;
+  const action = String(req.body?.action || '').toUpperCase();
 
+  if (action !== 'OPEN' && action !== 'CLOSE') {
+    return res.status(400).json({ message: "Action must be 'OPEN' or 'CLOSE'." });
+  }
+
+  let closeTime = null;
+  if (action === 'OPEN' && req.body?.closeTime) {
+    closeTime = new Date(req.body.closeTime);
+    if (Number.isNaN(closeTime.getTime())) {
+      return res.status(400).json({ message: 'Invalid auto-close time.' });
+    }
+    if (closeTime <= new Date()) {
+      return res.status(400).json({ message: 'Auto-close time must be in the future.' });
+    }
+  }
+
+  const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    let sessionRes = await client.query('SELECT * FROM event_attendance_sessions WHERE event_id = $1', [eventId]);
-    let session = sessionRes.rows[0];
+    let session;
 
     if (action === 'OPEN') {
-      if (!session) {
-        const ins = await client.query(
-          `INSERT INTO event_attendance_sessions (event_id, status, open_time) VALUES ($1, 'OPEN', NOW()) RETURNING *`,
-          [eventId]
-        );
-        session = ins.rows[0];
-      } else {
-        const upd = await client.query(
-          `UPDATE event_attendance_sessions SET status = 'OPEN', open_time = NOW(), close_time = NULL WHERE event_id = $1 RETURNING *`,
-          [eventId]
-        );
-        session = upd.rows[0];
-      }
+      const upsert = await client.query(
+        `INSERT INTO event_attendance_sessions (event_id, status, open_time, close_time)
+         VALUES ($1, 'OPEN', NOW(), $2)
+         ON CONFLICT (event_id)
+         DO UPDATE SET status = 'OPEN', open_time = NOW(), close_time = EXCLUDED.close_time
+         RETURNING *`,
+        [eventId, closeTime]
+      );
+      session = upsert.rows[0];
 
-      await client.query(`
-        INSERT INTO event_attendance_records (event_id, registration_id, status)
-        SELECT $1, registration_id, 'NOT_MARKED'
-        FROM event_registrations
-        WHERE event_id = $1
-        ON CONFLICT (event_id, registration_id) DO NOTHING
-      `, [eventId]);
-
-    } else if (action === 'CLOSE') {
       await client.query(
-        `UPDATE event_attendance_sessions SET status = 'CLOSED', close_time = NOW() WHERE event_id = $1`,
+        `INSERT INTO event_attendance_records (event_id, registration_id, status)
+         SELECT $1, registration_id, 'NOT_MARKED'
+         FROM event_registrations
+         WHERE event_id = $1 AND LOWER(status) <> 'cancelled'
+         ON CONFLICT (event_id, registration_id) DO NOTHING`,
         [eventId]
       );
+    } else {
+      const upd = await client.query(
+        `UPDATE event_attendance_sessions
+         SET status = 'CLOSED', close_time = NOW()
+         WHERE event_id = $1
+         RETURNING *`,
+        [eventId]
+      );
+      session = upd.rows[0] || { status: 'CLOSED' };
 
       await client.query(
-        `UPDATE event_attendance_records SET status = 'ABSENT' WHERE event_id = $1 AND status = 'NOT_MARKED'`,
+        `UPDATE event_attendance_records SET status = 'ABSENT'
+         WHERE event_id = $1 AND status = 'NOT_MARKED'`,
         [eventId]
       );
     }
 
     await client.query('COMMIT');
-    res.json({ message: `Attendance window ${action.toLowerCase()}ed successfully.`, session });
+    res.json({
+      message: action === 'OPEN' ? 'Attendance window opened.' : 'Attendance window closed.',
+      session
+    });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ message: 'Error managing attendance window' });
+    console.error('[attendance] Failed to change attendance window:', err);
+    res.status(500).json({ message: 'Failed to update the attendance window.' });
   } finally {
     client.release();
   }
 });
 
-// Rotate QR Credential (30s Expiry)
-router.get('/events/:eventId/qr-credential', authenticateToken, authorizeStaffForEvent, async (req, res) => {
-  const { eventId } = req.params;
+// =====================================================
+// GET /events/:eventId/qr-credential
+// Issues a short-lived check-in link to display as a QR code.
+// Only works while the attendance window is open.
+// =====================================================
+router.get('/events/:eventId/qr-credential', authenticateToken, requireEventOwner, async (req, res) => {
+  const { eventId } = req;
   try {
+    const sessionRes = await pool.query(
+      'SELECT status FROM event_attendance_sessions WHERE event_id = $1',
+      [eventId]
+    );
+    if (sessionRes.rows[0]?.status !== 'OPEN') {
+      return res.status(409).json({ message: 'Open the attendance window first.' });
+    }
+
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 30 * 1000);
+    const expiresAt = new Date(Date.now() + QR_TOKEN_TTL_MS);
 
     await pool.query(
       `INSERT INTO event_attendance_qr_tokens (event_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
-      [eventId, tokenHash, expiresAt]
+      [eventId, hashToken(rawToken), expiresAt]
     );
 
-    const checkInUrl = `http://localhost:5173/student/attendance/check-in/${rawToken}`;
-    res.json({ qrCredentialUrl: checkInUrl, expiresAt });
+    // Housekeeping: drop tokens that expired more than a day ago.
+    pool.query(`DELETE FROM event_attendance_qr_tokens WHERE expires_at < NOW() - INTERVAL '1 day'`)
+      .catch((err) => console.error('[attendance] Failed to clean up old QR tokens:', err));
+
+    res.json({
+      qrCredentialUrl: `${CLIENT_URL}/student/attendance/check-in/${rawToken}`,
+      expiresAt
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error generating QR token' });
+    console.error('[attendance] Failed to generate QR token:', err);
+    res.status(500).json({ message: 'Failed to generate QR code.' });
   }
 });
 
-// Student Check-In
+// =====================================================
+// POST /check-in
+// Body: { token }
+// A registered student checks in by scanning the QR code.
+// =====================================================
 router.post('/check-in', authenticateToken, async (req, res) => {
-  const { token } = req.body;
+  const token = req.body?.token;
   const userId = req.user.id;
 
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/i.test(token)) {
+    return res.status(400).json({ message: 'Invalid or expired QR code.' });
+  }
+
+  const client = await pool.connect();
   try {
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const tokenRes = await pool.query(
-      `SELECT * FROM event_attendance_qr_tokens WHERE token_hash = $1 AND expires_at > NOW()`,
-      [tokenHash]
+    await client.query('BEGIN');
+
+    const tokenRes = await client.query(
+      `SELECT event_id FROM event_attendance_qr_tokens WHERE token_hash = $1 AND expires_at > NOW()`,
+      [hashToken(token)]
     );
-
     if (tokenRes.rows.length === 0) {
-      return res.status(400).json({ message: 'Invalid or expired QR code.' });
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Invalid or expired QR code. Please scan again.' });
     }
-
     const eventId = tokenRes.rows[0].event_id;
 
-    const sessionRes = await pool.query(`SELECT status FROM event_attendance_sessions WHERE event_id = $1`, [eventId]);
-    if (sessionRes.rows.length === 0 || sessionRes.rows[0].status !== 'OPEN') {
-      return res.status(400).json({ message: 'Attendance window is closed for this event.' });
+    const sessionRes = await client.query(
+      `SELECT status FROM event_attendance_sessions WHERE event_id = $1`,
+      [eventId]
+    );
+    if (sessionRes.rows[0]?.status !== 'OPEN') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'The attendance window for this event is closed.' });
     }
 
-    const regRes = await pool.query(`SELECT registration_id FROM event_registrations WHERE event_id = $1 AND registrant_user_id = $2`, [eventId, userId]);
-    if (regRes.rows.length === 0) {
+    const regRes = await client.query(
+      `SELECT registration_id, status FROM event_registrations
+       WHERE event_id = $1 AND registrant_user_id = $2`,
+      [eventId, userId]
+    );
+    const registration = regRes.rows[0];
+    if (!registration || registration.status?.toLowerCase() === 'cancelled') {
+      await client.query('ROLLBACK');
       return res.status(403).json({ message: 'You are not registered for this event.' });
     }
 
-    const regId = regRes.rows[0].registration_id;
-
-    const recordRes = await pool.query(
-      `UPDATE event_attendance_records 
-       SET status = 'PRESENT', checkin_time = NOW() 
-       WHERE event_id = $1 AND registration_id = $2 
-       RETURNING *`,
-      [eventId, regId]
+    // Students who registered after the window opened may not have a record yet.
+    const recordRes = await client.query(
+      `INSERT INTO event_attendance_records (event_id, registration_id, status)
+       VALUES ($1, $2, 'NOT_MARKED')
+       ON CONFLICT (event_id, registration_id) DO UPDATE SET event_id = EXCLUDED.event_id
+       RETURNING id, status`,
+      [eventId, registration.registration_id]
     );
+    const record = recordRes.rows[0];
 
-    if (recordRes.rows.length > 0) {
-      await pool.query(
-        `INSERT INTO event_attendance_audit_logs (record_id, previous_status, new_status, actor_id, source, reason)
-         VALUES ($1, 'NOT_MARKED', 'PRESENT', $2, 'student', 'QR Check-in')`,
-        [recordRes.rows[0].id, userId]
-      );
+    if (record.status === 'PRESENT') {
+      await client.query('ROLLBACK');
+      return res.status(200).json({ message: 'You are already checked in.', alreadyCheckedIn: true });
     }
 
+    await client.query(
+      `UPDATE event_attendance_records SET status = 'PRESENT', checkin_time = NOW() WHERE id = $1`,
+      [record.id]
+    );
+    await client.query(
+      `INSERT INTO event_attendance_audit_logs (record_id, previous_status, new_status, actor_id, source, reason)
+       VALUES ($1, $2, 'PRESENT', $3, 'student', 'QR check-in')`,
+      [record.id, record.status, userId]
+    );
+
+    await client.query('COMMIT');
     res.json({ message: 'Attendance recorded successfully!' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Error checking in.' });
+    await client.query('ROLLBACK');
+    console.error('[attendance] Check-in failed:', err);
+    res.status(500).json({ message: 'Check-in failed. Please try again.' });
+  } finally {
+    client.release();
   }
 });
 
-// Manual Staff Correction
+// =====================================================
+// PUT /records/:recordId/correct
+// Body: { status: 'PRESENT' | 'ABSENT' | 'NOT_MARKED', reason }
+// Manual correction by the Page owner. Every change is audit-logged.
+// =====================================================
 router.put('/records/:recordId/correct', authenticateToken, async (req, res) => {
-  const { recordId } = req.params;
-  const { status, reason } = req.body;
-  const userId = req.user.id;
+  const recordId = Number(req.params.recordId);
+  const status = String(req.body?.status || '').toUpperCase();
+  const reason = String(req.body?.reason || '').trim();
 
+  if (!Number.isSafeInteger(recordId) || recordId <= 0) {
+    return res.status(400).json({ message: 'Invalid record ID.' });
+  }
+  if (!RECORD_STATUSES.includes(status)) {
+    return res.status(400).json({ message: `Status must be one of: ${RECORD_STATUSES.join(', ')}.` });
+  }
+  if (!reason) {
+    return res.status(400).json({ message: 'A reason is required for manual corrections.' });
+  }
+
+  const client = await pool.connect();
   try {
-    const existingRes = await pool.query('SELECT * FROM event_attendance_records WHERE id = $1', [recordId]);
-    if (existingRes.rows.length === 0) {
+    await client.query('BEGIN');
+
+    const existingRes = await client.query(
+      'SELECT id, event_id, status FROM event_attendance_records WHERE id = $1 FOR UPDATE',
+      [recordId]
+    );
+    const existing = existingRes.rows[0];
+    if (!existing) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ message: 'Record not found.' });
     }
 
-    const oldRecord = existingRes.rows[0];
+    if (!(await ownsEvent(req.user.id, existing.event_id))) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ message: 'Access denied: you do not manage this event.' });
+    }
 
-    const updatedRes = await pool.query(
-      `UPDATE event_attendance_records SET status = $1 WHERE id = $2 RETURNING *`,
+    const updatedRes = await client.query(
+      `UPDATE event_attendance_records
+       SET status = $1::varchar,
+           checkin_time = CASE WHEN $1::varchar = 'PRESENT' THEN COALESCE(checkin_time, NOW()) ELSE NULL END
+       WHERE id = $2
+       RETURNING *`,
       [status, recordId]
     );
 
-    await pool.query(
+    await client.query(
       `INSERT INTO event_attendance_audit_logs (record_id, previous_status, new_status, actor_id, source, reason)
        VALUES ($1, $2, $3, $4, 'staff', $5)`,
-      [recordId, oldRecord.status, status, userId, reason]
+      [recordId, existing.status, status, req.user.id, reason]
     );
 
-    res.json({ message: 'Record updated successfully', record: updatedRes.rows[0] });
+    await client.query('COMMIT');
+    res.json({ message: 'Record updated successfully.', record: updatedRes.rows[0] });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Correction failed.' });
+    await client.query('ROLLBACK');
+    console.error('[attendance] Correction failed:', err);
+    res.status(500).json({ message: 'Failed to update the record.' });
+  } finally {
+    client.release();
   }
 });
 
-// Export Attendance CSV
-router.get('/events/:eventId/export', async (req, res) => {
-  const { eventId } = req.params;
+// =====================================================
+// GET /events/:eventId/export
+// Attendance CSV download. Accepts ?token= so it works with window.open().
+// =====================================================
+router.get('/events/:eventId/export', authenticateToken, requireEventOwner, async (req, res) => {
+  const { eventId } = req;
   try {
-    const query = `
-      SELECT u.user_id as student_id, u.first_name || ' ' || u.last_name as name, ar.status, ar.checkin_time
-      FROM event_attendance_records ar
-      JOIN event_registrations er ON ar.registration_id = er.registration_id
-      JOIN users u ON er.registrant_user_id = u.user_id
-      WHERE ar.event_id = $1
-    `;
-    const { rows } = await pool.query(query, [eventId]);
+    const { rows } = await pool.query(ROSTER_SQL, [eventId]);
 
-    let csvContent = 'Student ID,Student Name,Status,Check-in Time\n';
-    rows.forEach((r) => {
-      const sanitize = (val) => {
-        if (!val) return '';
-        let str = String(val).replace(/"/g, '""');
-        if (['=', '+', '-', '@'].includes(str.charAt(0))) {
-          str = `'` + str;
-        }
-        return `"${str}"`;
-      };
+    const header = ['Student ID', 'Student Name', 'Status', 'Check-in Time'].join(',');
+    const lines = rows.map((r) => [
+      csvCell(r.student_id),
+      csvCell(r.student_name),
+      csvCell(r.status),
+      csvCell(r.checkin_time ? new Date(r.checkin_time).toISOString() : '')
+    ].join(','));
 
-      csvContent += `${sanitize(r.student_id)},${sanitize(r.name)},${sanitize(r.status)},${sanitize(r.checkin_time)}\n`;
-    });
-
-    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=attendance_event_${eventId}.csv`);
-    res.status(200).send(csvContent);
+    res.status(200).send([header, ...lines].join('\n'));
   } catch (err) {
-    console.error(err);
-    res.status(500).send('CSV generation error');
+    console.error('[attendance] CSV export failed:', err);
+    res.status(500).json({ message: 'Failed to generate the attendance CSV.' });
   }
 });
 

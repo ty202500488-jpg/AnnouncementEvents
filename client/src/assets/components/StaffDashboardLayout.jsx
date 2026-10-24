@@ -67,7 +67,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/staff/notifications', {
+      const response = await fetch('http://localhost:5000/api/mypage/notifications', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -164,7 +164,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
   const handleMarkAllAsRead = async () => {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch('http://localhost:5000/api/staff/notifications/read-all', {
+      const response = await fetch('http://localhost:5000/api/mypage/notifications/read-all', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -183,7 +183,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
     if (!notif.is_read) {
       const token = localStorage.getItem('token');
       try {
-        const response = await fetch(`http://localhost:5000/api/staff/notifications/${notif.id}/read`, {
+        const response = await fetch(`http://localhost:5000/api/mypage/notifications/${notif.id}/read`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

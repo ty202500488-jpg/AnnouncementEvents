@@ -295,3 +295,78 @@ CREATE INDEX IF NOT EXISTS idx_pending_token_hash ON pending_registrations(token
 CREATE INDEX IF NOT EXISTS idx_pending_email ON pending_registrations(email);
 CREATE INDEX IF NOT EXISTS idx_pending_student_id ON pending_registrations(student_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_hash ON password_reset_tokens(token_hash);
+
+
+-- ==============================================================================
+-- NOTIFICATIONS
+-- Used by Routes/mypageNotifications.js and Routes/studentRoutes.js
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    page_id INT REFERENCES pages(page_id) ON DELETE SET NULL, -- optional: Page that caused it
+    title VARCHAR(200),
+    message TEXT NOT NULL,
+    type VARCHAR(50), -- e.g. 'announcement', 'event', 'registration', 'attendance'
+    url TEXT,         -- optional link to open when clicked
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
+
+-- ==============================================================================
+-- EVENT ATTENDANCE
+-- Used by Routes/mypageAttendance.js and Routes/attendanceWorker.js
+-- ==============================================================================
+
+-- One attendance window per event. Staff open/close it; if close_time is set
+-- while OPEN, the background worker closes it automatically at that time.
+CREATE TABLE IF NOT EXISTS event_attendance_sessions (
+    id SERIAL PRIMARY KEY,
+    event_id INT NOT NULL UNIQUE REFERENCES events(event_id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'CLOSED'
+        CHECK (status IN ('OPEN', 'CLOSED')),
+    open_time TIMESTAMP,
+    close_time TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- One row per registered student per event.
+CREATE TABLE IF NOT EXISTS event_attendance_records (
+    id SERIAL PRIMARY KEY,
+    event_id INT NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    registration_id INT NOT NULL REFERENCES event_registrations(registration_id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'NOT_MARKED'
+        CHECK (status IN ('PRESENT', 'ABSENT', 'NOT_MARKED')),
+    checkin_time TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uq_attendance_event_registration UNIQUE (event_id, registration_id)
+);
+
+-- Short-lived QR check-in tokens (only the SHA-256 hash is stored).
+CREATE TABLE IF NOT EXISTS event_attendance_qr_tokens (
+    id SERIAL PRIMARY KEY,
+    event_id INT NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- History of every attendance status change (QR check-ins and staff corrections).
+CREATE TABLE IF NOT EXISTS event_attendance_audit_logs (
+    id SERIAL PRIMARY KEY,
+    record_id INT NOT NULL REFERENCES event_attendance_records(id) ON DELETE CASCADE,
+    previous_status VARCHAR(20),
+    new_status VARCHAR(20) NOT NULL,
+    actor_id INT REFERENCES users(user_id) ON DELETE SET NULL,
+    source VARCHAR(20) NOT NULL, -- 'student' or 'staff'
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_attendance_records_event ON event_attendance_records(event_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_qr_event ON event_attendance_qr_tokens(event_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_audit_record ON event_attendance_audit_logs(record_id);

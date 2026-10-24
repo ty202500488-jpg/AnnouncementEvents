@@ -27,6 +27,9 @@ export default function MyPageAttendance() {
   const [correctionReason, setCorrectionReason] = useState('');
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
 
+  // Optional auto-close time used when opening the attendance window
+  const [autoCloseTime, setAutoCloseTime] = useState('');
+
   useEffect(() => {
     fetchAuthorizedEvents();
   }, []);
@@ -132,7 +135,10 @@ export default function MyPageAttendance() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({
+          action,
+          ...(action === 'OPEN' && autoCloseTime && { closeTime: new Date(autoCloseTime).toISOString() })
+        })
       });
       const data = await response.json();
       if (response.ok) {
@@ -315,6 +321,17 @@ export default function MyPageAttendance() {
               </div>
 
               <div className="action-buttons-group">
+                {eventData.session?.status !== 'OPEN' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: '#475569' }}>
+                    Auto-close at (optional)
+                    <input
+                      type="datetime-local"
+                      value={autoCloseTime}
+                      onChange={(e) => setAutoCloseTime(e.target.value)}
+                      style={{ padding: '0.4rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1' }}
+                    />
+                  </label>
+                )}
                 {eventData.session?.status !== 'OPEN' ? (
                   <button className="btn-primary-maroon" onClick={() => handleToggleAttendanceWindow('OPEN')}>
                     <i className="fa-solid fa-door-open"></i> Open Attendance

@@ -34,7 +34,7 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
   // 1. Fetch Summary Totals
   const fetchSummary = async () => {
     try {
-      const res = await fetch('/api/mypage/registrations/summary', { headers: getAuthHeaders() });
+      const res = await fetch('http://localhost:5000/api/mypage/registrations/summary', { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         setSummary(data);
@@ -47,7 +47,7 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
   // 2. Fetch Accessible Events Dropdown
   const fetchEvents = async () => {
     try {
-      const res = await fetch('/api/mypage/registrations/events', { headers: getAuthHeaders() });
+      const res = await fetch('http://localhost:5000/api/mypage/registrations/events', { headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         const eventList = data.events || [];
@@ -81,7 +81,7 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
         limit: 10
       });
 
-      const res = await fetch(`/api/mypage/registrations/events/${selectedEventId}/students?${params}`, {
+      const res = await fetch(`http://localhost:5000/api/mypage/registrations/events/${selectedEventId}/students?${params}`, {
         headers: getAuthHeaders()
       });
 
@@ -114,7 +114,7 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
   const handleViewDetails = async (registrationId) => {
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/mypage/registrations/events/${selectedEventId}/students/${registrationId}`, {
+      const res = await fetch(`http://localhost:5000/api/mypage/registrations/events/${selectedEventId}/students/${registrationId}`, {
         headers: getAuthHeaders()
       });
       if (res.ok) {
@@ -133,7 +133,7 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
     if (!selectedEventId) return;
 
     try {
-      const response = await fetch(`/api/mypage/registrations/events/${selectedEventId}/export`, {
+      const response = await fetch(`http://localhost:5000/api/mypage/registrations/events/${selectedEventId}/export`, {
         headers: getAuthHeaders()
       });
 

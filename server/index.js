@@ -12,6 +12,7 @@ const mypageRegistrationRoutes = require('./Routes/mypageRegistrations');
 const mypageAttendanceRoutes = require('./Routes/mypageAttendance');
 const mypageNotificationRoutes = require('./Routes/mypageNotifications');
 const adminRoutes = require('./Routes/adminRoutes');
+const startAttendanceWorker = require('./Routes/attendanceWorker');
 
 // ---- Global Middleware ----//
 app.use(cors());
@@ -21,12 +22,10 @@ app.use(express.json());
 app.use('/api/users', userRoutes); 
 app.use('/api', pageRoutes);
 app.use('/api/student', studentRoutes);
-app.use('/api/mypage', mypageRegistrationRoutes);
+app.use('/api/mypage/notifications', mypageNotificationRoutes);
 app.use('/api/mypage/attendance', mypageAttendanceRoutes);
+app.use('/api/mypage', mypageRegistrationRoutes);
 app.use('/api/admin', adminRoutes);
-
-// Mounted under /api so both /api/mypage/notifications and /api/staff/notifications work
-app.use('/api', mypageNotificationRoutes);
 
 // Root Health Check Route
 app.get('/', (req, res) => {
@@ -46,4 +45,6 @@ app.use((err, req, res, next) => {
 
 app.listen(5000, () => {
     console.log('Server is running on port 5000');
+    // Auto-closes attendance windows whose scheduled close time has passed
+    startAttendanceWorker();
 });
