@@ -1,3 +1,10 @@
+import Layout from "../../assets/components/Layout.jsx";
+import { DataProvider } from "./context/DataContext.jsx";
+
 export default function AdminDashboard() {
-  return <div>admin</div>;
+  return (
+    <DataProvider>
+      <Layout />
+    </DataProvider>
+  );
 }

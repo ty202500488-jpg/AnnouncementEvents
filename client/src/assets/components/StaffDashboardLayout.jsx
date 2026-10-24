@@ -621,11 +621,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
                       <i className="fa-solid fa-flag nav-icon"></i>
                       <span>My Page</span>
                     </div>
-                    {isPageApproved && (
-                      <span style={{ fontSize: '10px', background: 'var(--brand-100, #fce7f3)', color: 'var(--brand-700, #881337)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                        Active
-                      </span>
-                    )}
+
                   </div>
                 </a>
               </nav>

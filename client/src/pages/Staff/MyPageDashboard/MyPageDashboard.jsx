@@ -9,6 +9,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [announcements, setAnnouncements] = useState([]);
   const [events, setEvents] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const [bookmarks, setBookmarks] = useState({});
@@ -18,6 +19,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [postType, setPostType] = useState('announcement');
   const [audience, setAudience] = useState('All Campus');
+  const [categoryId, setCategoryId] = useState('');
   const [quickTitle, setQuickTitle] = useState('');
   const [quickBody, setQuickBody] = useState('');
   const [eventDate, setEventDate] = useState('');
@@ -43,21 +45,31 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
 
       // Fetch Feed Data
       const response = await fetch('http://localhost:5000/api/dashboard-data', {
-        method: 'POST',
+        method: 'GET',
         headers
       });
-      const data = await response.json();
+
       if (response.ok) {
+        const data = await response.json();
         if (data.announcements) setAnnouncements(data.announcements);
         if (data.events) setEvents(data.events);
       }
 
-      // Fetch Status/Name of User's Page
+      // Fetch Categories
+      const catRes = await fetch('http://localhost:5000/api/categories', { headers });
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        if (catData.categories) setCategories(catData.categories);
+      }
+
+      // Fetch Page Status
       const statusRes = await fetch('http://localhost:5000/api/my-page-status', { headers });
-      const statusData = await statusRes.json();
-      if (statusRes.ok && statusData.exists) {
-        if (statusData.pageName) setPageName(statusData.pageName);
-        if (statusData.pageCode) setPageCode(statusData.pageCode);
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        if (statusData.exists) {
+          if (statusData.pageName) setPageName(statusData.pageName);
+          if (statusData.pageCode) setPageCode(statusData.pageCode);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -109,6 +121,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     setEventDate('');
     setLocation('');
     setCapacity('');
+    setCategoryId('');
     setSelectedImage(null);
     setImagePreview(null);
     setEditingPost(null);
@@ -148,6 +161,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     setPostType(type);
     setQuickTitle(item.title || item.event_title || '');
     setQuickBody(item.content || item.event_description || item.description || '');
+    setCategoryId(item.category_id || '');
     setEventDate(item.event_date ? item.event_date.split('T')[0] : '');
     setLocation(item.location || item.venue || '');
     setCapacity(item.capacity || '');
@@ -181,7 +195,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         } : {
           title: quickTitle,
           content: quickBody,
-          description: quickBody
+          description: quickBody,
+          category_id: categoryId ? parseInt(categoryId) : null
         };
 
         const response = await fetch(endpoint, {
@@ -194,7 +209,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           if (isEvent) {
             setEvents(prev => prev.map(ev => ev.event_id === editingPost.event_id ? { ...ev, event_title: quickTitle, event_description: quickBody, event_date: eventDate, location, capacity } : ev));
           } else {
-            setAnnouncements(prev => prev.map(an => an.announcement_id === editingPost.announcement_id ? { ...an, title: quickTitle, content: quickBody, description: quickBody } : an));
+            setAnnouncements(prev => prev.map(an => an.announcement_id === editingPost.announcement_id ? { ...an, title: quickTitle, content: quickBody, description: quickBody, category_id: categoryId } : an));
           }
         }
       } else {
@@ -205,7 +220,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             body: JSON.stringify({
               title: quickTitle,
               content: quickBody,
-              description: quickBody
+              description: quickBody,
+              category_id: categoryId ? parseInt(categoryId) : null
             })
           });
           const data = await response.json();
@@ -344,6 +360,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
                     <select 
+                      id="post-type-select"
+                      name="postType"
                       value={postType} 
                       onChange={(e) => setPostType(e.target.value)}
                       style={{ backgroundColor: '#f1f5f9', border: 'none', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '11px', fontWeight: 700, color: '#881337', cursor: 'pointer', outline: 'none' }}
@@ -352,7 +370,26 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                       <option value="event">Event</option>
                     </select>
 
+                    {postType === 'announcement' && (
+                      <select 
+                        id="category-select"
+                        name="categoryId"
+                        value={categoryId} 
+                        onChange={(e) => setCategoryId(e.target.value)}
+                        style={{ backgroundColor: '#f1f5f9', border: 'none', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '11px', fontWeight: 600, color: '#334155', cursor: 'pointer', outline: 'none' }}
+                      >
+                        <option value="">Select Category...</option>
+                        {categories.map((cat) => (
+                          <option key={cat.category_id} value={cat.category_id}>
+                            {cat.category_name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
                     <select 
+                      id="audience-select"
+                      name="audience"
                       value={audience} 
                       onChange={(e) => setAudience(e.target.value)}
                       style={{ backgroundColor: '#f1f5f9', border: 'none', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '11px', fontWeight: 600, color: '#334155', cursor: 'pointer', outline: 'none' }}
@@ -365,6 +402,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 </div>
 
                 <input 
+                  id="post-title"
+                  name="title"
                   type="text" 
                   placeholder={postType === 'announcement' ? "Announcement Title..." : "Event Title..."} 
                   value={quickTitle}
@@ -376,21 +415,23 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 {postType === 'event' && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
                     <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>EVENT DATE</label>
-                      <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} required />
+                      <label htmlFor="event-date" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>EVENT DATE</label>
+                      <input id="event-date" name="event_date" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} required />
                     </div>
                     <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>LOCATION / VENUE</label>
-                      <input type="text" placeholder="e.g. CCS Gym" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} />
+                      <label htmlFor="event-location" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>LOCATION / VENUE</label>
+                      <input id="event-location" name="location" type="text" placeholder="e.g. CCS Gym" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} />
                     </div>
                     <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>CAPACITY</label>
-                      <input type="number" placeholder="Max capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} />
+                      <label htmlFor="event-capacity" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>CAPACITY</label>
+                      <input id="event-capacity" name="capacity" type="number" placeholder="Max capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} />
                     </div>
                   </div>
                 )}
 
                 <textarea 
+                  id="post-body"
+                  name="content"
                   rows="4" 
                   placeholder="Write post description..." 
                   value={quickBody}
@@ -412,7 +453,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   </div>
                 )}
 
-                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
+                <input id="post-image-upload" name="image" type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
                   <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#334155' }}>Add to your post</span>
@@ -439,7 +480,6 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           <p style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>Loading department feed...</p>
         ) : announcements.length === 0 && events.length === 0 ? (
           <article className="card" style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '1rem' }}>
-            <i className="fa-solid fa-bullhorn" style={{ fontSize: '2rem', color: '#cbd5e1', marginBottom: '0.5rem', display: 'block' }}></i>
             <p style={{ color: '#475569', fontWeight: 600 }}>No Announcements or Events posted yet.</p>
           </article>
         ) : (
@@ -503,7 +543,14 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
 
                   {/* Body Content */}
                   <div style={{ marginBottom: '1rem' }}>
-                    <h4 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem', margin: '0 0 0.5rem 0', lineHeight: 1.3 }}>{item.title}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                      <h4 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem', margin: 0, lineHeight: 1.3 }}>{item.title}</h4>
+                      {item.category_name && (
+                        <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#f1f5f9', color: '#881337', padding: '2px 6px', borderRadius: '4px' }}>
+                          {item.category_name}
+                        </span>
+                      )}
+                    </div>
                     <p style={{ color: '#475569', fontSize: '0.875rem', margin: 0, lineHeight: 1.6 }}>{item.content || item.description}</p>
                   </div>
 

@@ -38,17 +38,39 @@ async function authenticateUser(req, res) {
     }
 }
 
-// HELPER: Fetch user's managed page details
+// HELPER: Fetch user's managed page details or return fallback page
 async function getUserPageDetails(userId) {
     try {
         const pageRes = await pool.query(
             `SELECT page_id, page_name FROM pages WHERE created_by = $1 ORDER BY page_id DESC LIMIT 1`,
             [userId]
         );
-        return pageRes.rows.length > 0 ? pageRes.rows[0] : { page_id: null, page_name: 'Student Affairs Office' };
+        if (pageRes.rows.length > 0) {
+            return pageRes.rows[0];
+        }
+
+        const fallbackRes = await pool.query(`SELECT page_id, page_name FROM pages LIMIT 1`);
+        if (fallbackRes.rows.length > 0) {
+            return fallbackRes.rows[0];
+        }
+
+        return { page_id: null, page_name: 'Student Affairs Office' };
     } catch (err) {
         console.error('Error in getUserPageDetails:', err.message);
         return { page_id: null, page_name: 'Student Affairs Office' };
+    }
+}
+
+// HELPER: Fetch default category_id if null to satisfy NOT-NULL constraint
+async function getDefaultCategoryId() {
+    try {
+        const catRes = await pool.query(`SELECT category_id FROM categories ORDER BY category_id ASC LIMIT 1`);
+        if (catRes.rows.length > 0) {
+            return catRes.rows[0].category_id;
+        }
+        return 1;
+    } catch (err) {
+        return 1;
     }
 }
 
@@ -87,17 +109,20 @@ router.get('/my-page-status', async (req, res) => {
     }
 });
 
-// FETCH DASHBOARD FEED DATA
-router.get('/dashboard-data', async (req, res) => {
+// FETCH DASHBOARD FEED DATA (Includes category_id and category_name)
+const handleDashboardFetch = async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
 
         const annRes = await pool.query(
-            `SELECT a.announcement_id, a.title, COALESCE(a.content, a.description) as content, 
-                    a.created_at, a.image_url, a.page_id, p.page_name 
+            `SELECT a.announcement_id, a.title, COALESCE(a.content, a.description, '') as content, 
+                    a.created_at, a.image_url, a.page_id, a.category_id,
+                    COALESCE(c.category_name, 'General') as category_name,
+                    COALESCE(p.page_name, 'Student Affairs Office') as page_name 
              FROM announcements a 
              LEFT JOIN pages p ON a.page_id = p.page_id 
+             LEFT JOIN categories c ON a.category_id = c.category_id
              ORDER BY a.created_at DESC`
         ).catch((err) => {
             console.error('Error fetching announcements:', err.message);
@@ -106,9 +131,9 @@ router.get('/dashboard-data', async (req, res) => {
 
         const evRes = await pool.query(
             `SELECT e.event_id, COALESCE(e.event_title, e.title) as event_title, 
-                    COALESCE(e.event_description, e.description) as event_description, 
+                    COALESCE(e.event_description, e.description, '') as event_description, 
                     e.event_date, COALESCE(e.location, e.venue) as location, e.capacity, 
-                    e.created_at, e.image_url, e.page_id, p.page_name 
+                    e.created_at, e.image_url, e.page_id, COALESCE(p.page_name, 'Student Affairs Office') as page_name 
              FROM events e 
              LEFT JOIN pages p ON e.page_id = p.page_id 
              ORDER BY e.created_at DESC`
@@ -125,53 +150,123 @@ router.get('/dashboard-data', async (req, res) => {
         console.error('Error fetching dashboard data:', error);
         return res.status(500).json({ message: 'Failed to fetch dashboard posts.' });
     }
+};
+
+router.get('/dashboard-data', handleDashboardFetch);
+router.post('/dashboard-data', handleDashboardFetch);
+
+// GET /api/mypage/posts (Includes categories)
+router.get('/mypage/posts', async (req, res) => {
+    try {
+        const userId = await authenticateUser(req, res);
+        if (!userId) return;
+
+        const { pageId } = req.query;
+
+        let annQuery = `SELECT a.*, a.category_id, COALESCE(c.category_name, 'General') as category_name, COALESCE(p.page_name, 'Student Affairs Office') as page_name FROM announcements a LEFT JOIN pages p ON a.page_id = p.page_id LEFT JOIN categories c ON a.category_id = c.category_id`;
+        let evQuery = `SELECT e.*, COALESCE(p.page_name, 'Student Affairs Office') as page_name FROM events e LEFT JOIN pages p ON e.page_id = p.page_id`;
+        const params = [];
+
+        if (pageId) {
+            annQuery += ` WHERE a.page_id = $1`;
+            evQuery += ` WHERE e.page_id = $1`;
+            params.push(pageId);
+        }
+
+        annQuery += ` ORDER BY a.created_at DESC`;
+        evQuery += ` ORDER BY e.created_at DESC`;
+
+        const annRes = await pool.query(annQuery, params).catch(() => ({ rows: [] }));
+        const evRes = await pool.query(evQuery, params).catch(() => ({ rows: [] }));
+
+        return res.status(200).json({
+            announcements: annRes.rows,
+            events: evRes.rows,
+            posts: [...annRes.rows, ...evRes.rows]
+        });
+    } catch (err) {
+        console.error('Error fetching mypage posts:', err);
+        return res.status(500).json({ message: 'Failed to fetch page posts.' });
+    }
 });
 
-// CREATE ANNOUNCEMENT (Fixed to match table schema)
+// GET /api/categories (Fetches all announcement categories for dropdowns)
+router.get('/categories', async (req, res) => {
+    try {
+        const result = await pool.query(`SELECT category_id, category_name FROM categories ORDER BY category_name ASC`);
+        return res.status(200).json({ categories: result.rows });
+    } catch (err) {
+        console.error('Error fetching categories:', err.message);
+        return res.status(200).json({ categories: [{ category_id: 1, category_name: 'General' }] });
+    }
+});
+
+// CREATE ANNOUNCEMENT (Include category_id)
 router.post('/announcements', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
 
-        const { title, content, description, pageId, image_url } = req.body;
-        if (!title || (!content && !description)) {
-            return res.status(400).json({ message: 'Title and content are required.' });
+        const { title, content, description, pageId, image_url, category_id, is_pinned } = req.body;
+        const bodyText = content || description || '';
+
+        if (!title || !bodyText) {
+            return res.status(400).json({ message: 'Title and content/description are required.' });
         }
 
         const userPage = await getUserPageDetails(userId);
         const targetPageId = pageId || userPage.page_id;
-        const bodyText = content || description || '';
 
         if (!targetPageId) {
-            return res.status(400).json({ message: 'You do not have an active/approved page to post announcements.' });
+            return res.status(400).json({ message: 'No valid page found. Please create or join an organization page first.' });
         }
 
-        const result = await pool.query(
-            `INSERT INTO announcements (page_id, creator_user_id, title, content, description, image_url, status, created_at, updated_at) 
-             VALUES ($1, $2, $3, $4, $5, $6, 'Published', NOW(), NOW()) 
-             RETURNING announcement_id, title, content, description, page_id, image_url, created_at`,
-            [targetPageId, userId, title, bodyText, bodyText, image_url || null]
-        );
+        let finalCategoryId = category_id ? Number(category_id) : null;
+        if (!finalCategoryId) {
+            finalCategoryId = await getDefaultCategoryId();
+        }
+
+        const query = `
+            INSERT INTO announcements 
+            (page_id, creator_user_id, category_id, title, content, description, is_pinned, status, created_at, updated_at, image_url) 
+            VALUES ($1, $2, $3, $4, $5, $5, $6, 'Published', NOW(), NOW(), $7) 
+            RETURNING *;
+        `;
+
+        const values = [
+            targetPageId,
+            userId,
+            finalCategoryId,
+            title,
+            bodyText,
+            Boolean(is_pinned),
+            image_url || null
+        ];
+
+        const result = await pool.query(query, values);
 
         const newAnnouncement = {
             ...result.rows[0],
             page_name: userPage.page_name || 'Student Affairs Office'
         };
 
-        return res.status(201).json({ announcement: newAnnouncement });
+        return res.status(201).json({ 
+            message: 'Announcement published successfully!',
+            announcement: newAnnouncement 
+        });
     } catch (err) {
-        console.error('CRITICAL ERROR publishing announcement:', err.message);
+        console.error('CRITICAL ERROR publishing announcement:', err.stack || err.message);
         return res.status(500).json({ message: 'Database Insert Error: ' + err.message });
     }
 });
 
-// CREATE EVENT (Fixed to match table schema)
+// CREATE EVENT
 router.post('/events', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
 
-        const { event_title, title, event_description, description, pageId, event_date, location, venue, capacity, image_url, poster_url } = req.body;
+        const { event_title, title, event_description, description, pageId, event_date, location, venue, capacity, image_url, poster_url, organizer_info } = req.body;
         const eTitle = event_title || title;
         const eDesc = event_description || description || '';
 
@@ -183,28 +278,45 @@ router.post('/events', async (req, res) => {
         const targetPageId = pageId || userPage.page_id;
 
         if (!targetPageId) {
-            return res.status(400).json({ message: 'You do not have an active/approved page to post events.' });
+            return res.status(400).json({ message: 'No valid page found. Please create or join an organization page first.' });
         }
 
         const eDate = event_date || new Date().toISOString().split('T')[0];
         const eVenue = location || venue || 'TBD';
         const imgUrl = image_url || poster_url || null;
 
-        const result = await pool.query(
-            `INSERT INTO events (page_id, creator_user_id, event_title, title, event_description, description, event_date, venue, location, capacity, image_url, poster_url, status, created_at) 
-             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $6, $7, $8, $8, 'Published', NOW()) 
-             RETURNING event_id, event_title, event_description, page_id, event_date, venue, location, capacity, image_url, created_at`,
-            [targetPageId, userId, eTitle, eDesc, eDate, eVenue, capacity ? Number(capacity) : null, imgUrl]
-        );
+        const query = `
+            INSERT INTO events 
+            (page_id, creator_user_id, event_title, title, event_description, description, event_date, venue, location, capacity, image_url, poster_url, organizer_info, status, created_at) 
+            VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $6, $7, $8, $8, $9, 'Published', NOW()) 
+            RETURNING *;
+        `;
+
+        const values = [
+            targetPageId,
+            userId,
+            eTitle,
+            eDesc,
+            eDate,
+            eVenue,
+            capacity ? Number(capacity) : null,
+            imgUrl,
+            organizer_info || null
+        ];
+
+        const result = await pool.query(query, values);
 
         const newEvent = {
             ...result.rows[0],
             page_name: userPage.page_name || 'Student Affairs Office'
         };
 
-        return res.status(201).json({ event: newEvent });
+        return res.status(201).json({ 
+            message: 'Event published successfully!',
+            event: newEvent 
+        });
     } catch (err) {
-        console.error('CRITICAL ERROR publishing event:', err.message);
+        console.error('CRITICAL ERROR publishing event:', err.stack || err.message);
         return res.status(500).json({ message: 'Database Insert Error: ' + err.message });
     }
 });
@@ -215,13 +327,21 @@ router.put('/announcements/:id', async (req, res) => {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
         const { id } = req.params;
-        const { title, content, description } = req.body;
+        const { title, content, description, category_id } = req.body;
         const bodyText = content || description || '';
 
-        const result = await pool.query(
-            `UPDATE announcements SET title = $1, content = $2, description = $2, updated_at = NOW() WHERE announcement_id = $3 RETURNING *`,
-            [title, bodyText, id]
-        );
+        let query = `UPDATE announcements SET title = $1, content = $2, description = $2, updated_at = NOW()`;
+        const params = [title, bodyText];
+
+        if (category_id) {
+            params.push(Number(category_id));
+            query += `, category_id = $${params.length}`;
+        }
+
+        params.push(id);
+        query += ` WHERE announcement_id = $${params.length} RETURNING *`;
+
+        const result = await pool.query(query, params);
         return res.status(200).json({ announcement: result.rows[0] });
     } catch (err) {
         console.error('Error updating announcement:', err.message);

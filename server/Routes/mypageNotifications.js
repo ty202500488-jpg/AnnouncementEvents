@@ -24,7 +24,7 @@ async function authenticateUser(req, res) {
 }
 
 // GET /api/mypage/notifications
-router.get('/notifications', async (req, res) => {
+router.get('/mypage/notifications', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
@@ -44,8 +44,29 @@ router.get('/notifications', async (req, res) => {
     }
 });
 
+// GET /api/staff/notifications (Fixes StaffDashboardLayout.jsx 404 error)
+router.get('/staff/notifications', async (req, res) => {
+    try {
+        const userId = await authenticateUser(req, res);
+        if (!userId) return;
+
+        const result = await pool.query(
+            `SELECT id, title, message, type, url, is_read, is_archived, created_at 
+             FROM notifications 
+             WHERE user_id = $1 
+             ORDER BY created_at DESC`,
+            [userId]
+        ).catch(() => ({ rows: [] }));
+
+        res.status(200).json({ notifications: result.rows });
+    } catch (err) {
+        console.error('Fetch staff notifications error:', err);
+        res.status(500).json({ message: 'Failed to fetch staff notifications.' });
+    }
+});
+
 // PUT /api/mypage/notifications/read-all
-router.put('/notifications/read-all', async (req, res) => {
+router.put('/mypage/notifications/read-all', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
@@ -62,7 +83,7 @@ router.put('/notifications/read-all', async (req, res) => {
 });
 
 // PUT /api/mypage/notifications/:id/read
-router.put('/notifications/:id/read', async (req, res) => {
+router.put('/mypage/notifications/:id/read', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
@@ -79,7 +100,7 @@ router.put('/notifications/:id/read', async (req, res) => {
 });
 
 // PUT /api/mypage/notifications/:id/archive
-router.put('/notifications/:id/archive', async (req, res) => {
+router.put('/mypage/notifications/:id/archive', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
@@ -97,7 +118,7 @@ router.put('/notifications/:id/archive', async (req, res) => {
 });
 
 // DELETE /api/mypage/notifications/:id
-router.delete('/notifications/:id', async (req, res) => {
+router.delete('/mypage/notifications/:id', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
