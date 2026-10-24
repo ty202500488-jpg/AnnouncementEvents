@@ -11,7 +11,7 @@ export default function MyPageEvents() {
     const fetchEvents = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/users/events-data', {
+        const response = await fetch('http://localhost:5000/api/student/events-data', {
           method: 'GET',
           headers: { 
             'Content-Type': 'application/json',
@@ -37,9 +37,12 @@ export default function MyPageEvents() {
       const parsedUser = storedUser ? JSON.parse(storedUser) : {};
       const staffId = parsedUser.id || parsedUser.staff_id;
 
-      const response = await fetch(`http://localhost:5000/users/events/${eventId}/register`, {
+      const response = await fetch(`http://localhost:5000/api/student/events/${eventId}/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: JSON.stringify({ staff_id: staffId })
       });
       

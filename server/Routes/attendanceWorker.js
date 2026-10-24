@@ -9,7 +9,7 @@ const processOverdueSessions = async () => {
       SELECT id, event_id FROM event_attendance_sessions
       WHERE status = 'OPEN' AND close_time IS NOT NULL AND close_time <= NOW()
       FOR UPDATE SKIP LOCKED
-    `);
+    `).catch(() => ({ rows: [] }));
 
     for (const session of overdueRes.rows) {
       await client.query(

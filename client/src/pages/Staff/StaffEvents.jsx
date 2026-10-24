@@ -10,9 +10,13 @@ export default function StaffEvents() {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await fetch('http://localhost:5000/users/events-data', {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:5000/api/dashboard-data', {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
         });
         const data = await response.json();
         if (response.ok && data.events) {
@@ -32,10 +36,14 @@ export default function StaffEvents() {
       const storedUser = localStorage.getItem('user');
       const parsedUser = storedUser ? JSON.parse(storedUser) : {};
       const staffId = parsedUser.id || parsedUser.staff_id;
+      const token = localStorage.getItem('token');
 
-      const response = await fetch(`http://localhost:5000/users/events/${eventId}/register`, {
+      const response = await fetch(`http://localhost:5000/api/events/${eventId}/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ staff_id: staffId })
       });
       

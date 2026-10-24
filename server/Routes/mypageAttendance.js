@@ -2,7 +2,34 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const pool = require('../db');
-const authenticateToken = require('../Middleware/authenticateToken');
+const jwt = require('jsonwebtoken');
+
+// =====================================================
+// INLINE JWT AUTHENTICATION MIDDLEWARE
+// =====================================================
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication token required.' });
+  }
+
+  const jwtSecret = process.env.JWT_SECRET || 'fallback_secret';
+
+  jwt.verify(token, jwtSecret, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: 'Invalid or expired token.' });
+    }
+    
+    req.user = {
+      id: Number(decoded.userId ?? decoded.id ?? decoded.user_id),
+      ...decoded
+    };
+
+    next();
+  });
+};
 
 // Middleware: Verify logged-in user is staff for the target event's page
 const authorizeStaffForEvent = async (req, res, next) => {
@@ -11,9 +38,9 @@ const authorizeStaffForEvent = async (req, res, next) => {
 
   try {
     const query = `
-      SELECT e.id FROM events e
+      SELECT e.event_id FROM events e
       JOIN page_staff ps ON e.page_id = ps.page_id
-      WHERE e.id = $1 AND ps.user_id = $2
+      WHERE e.event_id = $1 AND ps.user_id = $2
     `;
     const result = await pool.query(query, [eventId, userId]);
     if (result.rows.length === 0) {
@@ -30,7 +57,7 @@ const authorizeStaffForEvent = async (req, res, next) => {
 router.get('/events', authenticateToken, async (req, res) => {
   try {
     const query = `
-      SELECT DISTINCT e.id, e.title, e.event_date, e.category, e.venue
+      SELECT DISTINCT e.event_id AS id, COALESCE(e.event_title, e.title) AS title, e.event_date, e.venue
       FROM events e
       JOIN page_staff ps ON e.page_id = ps.page_id
       WHERE ps.user_id = $1
@@ -48,16 +75,16 @@ router.get('/events', authenticateToken, async (req, res) => {
 router.get('/events/:eventId', authenticateToken, authorizeStaffForEvent, async (req, res) => {
   const { eventId } = req.params;
   try {
-    const eventRes = await pool.query('SELECT * FROM events WHERE id = $1', [eventId]);
+    const eventRes = await pool.query('SELECT * FROM events WHERE event_id = $1', [eventId]);
     const sessionRes = await pool.query('SELECT * FROM event_attendance_sessions WHERE event_id = $1', [eventId]);
 
     const recordsRes = await pool.query(`
-      SELECT ar.id, ar.status, ar.checkin_time, u.name as student_name, u.student_id
+      SELECT ar.id, ar.status, ar.checkin_time, u.first_name || ' ' || u.last_name as student_name, u.user_id as student_id
       FROM event_attendance_records ar
-      JOIN event_registrations er ON ar.registration_id = er.id
-      JOIN users u ON er.user_id = u.id
+      JOIN event_registrations er ON ar.registration_id = er.registration_id
+      JOIN users u ON er.registrant_user_id = u.user_id
       WHERE ar.event_id = $1
-    `, [eventId]);
+    `, [eventId]).catch(() => ({ rows: [] }));
 
     const records = recordsRes.rows;
     const totalEligible = records.length;
@@ -114,7 +141,7 @@ router.post('/events/:eventId/window', authenticateToken, authorizeStaffForEvent
 
       await client.query(`
         INSERT INTO event_attendance_records (event_id, registration_id, status)
-        SELECT $1, id, 'NOT_MARKED'
+        SELECT $1, registration_id, 'NOT_MARKED'
         FROM event_registrations
         WHERE event_id = $1
         ON CONFLICT (event_id, registration_id) DO NOTHING
@@ -187,12 +214,12 @@ router.post('/check-in', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Attendance window is closed for this event.' });
     }
 
-    const regRes = await pool.query(`SELECT id FROM event_registrations WHERE event_id = $1 AND user_id = $2`, [eventId, userId]);
+    const regRes = await pool.query(`SELECT registration_id FROM event_registrations WHERE event_id = $1 AND registrant_user_id = $2`, [eventId, userId]);
     if (regRes.rows.length === 0) {
       return res.status(403).json({ message: 'You are not registered for this event.' });
     }
 
-    const regId = regRes.rows[0].id;
+    const regId = regRes.rows[0].registration_id;
 
     const recordRes = await pool.query(
       `UPDATE event_attendance_records 
@@ -249,15 +276,15 @@ router.put('/records/:recordId/correct', authenticateToken, async (req, res) => 
   }
 });
 
-// Export Attendance CSV (Formula Injection Safe)
+// Export Attendance CSV
 router.get('/events/:eventId/export', async (req, res) => {
   const { eventId } = req.params;
   try {
     const query = `
-      SELECT u.student_id, u.name, ar.status, ar.checkin_time
+      SELECT u.user_id as student_id, u.first_name || ' ' || u.last_name as name, ar.status, ar.checkin_time
       FROM event_attendance_records ar
-      JOIN event_registrations er ON ar.registration_id = er.id
-      JOIN users u ON er.user_id = u.id
+      JOIN event_registrations er ON ar.registration_id = er.registration_id
+      JOIN users u ON er.registrant_user_id = u.user_id
       WHERE ar.event_id = $1
     `;
     const { rows } = await pool.query(query, [eventId]);

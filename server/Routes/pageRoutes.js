@@ -3,9 +3,7 @@ const router = express.Router();
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
 
-// =====================================================
 // AUTHENTICATION HELPER
-// =====================================================
 async function authenticateUser(req, res) {
     const authHeader = req.headers.authorization;
 
@@ -40,50 +38,21 @@ async function authenticateUser(req, res) {
     }
 }
 
-// =====================================================
-// CREATE NEW PAGE
-// POST /api/create-page
-// =====================================================
-router.post('/create-page', async (req, res) => {
+// HELPER: Fetch user's managed page details
+async function getUserPageDetails(userId) {
     try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
-
-        const { pageName, pageDescription, pageCategory, departmentId, organizationId } = req.body;
-
-        if (!pageName || !pageName.trim() || !pageCategory || !pageCategory.trim()) {
-            return res.status(400).json({ message: 'Page name and category are required.' });
-        }
-
-        const queryText = `
-            INSERT INTO pages (page_name, page_description, description, department_id, organization_id, created_by, status)
-            VALUES ($1, $2, $2, $3, $4, $5, 'Pending')
-            RETURNING *;
-        `;
-
-        const values = [
-            pageName.trim(),
-            pageDescription || '',
-            departmentId ? Number(departmentId) : null,
-            organizationId ? Number(organizationId) : null,
-            userId
-        ];
-
-        const result = await pool.query(queryText, values);
-        return res.status(201).json({
-            message: 'Page submitted successfully! Awaiting admin approval.',
-            page: result.rows[0]
-        });
-    } catch (error) {
-        console.error('Error creating page:', error);
-        return res.status(500).json({ message: 'Failed to create page: ' + error.message });
+        const pageRes = await pool.query(
+            `SELECT page_id, page_name FROM pages WHERE created_by = $1 ORDER BY page_id DESC LIMIT 1`,
+            [userId]
+        );
+        return pageRes.rows.length > 0 ? pageRes.rows[0] : { page_id: null, page_name: 'Student Affairs Office' };
+    } catch (err) {
+        console.error('Error in getUserPageDetails:', err.message);
+        return { page_id: null, page_name: 'Student Affairs Office' };
     }
-});
+}
 
-// =====================================================
 // CHECK USER'S PAGE STATUS
-// GET /api/my-page-status
-// =====================================================
 router.get('/my-page-status', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
@@ -118,125 +87,203 @@ router.get('/my-page-status', async (req, res) => {
     }
 });
 
-// =====================================================
-// UPDATE PAGE INFORMATION
-// PUT /api/mypage/update
-// =====================================================
-router.put('/mypage/update', async (req, res) => {
+// FETCH DASHBOARD FEED DATA
+router.get('/dashboard-data', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
 
-        const { pageName, category, description } = req.body;
-        if (!pageName || !pageName.trim()) {
-            return res.status(400).json({ message: 'Page name is required.' });
-        }
+        const annRes = await pool.query(
+            `SELECT a.announcement_id, a.title, COALESCE(a.content, a.description) as content, 
+                    a.created_at, a.image_url, a.page_id, p.page_name 
+             FROM announcements a 
+             LEFT JOIN pages p ON a.page_id = p.page_id 
+             ORDER BY a.created_at DESC`
+        ).catch((err) => {
+            console.error('Error fetching announcements:', err.message);
+            return { rows: [] };
+        });
 
-        const pageCheck = await pool.query(
-            `SELECT page_id FROM pages WHERE created_by = $1 ORDER BY page_id DESC LIMIT 1`,
-            [userId]
-        );
-
-        if (pageCheck.rows.length === 0) {
-            return res.status(404).json({ message: 'No page found for this user.' });
-        }
-
-        const pageId = pageCheck.rows[0].page_id;
-        const desc = description || '';
-
-        const updateRes = await pool.query(
-            `UPDATE pages 
-             SET page_name = $1, page_description = $2, description = $2, updated_at = NOW()
-             WHERE page_id = $3 
-             RETURNING *`,
-            [pageName.trim(), desc, pageId]
-        );
+        const evRes = await pool.query(
+            `SELECT e.event_id, COALESCE(e.event_title, e.title) as event_title, 
+                    COALESCE(e.event_description, e.description) as event_description, 
+                    e.event_date, COALESCE(e.location, e.venue) as location, e.capacity, 
+                    e.created_at, e.image_url, e.page_id, p.page_name 
+             FROM events e 
+             LEFT JOIN pages p ON e.page_id = p.page_id 
+             ORDER BY e.created_at DESC`
+        ).catch((err) => {
+            console.error('Error fetching events:', err.message);
+            return { rows: [] };
+        });
 
         return res.status(200).json({
-            message: 'Page updated successfully',
-            page: updateRes.rows[0]
+            announcements: annRes.rows,
+            events: evRes.rows
         });
     } catch (error) {
-        console.error('Error updating page:', error);
-        return res.status(500).json({ message: 'Failed to update page: ' + error.message });
+        console.error('Error fetching dashboard data:', error);
+        return res.status(500).json({ message: 'Failed to fetch dashboard posts.' });
     }
 });
 
-// =====================================================
-// GET PAGE POSTS
-// GET /api/mypage/posts?pageId=...
-// =====================================================
-router.get('/mypage/posts', async (req, res) => {
-    try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
-
-        const pageId = req.query.pageId;
-        if (!pageId) {
-            return res.status(400).json({ message: 'Page ID is required.' });
-        }
-
-        const announcements = await pool.query(
-            `SELECT announcement_id AS id, title, description, created_at, 'Announcement' AS type, 'Published' AS status 
-             FROM announcements WHERE page_id = $1`,
-            [pageId]
-        ).catch(() => ({ rows: [] }));
-
-        const events = await pool.query(
-            `SELECT event_id AS id, title, description, event_date AS date, venue, created_at, 'Event' AS type, 'Published' AS status 
-             FROM events WHERE page_id = $1`,
-            [pageId]
-        ).catch(() => ({ rows: [] }));
-
-        const combined = [...announcements.rows, ...events.rows];
-        combined.sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date));
-
-        return res.status(200).json({ posts: combined });
-    } catch (error) {
-        console.error('Error fetching page posts:', error);
-        return res.status(500).json({ message: 'Failed to fetch page posts.' });
-    }
-});
-
-// =====================================================
-// CREATE ANNOUNCEMENT / EVENT
-// =====================================================
+// CREATE ANNOUNCEMENT (Fixed to match table schema)
 router.post('/announcements', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
-        const { title, description, pageId } = req.body;
+
+        const { title, content, description, pageId, image_url } = req.body;
+        if (!title || (!content && !description)) {
+            return res.status(400).json({ message: 'Title and content are required.' });
+        }
+
+        const userPage = await getUserPageDetails(userId);
+        const targetPageId = pageId || userPage.page_id;
+        const bodyText = content || description || '';
+
+        if (!targetPageId) {
+            return res.status(400).json({ message: 'You do not have an active/approved page to post announcements.' });
+        }
+
         const result = await pool.query(
-            `INSERT INTO announcements (title, description, page_id, created_at) VALUES ($1, $2, $3, NOW()) RETURNING *`,
-            [title, description, pageId]
+            `INSERT INTO announcements (page_id, creator_user_id, title, content, description, image_url, status, created_at, updated_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, 'Published', NOW(), NOW()) 
+             RETURNING announcement_id, title, content, description, page_id, image_url, created_at`,
+            [targetPageId, userId, title, bodyText, bodyText, image_url || null]
         );
-        res.status(201).json({ announcement: result.rows[0] });
+
+        const newAnnouncement = {
+            ...result.rows[0],
+            page_name: userPage.page_name || 'Student Affairs Office'
+        };
+
+        return res.status(201).json({ announcement: newAnnouncement });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error('CRITICAL ERROR publishing announcement:', err.message);
+        return res.status(500).json({ message: 'Database Insert Error: ' + err.message });
     }
 });
 
+// CREATE EVENT (Fixed to match table schema)
 router.post('/events', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
-        const { title, description, pageId, eventDate, venue } = req.body;
+
+        const { event_title, title, event_description, description, pageId, event_date, location, venue, capacity, image_url, poster_url } = req.body;
+        const eTitle = event_title || title;
+        const eDesc = event_description || description || '';
+
+        if (!eTitle || !eDesc) {
+            return res.status(400).json({ message: 'Event title and description are required.' });
+        }
+
+        const userPage = await getUserPageDetails(userId);
+        const targetPageId = pageId || userPage.page_id;
+
+        if (!targetPageId) {
+            return res.status(400).json({ message: 'You do not have an active/approved page to post events.' });
+        }
+
+        const eDate = event_date || new Date().toISOString().split('T')[0];
+        const eVenue = location || venue || 'TBD';
+        const imgUrl = image_url || poster_url || null;
+
         const result = await pool.query(
-            `INSERT INTO events (title, description, page_id, event_date, venue, created_at) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`,
-            [title, description, pageId, eventDate, venue]
+            `INSERT INTO events (page_id, creator_user_id, event_title, title, event_description, description, event_date, venue, location, capacity, image_url, poster_url, status, created_at) 
+             VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $6, $7, $8, $8, 'Published', NOW()) 
+             RETURNING event_id, event_title, event_description, page_id, event_date, venue, location, capacity, image_url, created_at`,
+            [targetPageId, userId, eTitle, eDesc, eDate, eVenue, capacity ? Number(capacity) : null, imgUrl]
         );
-        res.status(201).json({ event: result.rows[0] });
+
+        const newEvent = {
+            ...result.rows[0],
+            page_name: userPage.page_name || 'Student Affairs Office'
+        };
+
+        return res.status(201).json({ event: newEvent });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error('CRITICAL ERROR publishing event:', err.message);
+        return res.status(500).json({ message: 'Database Insert Error: ' + err.message });
     }
 });
 
+// EDIT ANNOUNCEMENT
+router.put('/announcements/:id', async (req, res) => {
+    try {
+        const userId = await authenticateUser(req, res);
+        if (!userId) return;
+        const { id } = req.params;
+        const { title, content, description } = req.body;
+        const bodyText = content || description || '';
+
+        const result = await pool.query(
+            `UPDATE announcements SET title = $1, content = $2, description = $2, updated_at = NOW() WHERE announcement_id = $3 RETURNING *`,
+            [title, bodyText, id]
+        );
+        return res.status(200).json({ announcement: result.rows[0] });
+    } catch (err) {
+        console.error('Error updating announcement:', err.message);
+        return res.status(500).json({ message: err.message });
+    }
+});
+
+// EDIT EVENT
+router.put('/events/:id', async (req, res) => {
+    try {
+        const userId = await authenticateUser(req, res);
+        if (!userId) return;
+        const { id } = req.params;
+        const { event_title, title, event_description, description, event_date, location, venue, capacity } = req.body;
+        const eTitle = event_title || title;
+        const eDesc = event_description || description || '';
+
+        const result = await pool.query(
+            `UPDATE events SET title = $1, event_title = $1, description = $2, event_description = $2, event_date = $3, location = $4, venue = $4, capacity = $5 WHERE event_id = $6 RETURNING *`,
+            [eTitle, eDesc, event_date, location || venue || 'TBD', capacity ? Number(capacity) : null, id]
+        );
+        return res.status(200).json({ event: result.rows[0] });
+    } catch (err) {
+        console.error('Error updating event:', err.message);
+        return res.status(500).json({ message: err.message });
+    }
+});
+
+// DELETE ANNOUNCEMENT
+router.delete('/announcements/:id', async (req, res) => {
+    try {
+        const userId = await authenticateUser(req, res);
+        if (!userId) return;
+        await pool.query(`DELETE FROM announcements WHERE announcement_id = $1`, [req.params.id]);
+        return res.status(200).json({ message: 'Announcement deleted successfully' });
+    } catch (err) {
+        console.error('Error deleting announcement:', err.message);
+        return res.status(500).json({ message: err.message });
+    }
+});
+
+// DELETE EVENT
+router.delete('/events/:id', async (req, res) => {
+    try {
+        const userId = await authenticateUser(req, res);
+        if (!userId) return;
+        await pool.query(`DELETE FROM events WHERE event_id = $1`, [req.params.id]);
+        return res.status(200).json({ message: 'Event deleted successfully' });
+    } catch (err) {
+        console.error('Error deleting event:', err.message);
+        return res.status(500).json({ message: err.message });
+    }
+});
+
+// GET APPROVED PAGES
 router.get('/approved-pages', async (req, res) => {
     try {
         const result = await pool.query(`SELECT page_id AS id, page_name AS name, page_description AS description, status FROM pages WHERE status = 'Approved'`);
-        res.status(200).json({ pages: result.rows });
+        return res.status(200).json({ pages: result.rows });
     } catch (err) {
-        res.status(500).json({ message: err.message });
+        console.error('Error fetching approved pages:', err.message);
+        return res.status(500).json({ message: err.message });
     }
 });
 
