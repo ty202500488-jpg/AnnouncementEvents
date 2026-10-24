@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../assets/components/DashboardLayout';
 import '../styles/StudentDashboard.css';
 
 export default function Events() {
+  const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -58,16 +60,14 @@ export default function Events() {
 
   return (
     <DashboardLayout activePage="events">
-      {/* ==================== CENTER MAIN CONTENT (EVENTS FEED) ==================== */}
       <main className="lg-col-6 space-y-6">
         <div className="card" style={{ padding: '1.75rem' }}>
           <div className="flex items-center justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
             <div>
               <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Campus Events & Activities</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Explore upcoming university events and register to participate.</p>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Explore upcoming university events, register, and scan attendance QR codes.</p>
             </div>
             
-            {/* Filter Buttons */}
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setFilter('all')} 
@@ -118,14 +118,32 @@ export default function Events() {
                     <span style={{ fontSize: '11px', color: 'var(--slate-400)', fontWeight: 500 }}>
                       Organized by {item.department_name || 'University Office'}
                     </span>
-                    <button 
-                      onClick={() => !item.is_registered && handleRegister(item.id)}
-                      disabled={item.is_registered}
-                      className={item.is_registered ? '' : 'save-profile-btn'}
-                      style={item.is_registered ? { backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #d1fae5', padding: '0.375rem 0.875rem', borderRadius: '0.5rem', fontSize: '0.75rem', fontWeight: 600, cursor: 'default' } : { padding: '0.375rem 0.875rem', fontSize: '0.75rem' }}
-                    >
-                      {item.is_registered ? 'Registered ✓' : 'Register Now'}
-                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {item.is_registered && (
+                        <button
+                          onClick={() => {
+                            const token = prompt("Scan or enter event QR token:");
+                            if (token) {
+                              const clean = token.trim().split('/').pop();
+                              navigate(`/student/attendance/check-in/${clean}`);
+                            }
+                          }}
+                          style={{ backgroundColor: '#7B0D1E', color: '#ffffff', border: 'none', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          <i className="fa-solid fa-qrcode"></i> Scan Attendance
+                        </button>
+                      )}
+
+                      <button 
+                        onClick={() => !item.is_registered && handleRegister(item.id)}
+                        disabled={item.is_registered}
+                        className={item.is_registered ? '' : 'save-profile-btn'}
+                        style={item.is_registered ? { backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #d1fae5', padding: '0.375rem 0.875rem', borderRadius: '0.5rem', fontSize: '0.75rem', fontWeight: 600, cursor: 'default' } : { padding: '0.375rem 0.875rem', fontSize: '0.75rem' }}
+                      >
+                        {item.is_registered ? 'Registered ✓' : 'Register Now'}
+                      </button>
+                    </div>
                   </div>
                 </article>
               ))}

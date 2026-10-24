@@ -8,7 +8,7 @@ export default function MyPageAttendance() {
   const [eventData, setEventData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview'); // overview, qr, records, reports
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Attendance Records & Filters
   const [records, setRecords] = useState([]);
@@ -27,19 +27,16 @@ export default function MyPageAttendance() {
   const [correctionReason, setCorrectionReason] = useState('');
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
 
-  // Fetch staff events on mount
   useEffect(() => {
     fetchAuthorizedEvents();
   }, []);
 
-  // Fetch event attendance details when selectedEventId changes
   useEffect(() => {
     if (selectedEventId) {
       fetchEventAttendanceData(selectedEventId);
     }
   }, [selectedEventId]);
 
-  // Handle QR Refresh Interval
   useEffect(() => {
     if (activeTab === 'qr' && selectedEventId && eventData?.session?.status === 'OPEN') {
       fetchQrCode();
@@ -135,7 +132,7 @@ export default function MyPageAttendance() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ action }) // 'OPEN', 'CLOSE', 'FINALIZE'
+        body: JSON.stringify({ action })
       });
       const data = await response.json();
       if (response.ok) {
@@ -187,7 +184,6 @@ export default function MyPageAttendance() {
     window.open(`http://localhost:5000/api/mypage/attendance/events/${selectedEventId}/export?token=${token}`, '_blank');
   };
 
-  // Filter records
   const filteredRecords = records.filter((r) => {
     const matchesSearch =
       (r.student_name && r.student_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -209,8 +205,6 @@ export default function MyPageAttendance() {
   return (
     <MyPageDashboardLayout activeTab="attendance">
       <div className="attendance-page-container">
-        
-        {/* PAGE HEADER */}
         <div className="attendance-header-card">
           <div className="attendance-breadcrumb">
             <span>MyPage</span> / <span className="active">Attendance</span>
@@ -221,7 +215,6 @@ export default function MyPageAttendance() {
               <p>Manage real-time check-ins and attendance records for published events.</p>
             </div>
 
-            {/* EVENT SELECTOR */}
             <div className="event-selector-box">
               <label htmlFor="eventSelect">Select Event</label>
               <select
@@ -252,7 +245,6 @@ export default function MyPageAttendance() {
 
         {eventData && (
           <>
-            {/* SELECTED EVENT DETAILS */}
             <div className="selected-event-card">
               <div className="event-card-header">
                 <span className="event-category-badge">{eventData.event.category || 'General Event'}</span>
@@ -281,7 +273,6 @@ export default function MyPageAttendance() {
               </div>
             </div>
 
-            {/* METRICS / SUMMARY CARDS */}
             <div className="metrics-grid">
               <div className="metric-card present">
                 <div>
@@ -311,7 +302,6 @@ export default function MyPageAttendance() {
               </div>
             </div>
 
-            {/* CONTROLS */}
             <div className="controls-card">
               <div className="window-time-info">
                 <div>
@@ -334,16 +324,9 @@ export default function MyPageAttendance() {
                     <i className="fa-solid fa-door-closed"></i> Close Attendance
                   </button>
                 )}
-
-                {eventData.session?.canFinalize && (
-                  <button className="btn-secondary-outline" onClick={() => handleToggleAttendanceWindow('FINALIZE')}>
-                    <i className="fa-solid fa-lock"></i> Finalize Attendance
-                  </button>
-                )}
               </div>
             </div>
 
-            {/* NAVIGATION TABS WRAPPER */}
             <div className="attendance-nav-tabs-wrapper">
               <div className="attendance-nav-tabs">
                 <button
@@ -373,7 +356,6 @@ export default function MyPageAttendance() {
               </div>
             </div>
 
-            {/* TAB CONTENTS */}
             {activeTab === 'overview' && (
               <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>Attendance Window Guidelines</h3>
@@ -384,7 +366,6 @@ export default function MyPageAttendance() {
               </div>
             )}
 
-            {/* LIVE QR DISPLAY */}
             {activeTab === 'qr' && (
               <div className="qr-display-container">
                 <h3 style={{ margin: 0, fontSize: '1.125rem' }}>Scan QR Code for Check-in</h3>
@@ -421,7 +402,6 @@ export default function MyPageAttendance() {
               </div>
             )}
 
-            {/* RECORDS TABLE */}
             {activeTab === 'records' && (
               <div className="records-table-container">
                 <div className="records-filter-bar">
@@ -496,7 +476,6 @@ export default function MyPageAttendance() {
               </div>
             )}
 
-            {/* REPORTS TAB */}
             {activeTab === 'reports' && (
               <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>Export Attendance Report</h3>
@@ -511,7 +490,6 @@ export default function MyPageAttendance() {
           </>
         )}
 
-        {/* CORRECTION MODAL */}
         {showCorrectionModal && selectedRecord && (
           <div className="modal-overlay">
             <div className="modal-content">
@@ -560,7 +538,6 @@ export default function MyPageAttendance() {
             </div>
           </div>
         )}
-
       </div>
     </MyPageDashboardLayout>
   );

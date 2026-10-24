@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../assets/components/DashboardLayout';
 import '../styles/StudentDashboard.css';
 
 export default function MyEvents() {
+  const navigate = useNavigate();
   const [myEvents, setMyEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -62,16 +64,14 @@ export default function MyEvents() {
 
   return (
     <DashboardLayout activePage="my-events">
-      {/* ==================== CENTER MAIN CONTENT (MY EVENTS FEED) ==================== */}
       <main className="lg-col-6 space-y-6">
         <div className="card" style={{ padding: '1.75rem' }}>
           <div className="flex items-center justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
             <div>
               <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>My Registered Events</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Track your upcoming schedule and event registration statuses.</p>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Track your upcoming schedule, event registration statuses, and scan attendance QR codes.</p>
             </div>
 
-            {/* Filter Buttons */}
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => setStatusFilter('all')} 
@@ -138,14 +138,32 @@ export default function MyEvents() {
                       <span style={{ fontSize: '11px', color: 'var(--slate-400)', fontWeight: 500 }}>
                         Organized by {item.department_name || 'University Office'}
                       </span>
-                      {isUpcoming && (
-                        <button 
-                          onClick={() => handleCancelRegistration(item.id)}
-                          style={{ background: 'transparent', border: 'none', color: '#e11d48', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: '0.25rem 0.5rem', borderRadius: '0.375rem' }}
-                        >
-                          Cancel Registration
-                        </button>
-                      )}
+                      
+                      <div className="flex items-center gap-2">
+                        {isUpcoming && (
+                          <button
+                            onClick={() => {
+                              const token = prompt("Scan or enter event QR token:");
+                              if (token) {
+                                const clean = token.trim().split('/').pop();
+                                navigate(`/student/attendance/check-in/${clean}`);
+                              }
+                            }}
+                            style={{ backgroundColor: '#7B0D1E', color: '#ffffff', border: 'none', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                          >
+                            <i className="fa-solid fa-qrcode"></i> Scan Attendance
+                          </button>
+                        )}
+
+                        {isUpcoming && (
+                          <button 
+                            onClick={() => handleCancelRegistration(item.id)}
+                            style={{ background: 'transparent', border: 'none', color: '#e11d48', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: '0.25rem 0.5rem', borderRadius: '0.375rem' }}
+                          >
+                            Cancel Registration
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </article>
                 );

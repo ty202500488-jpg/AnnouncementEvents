@@ -11,6 +11,7 @@ import StudentProfile from './pages/Student/Profile';
 import StudentNotifications from './pages/Student/Notification';
 import StudentMyEvents from './pages/Student/MyEvents';
 import StudentSettings from './pages/Student/Settings';
+import StudentQRCheckIn from './pages/Student/StudentQRCheckIn';
 
 // Staff Imports
 import StaffDashboard from './pages/Staff/StaffDashboard';
@@ -50,6 +51,8 @@ function App() {
         <Route path="/student/notifications" element={<StudentNotifications />} />
         <Route path="/student/my-events" element={<StudentMyEvents />} />
         <Route path="/student/settings" element={<StudentSettings />} />
+        <Route path="/student/attendance/check-in/scan" element={<StudentQRCheckIn />} />
+        <Route path="/student/attendance/check-in/:token" element={<StudentQRCheckIn />} />
 
         {/* Staff Routes */}
         <Route path="/staff/dashboard" element={<StaffDashboard />} />
@@ -96,7 +99,7 @@ function App() {
         <Route path="/staff/my-events" element={<StaffMyEvents />} />
         <Route path="/staff/settings" element={<StaffSettings />} />
 
-        {/* Admin Routes (Both paths supported to prevent redirection loops) */}
+        {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
 

@@ -107,7 +107,6 @@ export default function DashboardLayout({ children, activePage }) {
     fetchApprovedPages();
     fetchNotifications();
 
-    // Click outside handler for dropdowns
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setShowDropdown(false);
@@ -240,42 +239,55 @@ export default function DashboardLayout({ children, activePage }) {
   };
 
   return (
-    <div className="student-dashboard-wrapper" style={{ paddingBottom: '4rem' }}>
+    <div className="student-dashboard-wrapper" style={{ minHeight: '100vh', paddingBottom: '4.5rem' }}>
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
             display: none !important;
           }
+          .student-dashboard-wrapper {
+            padding-bottom: 2rem !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .profile-details-text {
+            display: none !important;
+          }
+          .header-container {
+            gap: 0.5rem !important;
+            padding: 0.5rem 0.75rem !important;
+          }
         }
       `}</style>
 
       {/* TOP NAVBAR */}
-      <header className="header">
-        <div className="header-container">
+      <header className="header" style={{ position: 'sticky', top: 0, zIndex: 40, backgroundColor: '#ffffff' }}>
+        <div className="header-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
             <button 
               type="button" 
               className="mobile-menu-btn icon-btn" 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              style={{ color: 'var(--slate-600)' }}
+              style={{ color: 'var(--slate-600)', background: 'none', border: 'none', cursor: 'pointer' }}
               aria-label="Toggle Menu"
             >
               <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
             </button>
-            <div className="flex items-center gap-2">
-              <img src={logo} alt="CRIMSON Logo" style={{ height: '48px', width: 'auto', objectFit: 'contain', borderRadius: '50%' }} />
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <img src={logo} alt="CRIMSON Logo" style={{ height: '38px', width: '38px', objectFit: 'contain', borderRadius: '50%' }} />
             </div>
           </div>
 
           {/* Search Bar */}
-          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative' }}>
-            <div className="search-wrapper">
+          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative', flex: '1 1 auto', maxWidth: '480px' }}>
+            <div className="search-wrapper" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
               <input 
                 type="text" 
-                placeholder={`Search ${filterCategory === 'all' ? 'Announcement, Events, Departments...' : filterCategory + '...'}`} 
+                placeholder={`Search ${filterCategory === 'all' ? 'Announcements, Events...' : filterCategory + '...'}`} 
                 className="search-input"
+                style={{ width: '100%', fontSize: '0.8125rem' }}
                 value={searchQuery}
                 onChange={handleSearchChange}
                 onFocus={() => searchQuery.trim() && setShowDropdown(true)}
@@ -287,14 +299,17 @@ export default function DashboardLayout({ children, activePage }) {
                 title={`Current Filter: ${filterCategory.toUpperCase()}`}
                 style={{
                   color: filterCategory !== 'all' ? '#881337' : 'inherit',
-                  fontWeight: filterCategory !== 'all' ? 700 : 400
+                  fontWeight: filterCategory !== 'all' ? 700 : 400,
+                  background: 'none',
+                  border: 'none',
+                  padding: '0.25rem'
                 }}
               >
                 <i className="fa-sliders fa-solid" style={{ fontSize: '0.75rem' }}></i>
               </button>
             </div>
 
-            {/* Dropdown Results */}
+            {/* Search Dropdown Results */}
             {showDropdown && (
               <div 
                 style={{
@@ -316,7 +331,7 @@ export default function DashboardLayout({ children, activePage }) {
                 {isSearching ? (
                   <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>Searching database...</p>
                 ) : searchResults.length === 0 ? (
-                  <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>No matching records found in system</p>
+                  <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>No matching records found</p>
                 ) : (
                   searchResults.map(result => (
                     <a
@@ -351,19 +366,43 @@ export default function DashboardLayout({ children, activePage }) {
             )}
           </div>
 
-          {/* Profile & Quick Actions */}
-          <div className="flex items-center gap-3"> 
+          {/* Quick Actions & Profile */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}> 
             
+            {/* QR Camera Scan Button */}
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => navigate('/student/attendance/check-in/scan')}
+              style={{
+                background: 'transparent',
+                color: '#7B0D1E',
+                border: '1px solid #fecdd3',
+                backgroundColor: '#fff1f2',
+                borderRadius: '0.375rem',
+                width: '34px',
+                height: '34px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+              title="Scan QR Attendance with Camera"
+            >
+              <i className="fa-solid fa-qrcode" style={{ fontSize: '0.875rem' }}></i>
+            </button>
+
             {/* Notifications Dropdown */}
             <div ref={notifDropdownRef} style={{ position: 'relative' }}>
               <button 
                 type="button" 
                 className="icon-btn" 
                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none' }}
+                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none', padding: '0.25rem' }}
                 aria-label="Notifications"
               >
-                <i className="fa-regular fa-bell" style={{ fontSize: '1rem' }}></i>
+                <i className="fa-regular fa-bell" style={{ fontSize: '1.1rem' }}></i>
                 {unreadNotifCount > 0 && <span className="badge-dot"></span>}
               </button>
 
@@ -374,7 +413,7 @@ export default function DashboardLayout({ children, activePage }) {
                     position: 'absolute',
                     top: 'calc(100% + 0.5rem)',
                     right: 0,
-                    width: '320px',
+                    width: 'clamp(280px, 85vw, 320px)',
                     backgroundColor: '#ffffff',
                     borderRadius: '0.75rem',
                     border: '1px solid var(--slate-200, #e2e8f0)',
@@ -414,16 +453,9 @@ export default function DashboardLayout({ children, activePage }) {
                             borderRadius: '0.5rem',
                             backgroundColor: !notif.is_read ? '#fff5f6' : 'transparent',
                             cursor: 'pointer',
-                            transition: 'background-color 0.15s ease',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '0.2rem'
-                          }}
-                          onMouseEnter={(e) => {
-                            if (notif.is_read) e.currentTarget.style.backgroundColor = 'var(--slate-50, #f8fafc)';
-                          }}
-                          onMouseLeave={(e) => {
-                            if (notif.is_read) e.currentTarget.style.backgroundColor = 'transparent';
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -445,19 +477,17 @@ export default function DashboardLayout({ children, activePage }) {
               )}
             </div>
 
-            <div className="divider-v"></div>
-
             <div ref={profileDropdownRef} style={{ position: 'relative' }}>
               <div 
                 className="profile-btn" 
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)} 
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', cursor: 'pointer', userSelect: 'none' }}
               >
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.85rem', lineHeight: 1.2 }}>
-                    {user.firstName} {user.lastName}
+                <div className="profile-details-text" style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2 }}>
+                    {user.firstName}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
                 </div>
                 <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
               </div>
@@ -468,7 +498,7 @@ export default function DashboardLayout({ children, activePage }) {
                     position: 'absolute',
                     top: 'calc(100% + 0.5rem)',
                     right: 0,
-                    width: '220px',
+                    width: '200px',
                     backgroundColor: '#ffffff',
                     borderRadius: '0.75rem',
                     border: '1px solid var(--slate-200, #e2e8f0)',
@@ -539,13 +569,14 @@ export default function DashboardLayout({ children, activePage }) {
             backgroundColor: '#ffffff',
             boxShadow: '10px 0 25px rgba(0, 0, 0, 0.15)',
             overflowY: 'auto',
-            padding: '1rem'
+            padding: '1rem',
+            transition: 'transform 0.3s ease-in-out'
           } : {}}
         >
-          <div className="card space-y-5" style={{ padding: '1rem', height: '100%' }}>
+          <div className="card space-y-5" style={{ padding: '1rem', height: '100%', border: 'none' }}>
             
-            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ padding: '0 0.75rem', textAlign: 'left' }}>
+            <div style={{ paddingTop: '0.5rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: '0 0.5rem', textAlign: 'left' }}>
                 <span style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem', display: 'block', lineHeight: 1.2 }}>
                   {user.firstName} {user.lastName}
                 </span>
@@ -556,9 +587,8 @@ export default function DashboardLayout({ children, activePage }) {
               {isMobileMenuOpen && (
                 <button 
                   type="button" 
-                  className="icon-btn lg:hidden" 
                   onClick={() => setIsMobileMenuOpen(false)}
-                  style={{ color: 'var(--slate-600)' }}
+                  style={{ color: 'var(--slate-600)', background: 'none', border: 'none', padding: '0.5rem', cursor: 'pointer' }}
                 >
                   <i className="fa-solid fa-xmark" style={{ fontSize: '1.2rem' }}></i>
                 </button>
@@ -645,7 +675,7 @@ export default function DashboardLayout({ children, activePage }) {
         {/* DYNAMIC CENTER CONTENT */}
         {children}
 
-        {/* RIGHT SIDEBAR WITH CATEGORIES DISPLAYED BELOW DEPARTMENT NAMES */}
+        {/* RIGHT SIDEBAR */}
         <aside className="lg-col-3 space-y-6 hidden lg-block">
           <div className="card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
@@ -675,18 +705,6 @@ export default function DashboardLayout({ children, activePage }) {
                       transition: 'all 0.2s ease',
                       boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#fff5f6';
-                      e.currentTarget.style.borderColor = '#fecdd3';
-                      e.currentTarget.style.borderLeftColor = '#881337';
-                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(136, 19, 55, 0.06)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#ffffff';
-                      e.currentTarget.style.borderColor = '#e2e8f0';
-                      e.currentTarget.style.borderLeftColor = '#e2e8f0';
-                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.02)';
-                    }}
                   >
                     <div className="dept-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                       <span className="dept-title" style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem' }}>{dept.name}</span>
@@ -713,13 +731,13 @@ export default function DashboardLayout({ children, activePage }) {
           bottom: 0,
           left: 0,
           right: 0,
-          height: '60px',
+          height: '56px',
           backgroundColor: '#ffffff',
           borderTop: '1px solid var(--slate-200, #e2e8f0)',
           display: 'flex',
-          justify: 'around',
+          justifyContent: 'space-around',
           alignItems: 'center',
-          zIndex: 100,
+          zIndex: 40,
           boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
         }}
       >
