@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/StudentDashboard.css';
 import logo from '../../assets/images/logo.jpg';
 
 export default function DashboardLayout({ children, activePage }) {
+  const navigate = useNavigate();
+
   const [user, setUser] = useState({
     firstName: 'Alex',
     lastName: 'Rivera',
@@ -27,6 +30,14 @@ export default function DashboardLayout({ children, activePage }) {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
 
+  // NOTIFICATIONS STATE & LOGIC
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(true);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const notifDropdownRef = useRef(null);
+
+  const unreadNotifCount = notifications.filter(n => !n.is_read && !n.is_archived).length;
+
   const loadUserData = () => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -40,6 +51,32 @@ export default function DashboardLayout({ children, activePage }) {
       } catch (err) {
         console.error('Failed to parse user from localStorage', err);
       }
+    }
+  };
+
+  const fetchNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoadingNotifs(false);
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5000/api/student/notifications', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (response.ok && data.notifications) {
+        setNotifications(data.notifications);
+      }
+    } catch (err) {
+      console.error('Failed to fetch student notifications:', err);
+    } finally {
+      setLoadingNotifs(false);
     }
   };
 
@@ -68,6 +105,7 @@ export default function DashboardLayout({ children, activePage }) {
     };
 
     fetchApprovedPages();
+    fetchNotifications();
 
     // Click outside handler for dropdowns
     const handleClickOutside = (e) => {
@@ -76,6 +114,9 @@ export default function DashboardLayout({ children, activePage }) {
       }
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
         setShowProfileDropdown(false);
+      }
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(e.target)) {
+        setShowNotifDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -90,6 +131,52 @@ export default function DashboardLayout({ children, activePage }) {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
+
+  const handleMarkAllAsRead = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch('http://localhost:5000/api/student/notifications/read-all', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      }
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+    }
+  };
+
+  const handleNotifClick = async (notif) => {
+    if (!notif.is_read) {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch(`http://localhost:5000/api/student/notifications/${notif.id}/read`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          setNotifications(prev =>
+            prev.map(n => (n.id === notif.id ? { ...n, is_read: true } : n))
+          );
+        }
+      } catch (err) {
+        console.error('Failed to mark notification as read:', err);
+      }
+    }
+    setShowNotifDropdown(false);
+    if (notif.url) {
+      navigate(notif.url);
+    } else {
+      navigate('/student/notifications');
+    }
+  };
 
   const handleSearchChange = async (e) => {
     const query = e.target.value;
@@ -266,11 +353,96 @@ export default function DashboardLayout({ children, activePage }) {
 
           {/* Profile & Quick Actions */}
           <div className="flex items-center gap-3"> 
-            <div style={{ position: 'relative' }}>
-              <button className="icon-btn" onClick={() => window.location.href = '/student/notifications'}>
+            
+            {/* Notifications Dropdown */}
+            <div ref={notifDropdownRef} style={{ position: 'relative' }}>
+              <button 
+                type="button" 
+                className="icon-btn" 
+                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none' }}
+                aria-label="Notifications"
+              >
                 <i className="fa-regular fa-bell" style={{ fontSize: '1rem' }}></i>
-                <span className="badge-dot"></span>
+                {unreadNotifCount > 0 && <span className="badge-dot"></span>}
               </button>
+
+              {showNotifDropdown && (
+                <div
+                  className="notif-dropdown-menu"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 0.5rem)',
+                    right: 0,
+                    width: '320px',
+                    backgroundColor: '#ffffff',
+                    borderRadius: '0.75rem',
+                    border: '1px solid var(--slate-200, #e2e8f0)',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+                    zIndex: 100,
+                    padding: '0.75rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid var(--slate-100, #f1f5f9)' }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--slate-900, #0f172a)' }}>Notifications</div>
+                    {unreadNotifCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllAsRead}
+                        style={{ background: 'none', border: 'none', color: '#881337', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                    {loadingNotifs ? (
+                      <p style={{ padding: '1rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>Loading notifications...</p>
+                    ) : notifications.filter(n => !n.is_archived).length === 0 ? (
+                      <p style={{ padding: '1rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>No new notifications</p>
+                    ) : (
+                      notifications.filter(n => !n.is_archived).map(notif => (
+                        <div
+                          key={notif.id}
+                          onClick={() => handleNotifClick(notif)}
+                          style={{
+                            padding: '0.625rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: !notif.is_read ? '#fff5f6' : 'transparent',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.15s ease',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.2rem'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (notif.is_read) e.currentTarget.style.backgroundColor = 'var(--slate-50, #f8fafc)';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (notif.is_read) e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: !notif.is_read ? 700 : 600, fontSize: '0.8125rem', color: 'var(--slate-800, #1e293b)' }}>
+                              {notif.title || notif.page_name || 'Notification'}
+                            </span>
+                            <span style={{ fontSize: '10px', color: 'var(--slate-400, #94a3b8)' }}>
+                              {notif.created_at ? new Date(notif.created_at).toLocaleDateString() : 'Recent'}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--slate-600, #475569)', margin: 0, lineHeight: 1.3 }}>
+                            {notif.message}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="divider-v"></div>
@@ -426,11 +598,16 @@ export default function DashboardLayout({ children, activePage }) {
                     <span>Profile</span>
                   </div>
                 </a>
-                <a href="/student/notifications" className={`nav-item ${activePage === 'notifications' ? 'active btn-nav' : ''}`}>
+                <a href="/student/notifications" className={`nav-item ${activePage === 'notifications' ? 'active btn-nav' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div className="nav-item-content">
                     <i className="fa-regular fa-bell nav-icon"></i>
                     <span>Notifications</span>
                   </div>
+                  {unreadNotifCount > 0 && (
+                    <span style={{ backgroundColor: '#881337', color: '#ffffff', fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '9999px' }}>
+                      {unreadNotifCount}
+                    </span>
+                  )}
                 </a>
                 <a href="/student/my-events" className={`nav-item ${activePage === 'my-events' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
@@ -540,7 +717,7 @@ export default function DashboardLayout({ children, activePage }) {
           backgroundColor: '#ffffff',
           borderTop: '1px solid var(--slate-200, #e2e8f0)',
           display: 'flex',
-          justifyContent: 'space-around',
+          justify: 'around',
           alignItems: 'center',
           zIndex: 100,
           boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
@@ -560,7 +737,7 @@ export default function DashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-solid fa-house" style={{ fontSize: '1.1rem' }}></i>
-          <span>Home</span>
+          
         </a>
 
         <a 
@@ -577,7 +754,7 @@ export default function DashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-solid fa-bullhorn" style={{ fontSize: '1.1rem' }}></i>
-          <span>Announcements</span>
+          
         </a>
 
         <a 
@@ -594,7 +771,7 @@ export default function DashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
-          <span>Events</span>
+          
         </a>
 
         <a 
@@ -611,7 +788,7 @@ export default function DashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-regular fa-user" style={{ fontSize: '1.1rem' }}></i>
-          <span>Profile</span>
+          
         </a>
       </nav>
     </div>

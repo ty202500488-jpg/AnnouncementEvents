@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
 import '../../styles/StaffDashboard.css';
 import '../../styles/Profile.css';
@@ -11,38 +11,49 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Interaction States
   const [likes, setLikes] = useState({});
   const [bookmarks, setBookmarks] = useState({});
 
-  // Post Creator State
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Modal & Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [postType, setPostType] = useState('announcement');
+  const [audience, setAudience] = useState('All Campus');
   const [quickTitle, setQuickTitle] = useState('');
   const [quickBody, setQuickBody] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [location, setLocation] = useState('');
   const [capacity, setCapacity] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
 
-  // Editing State
   const [editingPost, setEditingPost] = useState(null);
 
-  // Department Page Profile State (Synced with localStorage)
   const [pageName, setPageName] = useState('College Of Computing Studies');
   const [pageCode, setPageCode] = useState('COCS');
-  const [pageBio, setPageBio] = useState('Official department page and announcement board.');
+  const [userName, setUserName] = useState('Charm');
 
   useEffect(() => {
-    // Load stored profile data from localStorage to match page profile
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        if (parsed.first_name || parsed.firstName) {
+          setUserName(parsed.first_name || parsed.firstName);
+        }
+      } catch (e) {
+        console.error('Failed to parse user', e);
+      }
+    }
+
     const storedProfile = localStorage.getItem('myPageProfile');
     if (storedProfile) {
       try {
         const parsed = JSON.parse(storedProfile);
         if (parsed.pageName) setPageName(parsed.pageName);
         if (parsed.pageCode) setPageCode(parsed.pageCode);
-        if (parsed.description) setPageBio(parsed.description);
       } catch (err) {
-        console.error('Failed to parse page profile from localStorage', err);
+        console.error('Failed to parse page profile', err);
       }
     }
 
@@ -69,7 +80,6 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         if (statusRes.ok && statusData.exists) {
           if (statusData.pageName) setPageName(statusData.pageName);
           if (statusData.pageCode) setPageCode(statusData.pageCode);
-          if (statusData.description) setPageBio(statusData.description);
         }
       } catch (err) {
         console.error('Failed to fetch dashboard data:', err);
@@ -102,6 +112,32 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     }));
   };
 
+  const handleImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const resetForm = () => {
+    setQuickTitle('');
+    setQuickBody('');
+    setEventDate('');
+    setLocation('');
+    setCapacity('');
+    setSelectedImage(null);
+    setImagePreview(null);
+    setEditingPost(null);
+    setIsModalOpen(false);
+  };
+
   const handleDeletePost = async (id, type) => {
     if (!window.confirm('Are you sure you want to delete this post?')) return;
 
@@ -122,8 +158,6 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         } else {
           setAnnouncements(prev => prev.filter(item => item.announcement_id !== id));
         }
-      } else {
-        alert('Failed to delete the post.');
       }
     } catch (err) {
       console.error('Delete error:', err);
@@ -138,10 +172,10 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     setEventDate(item.event_date ? item.event_date.split('T')[0] : '');
     setLocation(item.location || '');
     setCapacity(item.capacity || '');
-    setIsExpanded(true);
+    setIsModalOpen(true);
   };
 
-  const handleQuickPublish = async (e) => {
+  const handlePublishPost = async (e) => {
     e.preventDefault();
     if (!quickTitle.trim() && !quickBody.trim()) return;
 
@@ -213,18 +247,12 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           });
           const data = await response.json();
           if (response.ok) {
-            setEvents([data.event || { event_id: Date.now(), event_title: quickTitle, event_description: quickBody, event_date: eventDate || 'TBD', status: 'Published', registrations: 0 }, ...events]);
+            setEvents([data.event || { event_id: Date.now(), event_title: quickTitle, event_description: quickBody, event_date: eventDate || 'TBD', location, capacity, status: 'Published' }, ...events]);
           }
         }
       }
 
-      setQuickTitle('');
-      setQuickBody('');
-      setEventDate('');
-      setLocation('');
-      setCapacity('');
-      setEditingPost(null);
-      setIsExpanded(false);
+      resetForm();
     } catch (err) {
       console.error('Failed to publish post:', err);
     }
@@ -239,110 +267,195 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         if (tab === 'profile') window.location.href = '/staff/mypage/profile';
         else if (tab === 'settings') window.location.href = '/staff/mypage/settings';
         else if (tab === 'registrations') window.location.href = '/staff/mypage/registrations';
-        else if (tab === 'help') window.location.href = '/staff/mypage/help';
         else setActiveTab(tab);
       }} 
       onSwitchToStaffDashboard={onSwitchToStaffDashboard}
     >
       <main className="lg-col-6 space-y-6" style={{ width: '100%' }}>
         
-        {/* Quick Post Creator Card */}
-        <div className="card" style={{ padding: '0.875rem 1.25rem', width: '100%' }}>
-          {!isExpanded ? (
-            <div className="flex items-center gap-3">
-              <div 
-                onClick={() => { setEditingPost(null); setIsExpanded(true); }}
-                style={{ flex: 1, backgroundColor: 'var(--slate-100)', borderRadius: '9999px', padding: '0.625rem 1.25rem', color: 'var(--slate-500)', fontSize: '0.875rem', cursor: 'pointer' }}
-              >
-                What's on your mind?
-              </div>
+        {/* Trigger Box */}
+        <div className="card" style={{ padding: '1.25rem', width: '100%', borderRadius: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div 
+              onClick={() => { setEditingPost(null); setIsModalOpen(true); }}
+              style={{ width: '100%', backgroundColor: 'var(--slate-100, #f1f5f9)', borderRadius: '9999px', padding: '0.75rem 1.25rem', color: 'var(--slate-500, #64748b)', fontSize: '0.875rem', cursor: 'pointer', border: '1px solid var(--slate-200, #e2e8f0)' }}
+            >
+              Write an announcement, event, or post description...
             </div>
-          ) : (
-            <form onSubmit={handleQuickPublish} className="space-y-3">
-              <div className="flex items-center justify-between" style={{ borderBottom: '1px solid var(--slate-100)', paddingBottom: '0.5rem' }}>
-                <div className="flex items-center gap-3">
-                  <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--slate-800)' }}>
-                    {editingPost ? 'Edit Post' : 'Create Department Post'}
-                  </span>
-                </div>
-                <button type="button" onClick={() => { setIsExpanded(false); setEditingPost(null); }} style={{ background: 'none', border: 'none', color: 'var(--slate-400)', cursor: 'pointer' }}>
-                  <i className="fa-solid fa-xmark"></i>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', paddingTop: '0.625rem', borderTop: '1px solid var(--slate-100, #f1f5f9)' }}>
+              <button 
+                type="button" 
+                onClick={() => { setPostType('announcement'); setIsModalOpen(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: '#881337', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                <i className="fa-solid fa-bullhorn" style={{ color: '#e11d48' }}></i> Announcement
+              </button>
+              <div style={{ width: '1px', height: '16px', backgroundColor: 'var(--slate-200)' }}></div>
+              <button 
+                type="button" 
+                onClick={() => { setPostType('event'); setIsModalOpen(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: '#881337', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                <i className="fa-regular fa-calendar-days" style={{ color: '#d97706' }}></i> Event
+              </button>
+              <div style={{ width: '1px', height: '16px', backgroundColor: 'var(--slate-200)' }}></div>
+              <button 
+                type="button" 
+                onClick={() => { setIsModalOpen(true); setTimeout(() => fileInputRef.current?.click(), 100); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: 'var(--slate-600)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                <i className="fa-regular fa-image" style={{ color: '#10b981' }}></i> Photo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Modal */}
+        {isModalOpen && (
+          <div 
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(6px)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem'
+            }}
+            onClick={resetForm}
+          >
+            <div 
+              style={{
+                backgroundColor: '#ffffff',
+                width: '100%',
+                maxWidth: '540px',
+                borderRadius: '1rem',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                overflow: 'hidden'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--slate-200)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--slate-900)', textAlign: 'center', width: '100%', margin: 0 }}>
+                  {editingPost ? 'Edit Post' : 'Create Post'}
+                </h3>
+                <button 
+                  type="button" 
+                  onClick={resetForm}
+                  style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: 'var(--slate-100)', border: 'none', color: 'var(--slate-600)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <i className="fa-solid fa-xmark" style={{ fontSize: '1rem' }}></i>
                 </button>
               </div>
 
-              {!editingPost && (
-                <div className="flex items-center gap-2" style={{ background: 'var(--slate-50)', padding: '0.375rem', borderRadius: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setPostType('announcement')}
-                    style={{
-                      flex: 1, padding: '0.375rem', borderRadius: '0.375rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', cursor: 'pointer',
-                      background: postType === 'announcement' ? '#ffffff' : 'transparent',
-                      color: postType === 'announcement' ? '#881337' : 'var(--slate-500)',
-                      boxShadow: postType === 'announcement' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                    }}
-                  >
-                    <i className="fa-solid fa-bullhorn" style={{ marginRight: '0.35rem' }}></i> Announcement
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPostType('event')}
-                    style={{
-                      flex: 1, padding: '0.375rem', borderRadius: '0.375rem', fontSize: '0.75rem', fontWeight: 600, border: 'none', cursor: 'pointer',
-                      background: postType === 'event' ? '#ffffff' : 'transparent',
-                      color: postType === 'event' ? '#881337' : 'var(--slate-500)',
-                      boxShadow: postType === 'event' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                    }}
-                  >
-                    <i className="fa-solid fa-calendar-days" style={{ marginRight: '0.35rem' }}></i> Event
-                  </button>
+              <form onSubmit={handlePublishPost} style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--slate-900)', lineHeight: 1.2 }}>
+                    {pageName}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                    <select 
+                      value={postType} 
+                      onChange={(e) => setPostType(e.target.value)}
+                      style={{ backgroundColor: 'var(--slate-100)', border: 'none', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '11px', fontWeight: 700, color: '#881337', cursor: 'pointer', outline: 'none' }}
+                    >
+                      <option value="announcement">📢 Announcement</option>
+                      <option value="event">📅 Event</option>
+                    </select>
+
+                    <select 
+                      value={audience} 
+                      onChange={(e) => setAudience(e.target.value)}
+                      style={{ backgroundColor: 'var(--slate-100)', border: 'none', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '11px', fontWeight: 600, color: 'var(--slate-700)', cursor: 'pointer', outline: 'none' }}
+                    >
+                      <option value="All Campus">👥 All Campus</option>
+                      <option value="Students Only">🎓 Students Only</option>
+                      <option value="Faculty Only">🏛️ Faculty Only</option>
+                    </select>
+                  </div>
                 </div>
-              )}
 
-              <input 
-                type="text" 
-                placeholder={postType === 'announcement' ? "Announcement title..." : "Event title..."} 
-                value={quickTitle}
-                onChange={(e) => setQuickTitle(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)', fontSize: '0.875rem' }}
-              />
+                <input 
+                  type="text" 
+                  placeholder={postType === 'announcement' ? "Announcement Title..." : "Event Title..."} 
+                  value={quickTitle}
+                  onChange={(e) => setQuickTitle(e.target.value)}
+                  style={{ width: '100%', padding: '0.625rem 0.875rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)', fontSize: '0.9375rem', fontWeight: 700, outline: 'none', color: 'var(--slate-900)' }}
+                  required
+                />
 
-              {postType === 'event' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-                  <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)', fontSize: '0.75rem' }} />
-                  <input type="text" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)', fontSize: '0.75rem' }} />
-                  <input type="number" placeholder="Capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)', fontSize: '0.75rem' }} />
+                {postType === 'event' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', background: 'var(--slate-50)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
+                    <div>
+                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>EVENT DATE</label>
+                      <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid var(--slate-200)', fontSize: '0.75rem', backgroundColor: '#ffffff' }} required />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>LOCATION / VENUE</label>
+                      <input type="text" placeholder="e.g. CCS Gym" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid var(--slate-200)', fontSize: '0.75rem', backgroundColor: '#ffffff' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>CAPACITY</label>
+                      <input type="number" placeholder="Max capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid var(--slate-200)', fontSize: '0.75rem', backgroundColor: '#ffffff' }} />
+                    </div>
+                  </div>
+                )}
+
+                <textarea 
+                  rows="4" 
+                  placeholder="Write post description..." 
+                  value={quickBody}
+                  onChange={(e) => setQuickBody(e.target.value)}
+                  style={{ width: '100%', border: '1px solid var(--slate-200)', borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.9375rem', resize: 'none', outline: 'none', color: 'var(--slate-800)', fontFamily: 'inherit', minHeight: '110px' }}
+                  required
+                ></textarea>
+
+                {imagePreview && (
+                  <div style={{ position: 'relative', width: '100%', maxHeight: '220px', overflow: 'hidden', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
+                    <img src={imagePreview} alt="Upload preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button 
+                      type="button" 
+                      onClick={handleRemoveImage}
+                      style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', backgroundColor: 'rgba(15, 23, 42, 0.75)', color: '#ffffff', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <i className="fa-solid fa-xmark" style={{ fontSize: '14px' }}></i>
+                    </button>
+                  </div>
+                )}
+
+                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: '1px solid var(--slate-200)', borderRadius: '0.5rem' }}>
+                  <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--slate-700)' }}>Add to your post</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#10b981', fontSize: '1.1rem' }}><i className="fa-regular fa-image"></i></button>
+                    <button type="button" onClick={() => setPostType(postType === 'event' ? 'announcement' : 'event')} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#d97706', fontSize: '1.1rem' }}><i className="fa-regular fa-calendar-days"></i></button>
+                    <button type="button" onClick={() => { const loc = prompt('Enter Location:', location); if(loc !== null) setLocation(loc); }} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#ef4444', fontSize: '1.1rem' }}><i className="fa-solid fa-location-dot"></i></button>
+                  </div>
                 </div>
-              )}
 
-              <textarea 
-                rows="3" 
-                placeholder={postType === 'announcement' ? "Write announcement content..." : "Event description..."} 
-                value={quickBody}
-                onChange={(e) => setQuickBody(e.target.value)}
-                style={{ width: '100%', padding: '0.625rem 0.75rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)', fontSize: '0.875rem', resize: 'none' }}
-                autoFocus
-              ></textarea>
+                <button 
+                  type="submit" 
+                  style={{ width: '100%', padding: '0.625rem', borderRadius: '0.5rem', backgroundColor: '#881337', color: '#ffffff', fontWeight: 700, fontSize: '0.875rem', border: 'none', cursor: 'pointer' }}
+                >
+                  {editingPost ? 'Save Changes' : 'Post'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
 
-              <div className="flex items-center justify-between">
-                <div className="flex gap-3 text-slate-500">
-                  <i className="fa-regular fa-image" style={{ color: '#10b981', cursor: 'pointer', fontSize: '1.125rem' }}></i>
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => { setIsExpanded(false); setEditingPost(null); }} style={{ padding: '0.4rem 0.875rem', background: 'var(--slate-100)', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--slate-600)', border: 'none', cursor: 'pointer' }}>Cancel</button>
-                  <button type="submit" className="btn-nav" style={{ padding: '0.4rem 1.125rem', fontSize: '0.75rem' }}>{editingPost ? 'Update' : 'Post'}</button>
-                </div>
-              </div>
-            </form>
-          )}
-        </div>
-
-        {/* Feed Timeline */}
+        {/* Feed List */}
         {loading ? (
-          <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading database feeds...</p>
+          <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading department feed...</p>
         ) : announcements.length === 0 && events.length === 0 ? (
-          <article className="card" style={{ padding: '1.5rem', textAlign: 'center' }}>
-            <p style={{ color: 'var(--slate-600)' }}>No Announcements available yet.</p>
+          <article className="card" style={{ padding: '2rem', textAlign: 'center' }}>
+            <i className="fa-solid fa-bullhorn" style={{ fontSize: '2rem', color: 'var(--slate-300)', marginBottom: '0.5rem', display: 'block' }}></i>
+            <p style={{ color: 'var(--slate-600)', fontWeight: 600 }}>No Announcements or Events posted yet.</p>
           </article>
         ) : (
           <div className="space-y-4">
@@ -352,39 +465,39 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
               const isBookmarked = bookmarks[postId] || false;
 
               return (
-                <article key={postId} className="card card-interactive" style={{ padding: '1.5rem' }}>
+                <article key={postId} className="card card-interactive" style={{ padding: '1.25rem', borderRadius: '1rem' }}>
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '5.75rem', backgroundColor: 'var(--amber-100)', color: 'var(--amber-700)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>
-                        {pageCode ? pageCode.substring(0, 3).toUpperCase() : pageName.substring(0, 3).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>{pageName}</h3>
-                        <p style={{ fontSize: '11px', color: 'var(--slate-400)', marginTop: '0.125rem' }}>{item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'} &bull; <span style={{ color: 'var(--emerald-600)', fontWeight: 600 }}>Announcement</span></p>
-                      </div>
+                    <div>
+                      <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem', lineHeight: 1.2 }}>{pageName}</h3>
+                      <p style={{ fontSize: '11px', color: 'var(--slate-400)', marginTop: '0.125rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span>{item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}</span>
+                        <span>&bull;</span>
+                        <span style={{ color: '#e11d48', fontWeight: 700, backgroundColor: '#fff1f2', padding: '1px 6px', borderRadius: '4px' }}>Announcement</span>
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button className="bookmark-btn action-btn" onClick={() => handleBookmarkToggle(postId)} style={{ padding: '0.25rem', background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <i className={`${isBookmarked ? 'fa-solid bookmarked-btn' : 'fa-regular'} fa-bookmark`} style={{ fontSize: '1rem' }}></i>
+
+                    <div className="flex items-center gap-1">
+                      <button className="bookmark-btn action-btn" onClick={() => handleBookmarkToggle(postId)} style={{ padding: '0.35rem', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        <i className={`${isBookmarked ? 'fa-solid bookmarked-btn' : 'fa-regular'} fa-bookmark`} style={{ fontSize: '0.95rem', color: isBookmarked ? '#881337' : 'var(--slate-400)' }}></i>
                       </button>
-                      <button onClick={() => handleStartEdit(item, 'announcement')} className="action-btn" title="Edit" style={{ padding: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate-600)' }}>
-                        <i className="fa-solid fa-pen" style={{ fontSize: '0.9rem' }}></i>
+                      <button onClick={() => handleStartEdit(item, 'announcement')} className="action-btn" title="Edit" style={{ padding: '0.35rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate-500)' }}>
+                        <i className="fa-solid fa-pen" style={{ fontSize: '0.85rem' }}></i>
                       </button>
-                      <button onClick={() => handleDeletePost(item.announcement_id, 'announcement')} className="action-btn" title="Delete" style={{ padding: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rose-600)' }}>
-                        <i className="fa-solid fa-trash" style={{ fontSize: '1rem' }}></i>
+                      <button onClick={() => handleDeletePost(item.announcement_id, 'announcement')} className="action-btn" title="Delete" style={{ padding: '0.35rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rose-600)' }}>
+                        <i className="fa-solid fa-trash" style={{ fontSize: '0.9rem' }}></i>
                       </button>
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '1rem' }}>
-                    <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>{item.title}</h4>
-                    <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.5rem', lineHeight: 1.625 }}>{item.content}</p>
+                  <div style={{ marginTop: '0.875rem' }}>
+                    <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.975rem', lineHeight: 1.3 }}>{item.title}</h4>
+                    <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.375rem', lineHeight: 1.625 }}>{item.content}</p>
                   </div>
 
-                  <div className="flex items-center justify-between" style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--slate-100)', fontSize: '0.75rem', color: 'var(--slate-500)' }}>
-                    <button className="like-btn action-btn" onClick={() => handleLikeToggle(postId)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                      <i className={`${postLike.liked ? 'fa-solid liked-btn' : 'fa-regular'} fa-eye`} style={{ fontSize: '0.875rem' }}></i>
-                      <span>{postLike.count > 0 ? `${postLike.count} Likes` : 'View Details'}</span>
+                  <div className="flex items-center justify-between" style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--slate-100)', fontSize: '0.75rem', color: 'var(--slate-500)' }}>
+                    <button className="like-btn action-btn" onClick={() => handleLikeToggle(postId)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.375rem', color: postLike.liked ? '#881337' : 'var(--slate-500)' }}>
+                      <i className={`${postLike.liked ? 'fa-solid' : 'fa-regular'} fa-heart`} style={{ fontSize: '0.9rem', color: postLike.liked ? '#e11d48' : 'inherit' }}></i>
+                      <span>{postLike.count > 0 ? `${postLike.count} Likes` : 'Like'}</span>
                     </button>
                   </div>
                 </article>
@@ -397,39 +510,58 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
               const isBookmarked = bookmarks[eventId] || false;
 
               return (
-                <article key={eventId} className="card card-interactive" style={{ padding: '1.5rem' }}>
+                <article key={eventId} className="card card-interactive" style={{ padding: '1.25rem', borderRadius: '1rem' }}>
                   <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '5.75rem', backgroundColor: 'var(--amber-100)', color: 'var(--amber-700)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>
-                        {pageCode ? pageCode.substring(0, 3).toUpperCase() : pageName.substring(0, 3).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>{pageName}</h3>
-                        <p style={{ fontSize: '11px', color: 'var(--slate-400)', marginTop: '0.125rem' }}>{ev.event_date || 'TBD'} &bull; <span style={{ color: 'var(--amber-700)', fontWeight: 600 }}>Event</span></p>
-                      </div>
+                    <div>
+                      <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem', lineHeight: 1.2 }}>{pageName}</h3>
+                      <p style={{ fontSize: '11px', color: 'var(--slate-400)', marginTop: '0.125rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span>{ev.event_date || 'Upcoming'}</span>
+                        <span>&bull;</span>
+                        <span style={{ color: '#b45309', fontWeight: 700, backgroundColor: '#fef3c7', padding: '1px 6px', borderRadius: '4px' }}>Event</span>
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button className="bookmark-btn action-btn" onClick={() => handleBookmarkToggle(eventId)} style={{ padding: '0.25rem', background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <i className={`${isBookmarked ? 'fa-solid bookmarked-btn' : 'fa-regular'} fa-bookmark`} style={{ fontSize: '1rem' }}></i>
+
+                    <div className="flex items-center gap-1">
+                      <button className="bookmark-btn action-btn" onClick={() => handleBookmarkToggle(eventId)} style={{ padding: '0.35rem', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        <i className={`${isBookmarked ? 'fa-solid bookmarked-btn' : 'fa-regular'} fa-bookmark`} style={{ fontSize: '0.95rem', color: isBookmarked ? '#881337' : 'var(--slate-400)' }}></i>
                       </button>
-                      <button onClick={() => handleStartEdit(ev, 'event')} className="action-btn" title="Edit" style={{ padding: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate-600)' }}>
-                        <i className="fa-solid fa-pen" style={{ fontSize: '0.9rem' }}></i>
+                      <button onClick={() => handleStartEdit(ev, 'event')} className="action-btn" title="Edit" style={{ padding: '0.35rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate-500)' }}>
+                        <i className="fa-solid fa-pen" style={{ fontSize: '0.85rem' }}></i>
                       </button>
-                      <button onClick={() => handleDeletePost(ev.event_id, 'event')} className="action-btn" title="Delete" style={{ padding: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rose-600)' }}>
-                        <i className="fa-solid fa-trash" style={{ fontSize: '1rem' }}></i>
+                      <button onClick={() => handleDeletePost(ev.event_id, 'event')} className="action-btn" title="Delete" style={{ padding: '0.35rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rose-600)' }}>
+                        <i className="fa-solid fa-trash" style={{ fontSize: '0.9rem' }}></i>
                       </button>
                     </div>
                   </div>
 
-                  <div style={{ marginTop: '1rem' }}>
-                    <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>{ev.event_title}</h4>
-                    <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.5rem', lineHeight: 1.625 }}>{ev.event_description}</p>
+                  <div style={{ marginTop: '0.875rem' }}>
+                    <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.975rem', lineHeight: 1.3 }}>{ev.event_title}</h4>
+                    <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.375rem', lineHeight: 1.625 }}>{ev.event_description}</p>
                   </div>
 
-                  <div className="flex items-center justify-between" style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--slate-100)', fontSize: '0.75rem', color: 'var(--slate-500)' }}>
-                    <button className="like-btn action-btn" onClick={() => handleLikeToggle(eventId)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                      <i className={`${eventLike.liked ? 'fa-solid liked-btn' : 'fa-regular'} fa-eye`} style={{ fontSize: '0.875rem' }}></i>
-                      <span>{eventLike.count > 0 ? `${eventLike.count} Likes` : 'View Details'}</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginTop: '0.875rem', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '0.75rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--slate-700)', fontWeight: 600 }}>
+                      <i className="fa-regular fa-calendar-days" style={{ color: '#881337' }}></i>
+                      <span>{ev.event_date || 'Date TBD'}</span>
+                    </div>
+                    {ev.location && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--slate-700)', fontWeight: 600 }}>
+                        <i className="fa-solid fa-location-dot" style={{ color: '#e11d48' }}></i>
+                        <span>{ev.location}</span>
+                      </div>
+                    )}
+                    {ev.capacity && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--slate-700)', fontWeight: 600 }}>
+                        <i className="fa-solid fa-users" style={{ color: '#2563eb' }}></i>
+                        <span>Cap: {ev.capacity}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between" style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--slate-100)', fontSize: '0.75rem', color: 'var(--slate-500)' }}>
+                    <button className="like-btn action-btn" onClick={() => handleLikeToggle(eventId)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.375rem', color: eventLike.liked ? '#881337' : 'var(--slate-500)' }}>
+                      <i className={`${eventLike.liked ? 'fa-solid' : 'fa-regular'} fa-heart`} style={{ fontSize: '0.9rem', color: eventLike.liked ? '#e11d48' : 'inherit' }}></i>
+                      <span>{eventLike.count > 0 ? `${eventLike.count} Likes` : 'Like'}</span>
                     </button>
                   </div>
                 </article>

@@ -18,6 +18,11 @@ import StaffAnnouncements from './pages/Staff/StaffAnnouncements';
 import StaffEvents from './pages/Staff/StaffEvents';
 import StaffMyPage from './pages/Staff/StaffMyPage';
 import MyPageDashboard from './pages/Staff/MyPageDashboard/MyPageDashboard';
+import MyPageProfile from './pages/Staff/MyPageDashboard/MyPageProfile';
+import MyPageAnnouncements from './pages/Staff/MyPageDashboard/MyPageAnnouncements';
+import MyPageEvents from './pages/Staff/MyPageDashboard/MyPageEvents';
+import MyPageNotifications from './pages/Staff/MyPageDashboard/MyPageNotifications';
+import MyPageSettings from './pages/Staff/MyPageDashboard/MyPageSettings';
 import StaffProfile from './pages/Staff/StaffProfile';
 import StaffNotifications from './pages/Staff/StaffNotification';
 import StaffMyEvents from './pages/Staff/StaffMyEvents';
@@ -54,6 +59,26 @@ function App() {
         <Route 
           path="/staff/mypage/dashboard" 
           element={<MyPageDashboard onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+        />
+        <Route 
+          path="/staff/mypage/profile" 
+          element={<MyPageProfile onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+        />
+        <Route 
+          path="/staff/mypage/announcements" 
+          element={<MyPageAnnouncements onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+        />
+        <Route 
+          path="/staff/mypage/events" 
+          element={<MyPageEvents onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+        />
+        <Route 
+          path="/staff/mypage/notifications" 
+          element={<MyPageNotifications onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+        />
+        <Route
+          path="/staff/mypage/settings"
+          element={<MyPageSettings onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />}
         />
         
         <Route path="/staff/profile" element={<StaffProfile />} />
