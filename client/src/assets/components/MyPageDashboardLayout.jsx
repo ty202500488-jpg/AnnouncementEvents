@@ -22,7 +22,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
 
   // SEARCH BAR STATE & LOGIC
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all'); // 'all', 'announcements', 'events', 'departments'
+  const [filterCategory, setFilterCategory] = useState('all');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -95,6 +95,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
 
     const fetchApprovedPages = async () => {
       try {
+        const token = localStorage.getItem('token');
         const response = await fetch('http://localhost:5000/api/approved-pages', {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' }
@@ -140,7 +141,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     fetchUserPageStatus();
     fetchNotifications();
 
-    // Click outside handler for dropdowns
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setShowDropdown(false);
@@ -154,14 +154,11 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Cross-tab session detection is handled by useSessionGuard hook
-
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
-  // Backend Notification Actions
   const handleMarkAllAsRead = async () => {
     const token = localStorage.getItem('token');
     try {
@@ -206,7 +203,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     }
   };
 
-  // Live System Search Handler
   const handleSearchChange = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -299,128 +295,55 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
   };
 
   return (
-    <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ paddingBottom: '4rem' }}>
+    <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ minHeight: '100vh', paddingBottom: '4.5rem' }}>
       <style>{`
-        /* DESKTOP NAVBAR FIXES (>= 1024px) */
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
             display: none !important;
           }
-          .mobile-menu-btn {
-            display: none !important;
-          }
-          .header-container {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            padding: 0.5rem 2rem !important;
-          }
-          .header-left {
-            order: 1 !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 1rem !important;
-          }
-          .search-container {
-            order: 2 !important;
-            display: flex !important;
-            flex: 1 !important;
-            max-width: 36rem !important;
-            margin: 0 2rem !important;
-          }
-          .header-right {
-            order: 3 !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 1rem !important;
-          }
-          .divider-v {
-            display: block !important;
-            height: 1.75rem;
-            width: 1px;
-            background-color: var(--slate-200, #e2e8f0);
+          .staff-dashboard-wrapper {
+            padding-bottom: 2rem !important;
           }
         }
-
-        /* MOBILE & TABLET RESPONSIVENESS (<= 1023px) */
-        @media (max-width: 1023px) {
-          .header-container {
-            display: flex !important;
-            flex-wrap: wrap !important; /* Allows items to wrap onto row 2 */
-            align-items: center !important;
-            justify-content: space-between !important;
-            padding: 0.75rem 1rem !important;
-          }
-          .header-left {
-            order: 1 !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 0.5rem !important;
-          }
-          .header-right {
-            order: 2 !important;
-            display: flex !important;
-            align-items: center !important;
-            gap: 0.75rem !important;
-          }
-          .header-right .divider-v {
+        @media (max-width: 640px) {
+          .profile-details-text {
             display: none !important;
           }
-          .nav-user-details {
-            display: block !important;
-          }
-          /* Forces Search Container below on its own full line */
-          .search-container {
-            order: 3 !important;
-            flex: 0 0 100% !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            margin-top: 0.75rem !important;
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-          }
-          .mobile-menu-btn {
-            display: flex !important;
-            align-items: center;
-            justify-content: center;
-          }
-          .notif-dropdown-menu {
-            right: -10px !important;
-            width: 280px !important;
+          .header-container {
+            gap: 0.5rem !important;
+            padding: 0.5rem 0.75rem !important;
           }
         }
       `}</style>
 
       {/* TOP NAVBAR */}
-      <header className="header">
-        <div className="header-container">
+      <header className="header" style={{ position: 'sticky', top: 0, zIndex: 40, backgroundColor: '#ffffff' }}>
+        <div className="header-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           
-          {/* Left: Hamburger & Logo */}
-          <div className="header-left">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
             <button 
               type="button" 
               className="mobile-menu-btn icon-btn" 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              style={{ color: 'var(--slate-600)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
+              style={{ color: 'var(--slate-600)', background: 'none', border: 'none', cursor: 'pointer' }}
               aria-label="Toggle Menu"
             >
               <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
             </button>
-            <div className="flex items-center gap-2">
-              <img src={logo} alt="CRIMSON Logo" style={{ height: '48px', width: 'auto', objectFit: 'contain', borderRadius: '50%' }} />
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <img src={logo} alt="CRIMSON Logo" style={{ height: '38px', width: '38px', objectFit: 'contain', borderRadius: '50%' }} />
             </div>
           </div>
 
-          {/* Center: Search Bar */}
-          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative' }}>
-            <div className="search-wrapper">
+          {/* Search Bar */}
+          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative', flex: '1 1 auto', maxWidth: '480px' }}>
+            <div className="search-wrapper" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
               <input 
                 type="text" 
                 placeholder={`Search ${filterCategory === 'all' ? 'Announcement, Events, Departments...' : filterCategory + '...'}`} 
                 className="search-input"
+                style={{ width: '100%', fontSize: '0.8125rem' }}
                 value={searchQuery}
                 onChange={handleSearchChange}
                 onFocus={() => searchQuery.trim() && setShowDropdown(true)}
@@ -432,7 +355,10 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
                 title={`Current Filter: ${filterCategory.toUpperCase()}`}
                 style={{
                   color: filterCategory !== 'all' ? '#881337' : 'inherit',
-                  fontWeight: filterCategory !== 'all' ? 700 : 400
+                  fontWeight: filterCategory !== 'all' ? 700 : 400,
+                  background: 'none',
+                  border: 'none',
+                  padding: '0.25rem'
                 }}
               >
                 <i className="fa-sliders fa-solid" style={{ fontSize: '0.75rem' }}></i>
@@ -496,17 +422,17 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             )}
           </div>
 
-          {/* Right: Notifications & Profile */}
-          <div className="header-right"> 
+          {/* Right Header Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}> 
             
             {/* Notifications Dropdown */}
             <div ref={notifDropdownRef} style={{ position: 'relative' }}>
               <button 
-                type="button"
+                type="button" 
                 className="icon-btn" 
                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none', padding: '0.25rem' }}
                 aria-label="Notifications"
-                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none' }}
               >
                 <i className="fa-regular fa-bell" style={{ fontSize: '1.1rem' }}></i>
                 {unreadNotifCount > 0 && <span className="badge-dot"></span>}
@@ -519,7 +445,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
                     position: 'absolute',
                     top: 'calc(100% + 0.5rem)',
                     right: 0,
-                    width: '320px',
+                    width: 'clamp(280px, 85vw, 320px)',
                     backgroundColor: '#ffffff',
                     borderRadius: '0.75rem',
                     border: '1px solid var(--slate-200, #e2e8f0)',
@@ -590,20 +516,18 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
               )}
             </div>
 
-            <div className="divider-v"></div>
-
             {/* Profile Dropdown */}
             <div ref={profileDropdownRef} style={{ position: 'relative' }}>
               <div 
                 className="profile-btn" 
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)} 
-                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', userSelect: 'none' }}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.375rem', userSelect: 'none' }}
               >
-                <div className="nav-user-details" style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: 700, color: 'var(--slate-800)', fontSize: '0.875rem', lineHeight: 1.2 }}>
-                    {user.firstName} {user.lastName}
+                <div className="profile-details-text" style={{ textAlign: 'left', maxWidth: '140px', overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {pageInfo.name}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--slate-500)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pageInfo.subtitle}</div>
                 </div>
                 <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
               </div>
@@ -628,8 +552,8 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
                   }}
                 >
                   <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--slate-100)', marginBottom: '0.25rem' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)' }}>{user.firstName} {user.lastName}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user.program}</div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{pageInfo.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{pageInfo.subtitle}</div>
                   </div>
 
                   <a 
@@ -691,7 +615,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             inset: 0,
             backgroundColor: 'rgba(15, 23, 42, 0.5)',
             backdropFilter: 'blur(4px)',
-            zIndex: 90
+            zIndex: 45
           }}
         ></div>
       )}
@@ -710,30 +634,30 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             left: 0,
             width: '280px',
             height: '100vh',
-            zIndex: 100,
+            zIndex: 50,
             backgroundColor: '#ffffff',
             boxShadow: '10px 0 25px rgba(0, 0, 0, 0.15)',
             overflowY: 'auto',
-            padding: '1rem'
+            padding: '1rem',
+            transition: 'transform 0.3s ease-in-out'
           } : {}}
         >
-          <div className="card space-y-5" style={{ padding: '1rem', height: '100%' }}>
+          <div className="card space-y-5" style={{ padding: '1rem', height: '100%', border: 'none' }}>
             
-            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ paddingTop: '0.5rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ padding: '0 0.5rem', textAlign: 'left', overflow: 'hidden' }}>
-                <span className="dept-title" style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--slate-900)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span className="dept-title" style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--slate-800)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {pageInfo.name}
                 </span>
-                <span className="dept-sub" style={{ fontSize: '11px', color: 'var(--slate-400)', display: 'block', marginTop: '2px' }}>
+                <span className="dept-sub" style={{ fontSize: '11px', color: 'var(--slate-500)', display: 'block', marginTop: '3px' }}>
                   {pageInfo.subtitle}
                 </span>
               </div>
               {isMobileMenuOpen && (
                 <button 
                   type="button" 
-                  className="icon-btn lg:hidden" 
                   onClick={() => setIsMobileMenuOpen(false)}
-                  style={{ color: 'var(--slate-600)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  style={{ color: 'var(--slate-600)', background: 'none', border: 'none', padding: '0.5rem', cursor: 'pointer' }}
                 >
                   <i className="fa-solid fa-xmark" style={{ fontSize: '1.2rem' }}></i>
                 </button>
@@ -946,7 +870,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
           display: 'flex',
           justifyContent: 'space-around',
           alignItems: 'center',
-          zIndex: 100,
+          zIndex: 40,
           boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
         }}
       >

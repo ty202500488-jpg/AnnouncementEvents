@@ -71,7 +71,7 @@ export default function MyEvents() {
           overflowY: 'auto',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
-          paddingBottom: '2rem'
+          paddingBottom: '2.5rem'
         }}
       >
         <style>{`
@@ -84,7 +84,7 @@ export default function MyEvents() {
         <div 
           className="flex items-center justify-between" 
           style={{ 
-            marginBottom: '0.875rem', 
+            marginBottom: '1.25rem', 
             paddingBottom: '0.625rem', 
             borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
           }}
@@ -153,7 +153,7 @@ export default function MyEvents() {
             </a>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {filteredEvents.map((item) => {
               const isUpcoming = new Date(item.date) >= new Date();
               return (
@@ -161,70 +161,78 @@ export default function MyEvents() {
                   key={item.id} 
                   className="card card-interactive" 
                   style={{ 
-                    padding: '1.125rem', 
-                    borderRadius: '0.625rem',
+                    padding: '1.5rem', 
+                    borderRadius: '1.25rem',
                     border: '1px solid var(--slate-200, #e2e8f0)',
                     backgroundColor: '#ffffff',
                     boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
                     transition: 'transform 0.15s ease, box-shadow 0.15s ease'
                   }}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        style={{ 
-                          width: '2.5rem', 
-                          height: '2.5rem', 
-                          borderRadius: '0.5rem', 
-                          backgroundColor: isUpcoming ? 'var(--brand-50, #eff6ff)' : 'var(--slate-100, #f1f5f9)', 
-                          color: isUpcoming ? 'var(--brand-600, #2563eb)' : 'var(--slate-500, #64748b)', 
-                          fontWeight: 700, 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          border: `1px solid ${isUpcoming ? 'var(--brand-100, #dbeafe)' : 'var(--slate-200, #e2e8f0)'}` 
-                        }}
-                      >
-                        <i className="fa-regular fa-calendar-check" style={{ fontSize: '1rem' }}></i>
+                  {/* Header: Icon + Title & Location/Date Meta */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+                    <div 
+                      style={{ 
+                        width: '3.25rem', 
+                        height: '3.25rem', 
+                        borderRadius: '0.875rem', 
+                        backgroundColor: isUpcoming ? '#fdf0f3' : '#f1f5f9', 
+                        color: isUpcoming ? '#8c1030' : '#64748b', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        flexShrink: 0 
+                      }}
+                    >
+                      <i className="fa-regular fa-calendar-check" style={{ fontSize: '1.35rem' }}></i>
+                    </div>
+
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.3, margin: 0 }}>
+                          {item.title}
+                        </h4>
+                        <span 
+                          style={{ 
+                            fontSize: '0.6875rem', 
+                            fontWeight: 600, 
+                            padding: '0.125rem 0.5rem', 
+                            borderRadius: '9999px', 
+                            backgroundColor: isUpcoming ? '#e6f7ef' : '#f1f5f9', 
+                            color: isUpcoming ? '#0f8a5f' : '#475569',
+                            border: `1px solid ${isUpcoming ? '#a7e3c8' : '#e2e8f0'}`
+                          }}
+                        >
+                          {isUpcoming ? 'Confirmed' : 'Ended'}
+                        </span>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.9375rem' }}>{item.title}</h4>
-                          <span 
-                            style={{ 
-                              fontSize: '0.6875rem', 
-                              fontWeight: 600, 
-                              padding: '0.125rem 0.5rem', 
-                              borderRadius: '9999px', 
-                              backgroundColor: isUpcoming ? 'var(--emerald-50, #ecfdf5)' : 'var(--slate-100, #f1f5f9)', 
-                              color: isUpcoming ? 'var(--emerald-700, #047857)' : 'var(--slate-600, #475569)',
-                              border: `1px solid ${isUpcoming ? 'var(--emerald-200, #a7f3d0)' : 'var(--slate-200, #e2e8f0)'}`
-                            }}
-                          >
-                            {isUpcoming ? 'Confirmed' : 'Ended'}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                          <i className="fa-solid fa-location-dot" style={{ color: 'var(--slate-400)' }}></i>
+
+                      <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i>
                           <span>{item.location || 'University Campus'}</span>
-                          <span>•</span>
-                          <i className="fa-regular fa-clock" style={{ color: 'var(--slate-400)' }}></i>
-                          <span>{item.date ? new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBA'}</span>
-                        </p>
+                        </span>
+                        <span>•</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i>
+                          <span>{item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBA'}</span>
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.75rem', lineHeight: 1.5 }}>
+                  {/* Body Content */}
+                  <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '1.25rem', marginBottom: '1.5rem', lineHeight: 1.6 }}>
                     {item.description}
                   </p>
 
-                  <div className="flex items-center justify-between" style={{ marginTop: '0.875rem', paddingTop: '0.625rem', borderTop: '1px solid var(--slate-100)' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 500 }}>
-                      Organized by <strong style={{ color: 'var(--slate-700)' }}>{item.department_name || 'University Office'}</strong>
+                  {/* Footer: Organized by + Action Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '1rem', borderTop: '1px solid #e6ebf0', gap: '1rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 500 }}>
+                      Organized by <strong style={{ color: '#16162b' }}>{item.department_name || 'University Office'}</strong>
                     </span>
-                    
-                    <div className="flex items-center gap-2">
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       {isUpcoming && (
                         <button
                           onClick={() => {
@@ -235,18 +243,17 @@ export default function MyEvents() {
                             }
                           }}
                           style={{ 
-                            backgroundColor: 'var(--brand-600, #2563eb)', 
-                            color: '#ffffff', 
-                            border: 'none', 
-                            padding: '0.375rem 0.75rem', 
-                            borderRadius: '0.375rem', 
-                            fontSize: '0.75rem', 
+                            backgroundColor: '#ffffff', 
+                            color: '#475569', 
+                            border: '1px solid #e6ebf0', 
+                            padding: '0.55rem 1.125rem', 
+                            borderRadius: '0.625rem', 
+                            fontSize: '0.875rem', 
                             fontWeight: 600, 
                             cursor: 'pointer', 
                             display: 'inline-flex', 
                             alignItems: 'center', 
-                            gap: '0.375rem',
-                            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                            gap: '0.5rem'
                           }}
                         >
                           <i className="fa-solid fa-qrcode"></i> Scan Attendance
@@ -258,13 +265,13 @@ export default function MyEvents() {
                           onClick={() => handleCancelRegistration(item.id)}
                           style={{ 
                             background: 'transparent', 
-                            border: '1px solid var(--rose-200, #fecdd3)', 
-                            color: 'var(--rose-600, #e11d48)', 
-                            fontSize: '0.75rem', 
+                            border: '1px solid #fecdd3', 
+                            color: '#e11d48', 
+                            fontSize: '0.875rem', 
                             fontWeight: 600, 
                             cursor: 'pointer', 
-                            padding: '0.35rem 0.625rem', 
-                            borderRadius: '0.375rem',
+                            padding: '0.55rem 1rem', 
+                            borderRadius: '0.625rem',
                             transition: 'background-color 0.15s ease'
                           }}
                         >

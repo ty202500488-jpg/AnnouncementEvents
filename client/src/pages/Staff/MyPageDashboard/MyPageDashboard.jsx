@@ -7,13 +7,9 @@ import '../../styles/MyPageDashboard.css';
 
 export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [activeTab, setActiveTab] = useState('overview');
-  const [announcements, setAnnouncements] = useState([]);
-  const [events, setEvents] = useState([]);
+  const [feed, setFeed] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  const [bookmarks, setBookmarks] = useState({});
-  const [activeMenuId, setActiveMenuId] = useState(null);
 
   // Modal & Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -51,8 +47,12 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.announcements) setAnnouncements(data.announcements);
-        if (data.events) setEvents(data.events);
+        const announcements = (data.announcements || []).map(a => ({ ...a, _type: 'Announcement' }));
+        const events = (data.events || []).map(e => ({ ...e, _type: 'Event' }));
+        const merged = [...announcements, ...events].sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at)
+        );
+        setFeed(merged);
       }
 
       // Fetch Categories
@@ -94,11 +94,26 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     fetchPageAndFeedData();
   }, []);
 
-  const handleBookmarkToggle = (id) => {
-    setBookmarks(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+  const handleRegister = async (eventId) => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      const parsedUser = storedUser ? JSON.parse(storedUser) : {};
+      const studentId = parsedUser.id || parsedUser.student_id;
+
+      const response = await fetch(`http://localhost:5000/users/events/${eventId}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId })
+      });
+      
+      if (response.ok) {
+        setFeed(prev =>
+          prev.map(item => item._type === 'Event' && item.id === eventId ? { ...item, is_registered: true } : item)
+        );
+      }
+    } catch (err) {
+      console.error('Failed to register for event', err);
+    }
   };
 
   const handleImageSelect = (e) => {
@@ -128,47 +143,6 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     setIsModalOpen(false);
   };
 
-  const handleDeletePost = async (id, type) => {
-    if (!window.confirm('Are you sure you want to delete this post?')) return;
-
-    try {
-      const token = localStorage.getItem('token');
-      const endpoint = type === 'event' 
-        ? `http://localhost:5000/api/events/${id}` 
-        : `http://localhost:5000/api/announcements/${id}`;
-      
-      const response = await fetch(endpoint, { 
-        method: 'DELETE',
-        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
-      });
-
-      if (response.ok) {
-        if (type === 'event') {
-          setEvents(prev => prev.filter(item => item.event_id !== id));
-        } else {
-          setAnnouncements(prev => prev.filter(item => item.announcement_id !== id));
-        }
-      }
-    } catch (err) {
-      console.error('Delete error:', err);
-    } finally {
-      setActiveMenuId(null);
-    }
-  };
-
-  const handleStartEdit = (item, type) => {
-    setEditingPost({ ...item, type });
-    setPostType(type);
-    setQuickTitle(item.title || item.event_title || '');
-    setQuickBody(item.content || item.event_description || item.description || '');
-    setCategoryId(item.category_id || '');
-    setEventDate(item.event_date ? item.event_date.split('T')[0] : '');
-    setLocation(item.location || item.venue || '');
-    setCapacity(item.capacity || '');
-    setIsModalOpen(true);
-    setActiveMenuId(null);
-  };
-
   const handlePublishPost = async (e) => {
     e.preventDefault();
     if (!quickTitle.trim() || !quickBody.trim()) return;
@@ -183,8 +157,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       if (editingPost) {
         const isEvent = editingPost.type === 'event';
         const endpoint = isEvent 
-          ? `http://localhost:5000/api/events/${editingPost.event_id}` 
-          : `http://localhost:5000/api/announcements/${editingPost.announcement_id}`;
+          ? `http://localhost:5000/api/events/${editingPost.event_id || editingPost.id}` 
+          : `http://localhost:5000/api/announcements/${editingPost.announcement_id || editingPost.id}`;
 
         const bodyData = isEvent ? {
           event_title: quickTitle,
@@ -206,11 +180,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         });
 
         if (response.ok) {
-          if (isEvent) {
-            setEvents(prev => prev.map(ev => ev.event_id === editingPost.event_id ? { ...ev, event_title: quickTitle, event_description: quickBody, event_date: eventDate, location, capacity } : ev));
-          } else {
-            setAnnouncements(prev => prev.map(an => an.announcement_id === editingPost.announcement_id ? { ...an, title: quickTitle, content: quickBody, description: quickBody, category_id: categoryId } : an));
-          }
+          fetchPageAndFeedData();
         }
       } else {
         if (postType === 'announcement') {
@@ -229,9 +199,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             alert(data.message || 'Failed to publish announcement.');
             return;
           }
-          if (data.announcement) {
-            setAnnouncements([data.announcement, ...announcements]);
-          }
+          fetchPageAndFeedData();
         } else {
           const response = await fetch('http://localhost:5000/api/events', {
             method: 'POST',
@@ -249,9 +217,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             alert(data.message || 'Failed to publish event.');
             return;
           }
-          if (data.event) {
-            setEvents([data.event, ...events]);
-          }
+          fetchPageAndFeedData();
         }
       }
 
@@ -261,22 +227,6 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       alert('Network error while publishing post.');
     }
   };
-
-  const formatPostTime = (dateStr) => {
-    if (!dateStr) return 'Recently';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const hideScrollbarStyle = `
-    .no-scrollbar::-webkit-scrollbar {
-      display: none;
-    }
-    .no-scrollbar {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
-  `;
 
   return (
     <MyPageDashboardLayout 
@@ -291,9 +241,20 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       }} 
       onSwitchToStaffDashboard={onSwitchToStaffDashboard}
     >
-      <style>{hideScrollbarStyle}</style>
+      {/* Hidden Scrollbar Global Style Injection */}
+      <style>{`
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;  /* Firefox */
+        }
+      `}</style>
 
-      <main className="lg-col-6 space-y-6 no-scrollbar" style={{ width: '100%', maxWidth: '680px', margin: '0 auto' }}>
+      <main className="lg-col-6 no-scrollbar" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem' }}>
         
         {/* Trigger Box */}
         <div className="card" style={{ padding: '1.25rem', width: '100%', borderRadius: '1rem', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -498,208 +459,190 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           </div>
         )}
 
-        {/* Feed List */}
+        {/* Dynamic Feed Content */}
         {loading ? (
-          <p style={{ textAlign: 'center', color: '#64748b', padding: '2rem' }}>Loading department feed...</p>
-        ) : announcements.length === 0 && events.length === 0 ? (
-          <article className="card" style={{ padding: '2rem', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '1rem' }}>
-            <p style={{ color: '#475569', fontWeight: 600 }}>No Announcements or Events posted yet.</p>
+          <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading database feeds...</p>
+        ) : feed.length === 0 ? (
+          <article className="card" style={{ padding: '1.75rem', textAlign: 'center' }}>
+            <p style={{ color: 'var(--slate-600)' }}>No posts available yet.</p>
           </article>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            
-            {/* Render Announcements */}
-            {announcements.map((item, index) => {
-              const postId = `ann-${item.announcement_id || index}`;
-              const isBookmarked = bookmarks[postId] || false;
+          feed.map((item, index) => {
+            const isEvent = item._type === 'Event';
 
+            if (isEvent) {
               return (
-                <article key={postId} style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                  
-                  {/* Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#fef3c7', color: '#d97706', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {pageCode || 'SAO'}
-                      </div>
-                      <div>
-                        <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2 }}>{item.page_name || pageName}</h3>
-                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '9999px', backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', marginTop: '2px', display: 'inline-block' }}>Announcement</span>
-                        <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '2px 0 0 0' }}>
-                          {formatPostTime(item.created_at)}
-                        </p>
-                      </div>
+                <article 
+                  key={item.id || index} 
+                  className="card card-interactive" 
+                  style={{ 
+                    padding: '1.5rem', 
+                    borderRadius: '1.25rem',
+                    border: '1px solid var(--slate-200, #e2e8f0)',
+                    backgroundColor: '#ffffff',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                    transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                  }}
+                >
+                  {/* Header: Icon + Title & Location/Date Meta */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
+                    <div 
+                      style={{ 
+                        width: '3.25rem', 
+                        height: '3.25rem', 
+                        borderRadius: '0.875rem', 
+                        backgroundColor: '#fdf0f3', 
+                        color: '#8c1030', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        flexShrink: 0 
+                      }}
+                    >
+                      <i className="fa-regular fa-calendar" style={{ fontSize: '1.35rem' }}></i>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
-                      <button 
-                        onClick={() => handleBookmarkToggle(postId)} 
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', color: isBookmarked ? '#0f172a' : '#94a3b8' }}
-                      >
-                        <i className={`${isBookmarked ? 'fa-solid' : 'fa-regular'} fa-bookmark`} style={{ fontSize: '1.1rem' }}></i>
-                      </button>
-
-                      <button 
-                        onClick={() => setActiveMenuId(activeMenuId === postId ? null : postId)} 
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', color: '#94a3b8' }}
-                      >
-                        <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1.1rem' }}></i>
-                      </button>
-
-                      {activeMenuId === postId && (
-                        <div style={{ position: 'absolute', right: 0, top: '2rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, width: '120px', overflow: 'hidden' }}>
-                          <button 
-                            onClick={() => handleStartEdit(item, 'announcement')} 
-                            style={{ width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', background: 'none', border: 'none', fontSize: '0.8125rem', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                          >
-                            <i className="fa-solid fa-pen" style={{ fontSize: '0.75rem' }}></i> Edit
-                          </button>
-                          <button 
-                            onClick={() => handleDeletePost(item.announcement_id, 'announcement')} 
-                            style={{ width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', background: 'none', border: 'none', fontSize: '0.8125rem', color: '#e11d48', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                          >
-                            <i className="fa-solid fa-trash" style={{ fontSize: '0.75rem' }}></i> Delete
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Body Content */}
-                  <div style={{ marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                      <h4 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem', margin: 0, lineHeight: 1.3 }}>{item.title}</h4>
-                      {item.category_name && (
-                        <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#f1f5f9', color: '#881337', padding: '2px 6px', borderRadius: '4px' }}>
-                          {item.category_name}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.3, margin: 0 }}>
+                        {item.title}
+                      </h4>
+                      
+                      <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i>
+                          <span>{item.location || 'University Campus'}</span>
                         </span>
-                      )}
-                    </div>
-                    <p style={{ color: '#475569', fontSize: '0.875rem', margin: 0, lineHeight: 1.6 }}>{item.content || item.description}</p>
-                  </div>
-
-                  {/* Image Attachment */}
-                  {item.image_url && (
-                    <div style={{ position: 'relative', width: '100%', borderRadius: '0.75rem', overflow: 'hidden', marginBottom: '1rem' }}>
-                      <img src={item.image_url} alt="Post content" style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '380px', objectFit: 'cover' }} />
-                    </div>
-                  )}
-
-                  {/* Footer Action Links */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: '0.8125rem', fontWeight: 600 }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#64748b' }}>
-                      <i className="fa-regular fa-eye" style={{ fontSize: '0.9rem' }}></i>
-                      <span>View Details</span>
-                    </button>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#64748b' }}>
-                      <i className="fa-solid fa-bullhorn" style={{ fontSize: '0.85rem' }}></i>
-                      <span>Announcement</span>
-                    </button>
-                  </div>
-
-                </article>
-              );
-            })}
-
-            {/* Render Events */}
-            {events.map((ev, index) => {
-              const eventId = `ev-${ev.event_id || index}`;
-              const isBookmarked = bookmarks[eventId] || false;
-
-              return (
-                <article key={eventId} style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid #e2e8f0', padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                  
-                  {/* Header */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#fef3c7', color: '#d97706', fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {pageCode || 'SAO'}
+                        <span>•</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i>
+                          <span>{item.event_date || item.date ? new Date(item.event_date || item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBA'}</span>
+                        </span>
                       </div>
-                      <div>
-                        <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2 }}>{ev.page_name || pageName}</h3>
-                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '9999px', backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', marginTop: '2px', display: 'inline-block' }}>Event</span>
-                        <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '2px 0 0 0' }}>
-                          {formatPostTime(ev.created_at)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
-                      <button 
-                        onClick={() => handleBookmarkToggle(eventId)} 
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', color: isBookmarked ? '#0f172a' : '#94a3b8' }}
-                      >
-                        <i className={`${isBookmarked ? 'fa-solid' : 'fa-regular'} fa-bookmark`} style={{ fontSize: '1.1rem' }}></i>
-                      </button>
-
-                      <button 
-                        onClick={() => setActiveMenuId(activeMenuId === eventId ? null : eventId)} 
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', color: '#94a3b8' }}
-                      >
-                        <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1.1rem' }}></i>
-                      </button>
-
-                      {activeMenuId === eventId && (
-                        <div style={{ position: 'absolute', right: 0, top: '2rem', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, width: '120px', overflow: 'hidden' }}>
-                          <button 
-                            onClick={() => handleStartEdit(ev, 'event')} 
-                            style={{ width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', background: 'none', border: 'none', fontSize: '0.8125rem', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                          >
-                            <i className="fa-solid fa-pen" style={{ fontSize: '0.75rem' }}></i> Edit
-                          </button>
-                          <button 
-                            onClick={() => handleDeletePost(ev.event_id, 'event')} 
-                            style={{ width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', background: 'none', border: 'none', fontSize: '0.8125rem', color: '#e11d48', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                          >
-                            <i className="fa-solid fa-trash" style={{ fontSize: '0.75rem' }}></i> Delete
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
 
                   {/* Body Content */}
-                  <div style={{ marginBottom: '1rem' }}>
-                    <h4 style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem', margin: '0 0 0.5rem 0', lineHeight: 1.3 }}>{ev.event_title || ev.title}</h4>
-                    <p style={{ color: '#475569', fontSize: '0.875rem', margin: 0, lineHeight: 1.6 }}>{ev.event_description || ev.description}</p>
-                  </div>
+                  <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '1.25rem', marginBottom: '1.5rem', lineHeight: 1.6 }}>
+                    {item.content || item.description}
+                  </p>
 
-                  {/* Image Attachment (only when image exists) */}
-                  {ev.image_url && (
-                    <div style={{ position: 'relative', width: '100%', borderRadius: '0.75rem', overflow: 'hidden', marginBottom: '1rem' }}>
-                      <img
-                        src={ev.image_url}
-                        alt="Event"
-                        style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '380px', objectFit: 'cover' }}
-                      />
+                  {/* Footer: Organized by + Action Buttons */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '1rem', borderTop: '1px solid #e6ebf0', gap: '1rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 500 }}>
+                      Organized by <strong style={{ color: '#16162b' }}>{item.department_name || item.page_name || pageName}</strong>
+                    </span>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      {item.is_registered && (
+                        <button
+                          onClick={() => {
+                            const token = prompt("Scan or enter event QR token:");
+                            if (token) {
+                              const clean = token.trim().split('/').pop();
+                              window.location.href = `/student/attendance/check-in/${clean}`;
+                            }
+                          }}
+                          style={{ 
+                            backgroundColor: '#ffffff', 
+                            color: '#475569', 
+                            border: '1px solid #e6ebf0', 
+                            padding: '0.55rem 1.125rem', 
+                            borderRadius: '0.625rem', 
+                            fontSize: '0.875rem', 
+                            fontWeight: 600, 
+                            cursor: 'pointer', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '0.5rem'
+                          }}
+                        >
+                          <i className="fa-solid fa-qrcode"></i> Scan Attendance
+                        </button>
+                      )}
+
+                      <button 
+                        onClick={() => !item.is_registered && handleRegister(item.id)}
+                        disabled={item.is_registered}
+                        style={{
+                          padding: '0.55rem 1.25rem',
+                          borderRadius: '0.625rem',
+                          fontSize: '0.875rem',
+                          fontWeight: 600,
+                          cursor: item.is_registered ? 'default' : 'pointer',
+                          backgroundColor: item.is_registered ? '#e6f7ef' : '#8c1030',
+                          color: item.is_registered ? '#0f8a5f' : '#ffffff',
+                          border: `1px solid ${item.is_registered ? '#a7e3c8' : 'transparent'}`,
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {item.is_registered ? 'Registered ✓' : 'Register Now'}
+                      </button>
                     </div>
-                  )}
-                  {/* Event date badge (shown when event_date exists) */}
-                  {ev.event_date && (
-                    <div style={{ display: 'inline-block', backgroundColor: '#f0f9ff', color: '#0369a1', fontSize: '0.75rem', fontWeight: 600, padding: '0.35rem 0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
-                      Event Date: {new Date(ev.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </div>
-                  )}
-
-                  {/* Footer Action Links */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: '0.8125rem', fontWeight: 600 }}>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#64748b' }}>
-                      <i className="fa-regular fa-eye" style={{ fontSize: '0.9rem' }}></i>
-                      <span>View Details</span>
-                    </button>
-                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#64748b' }}>
-                      <i className="fa-solid fa-user-plus" style={{ fontSize: '0.85rem' }}></i>
-                      <span>Register</span>
-                    </button>
                   </div>
-
                 </article>
               );
-            })}
+            }
 
-          </div>
+            // Standard Announcement Layout (Matching design with Profile Avatar)
+            const deptName = item.department_name || item.page_name || pageName;
+            const avatarText = item.code || pageCode || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+
+            return (
+              <article 
+                key={item.id || index} 
+                className="card card-interactive" 
+                style={{ 
+                  padding: '1.5rem', 
+                  borderRadius: '1.25rem',
+                  border: '1px solid var(--slate-200, #e2e8f0)',
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)'
+                }}
+              >
+                {/* Header: Department Avatar + Name & Creation Date */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', marginBottom: '1.25rem' }}>
+                  <div 
+                    style={{ 
+                      width: '3.25rem', 
+                      height: '3.25rem', 
+                      borderRadius: '50%', 
+                      backgroundColor: '#fbe4e8', 
+                      color: '#8c1030', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      fontWeight: 800, 
+                      fontSize: '0.875rem',
+                      flexShrink: 0
+                    }}
+                  >
+                    {avatarText}
+                  </div>
+
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '1.0625rem', margin: 0, lineHeight: 1.3 }}>
+                      {deptName}
+                    </h4>
+                    <div style={{ fontSize: '0.875rem', color: '#8a97a6', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <i className="fa-regular fa-clock" style={{ fontSize: '0.8125rem', color: '#94a3b8' }}></i>
+                      <span>{item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Body Content */}
+                <div>
+                  <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
+                    {item.title}
+                  </h3>
+                  <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '0.75rem', lineHeight: 1.6, margin: '0.75rem 0 0 0' }}>
+                    {item.content || item.description}
+                  </p>
+                </div>
+              </article>
+            );
+          })
         )}
-
       </main>
     </MyPageDashboardLayout>
   );

@@ -82,7 +82,7 @@ export default function StaffMyEvents() {
         <div 
           className="flex items-center justify-between" 
           style={{ 
-            marginBottom: '0.875rem', 
+            marginBottom: '1.25rem', 
             paddingBottom: '0.625rem', 
             borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
           }}
@@ -151,7 +151,7 @@ export default function StaffMyEvents() {
             </a>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {filteredEvents.map((item) => {
               const isUpcoming = new Date(item.date) >= new Date();
               return (

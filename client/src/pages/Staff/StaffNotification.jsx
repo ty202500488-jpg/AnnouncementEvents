@@ -134,7 +134,7 @@ export default function StaffNotifications() {
         <div 
           className="flex items-center justify-between" 
           style={{ 
-            marginBottom: '0.875rem', 
+            marginBottom: '1.25rem', 
             paddingBottom: '0.625rem', 
             borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
           }}
@@ -219,7 +219,7 @@ export default function StaffNotifications() {
             <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No new notifications available.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {filteredNotifications.map((notif) => (
               <div 
                 key={notif.id} 

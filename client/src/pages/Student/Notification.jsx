@@ -123,9 +123,11 @@ export default function Notifications() {
       <main 
         className="lg-col-6 hide-scrollbar" 
         style={{ 
+          height: 'calc(100vh - 5rem)', 
+          overflowY: 'auto',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
-          paddingBottom: '2rem'
+          paddingBottom: '2.5rem'
         }}
       >
         <style>{`
@@ -138,7 +140,7 @@ export default function Notifications() {
         <div 
           className="flex items-center justify-between" 
           style={{ 
-            marginBottom: '0.875rem', 
+            marginBottom: '1.25rem', 
             paddingBottom: '0.625rem', 
             borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
           }}
@@ -223,7 +225,7 @@ export default function Notifications() {
             <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No new notifications available.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {filteredNotifications.map((notif) => (
               <div 
                 key={notif.id} 
@@ -232,8 +234,8 @@ export default function Notifications() {
                   display: 'flex', 
                   justifyContent: 'space-between', 
                   alignItems: 'center',
-                  padding: '1.125rem',
-                  borderRadius: '0.625rem',
+                  padding: '1.25rem 1.5rem',
+                  borderRadius: '1.25rem',
                   border: '1px solid var(--slate-200, #e2e8f0)',
                   backgroundColor: '#ffffff',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)'
