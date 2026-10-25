@@ -225,7 +225,11 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             })
           });
           const data = await response.json();
-          if (response.ok && data.announcement) {
+          if (!response.ok) {
+            alert(data.message || 'Failed to publish announcement.');
+            return;
+          }
+          if (data.announcement) {
             setAnnouncements([data.announcement, ...announcements]);
           }
         } else {
@@ -241,7 +245,11 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             })
           });
           const data = await response.json();
-          if (response.ok && data.event) {
+          if (!response.ok) {
+            alert(data.message || 'Failed to publish event.');
+            return;
+          }
+          if (data.event) {
             setEvents([data.event, ...events]);
           }
         }
@@ -250,6 +258,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       resetForm();
     } catch (err) {
       console.error('Failed to publish post:', err);
+      alert('Network error while publishing post.');
     }
   };
 

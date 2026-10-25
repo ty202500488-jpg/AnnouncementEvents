@@ -85,10 +85,10 @@ export default function Announcements() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div style={{ width: '2.25rem', height: '2.25rem', borderRadius: '50%', backgroundColor: 'var(--amber-100)', color: 'var(--amber-700)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>
-                        WMSU
+                        {item.department_code || 'WMSU'}
                       </div>
                       <div>
-                        <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>{item.department_name || 'University Notice'}</h4>
+                        <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>{item.department_name || item.page_name || 'University Notice'}</h4>
                         <p style={{ fontSize: '11px', color: 'var(--slate-400)' }}>
                           {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}
                         </p>

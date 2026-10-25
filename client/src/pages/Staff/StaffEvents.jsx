@@ -122,7 +122,7 @@ export default function StaffEvents() {
 
                   <div className="flex items-center justify-between" style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--slate-100)' }}>
                     <span style={{ fontSize: '11px', color: 'var(--slate-400)', fontWeight: 500 }}>
-                      Organized by {item.department_name || 'University Office'}
+                      Organized by {item.department_name || item.page_name || 'University Office'}
                     </span>
                     <button 
                       onClick={() => !item.is_registered && handleRegister(item.id)}

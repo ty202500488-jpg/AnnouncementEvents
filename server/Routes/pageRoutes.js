@@ -38,26 +38,33 @@ async function authenticateUser(req, res) {
     }
 }
 
-// HELPER: Fetch user's managed page details or return fallback page
+// HELPER: Fetch user's managed page details (owner or active page_staff)
 async function getUserPageDetails(userId) {
     try {
         const pageRes = await pool.query(
-            `SELECT page_id, page_name FROM pages WHERE created_by = $1 ORDER BY page_id DESC LIMIT 1`,
+            `SELECT p.page_id,
+                    COALESCE(p.page_name, d.department_name, o.organization_name) AS page_name,
+                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+             FROM pages p
+             LEFT JOIN departments d ON p.department_id = d.department_id
+             LEFT JOIN organizations o ON p.organization_id = o.organization_id
+             WHERE p.created_by = $1
+                OR EXISTS (
+                    SELECT 1 FROM page_staff ps
+                    WHERE ps.page_id = p.page_id AND ps.user_id = $1 AND LOWER(ps.status) = 'active'
+                )
+             ORDER BY p.page_id DESC
+             LIMIT 1`,
             [userId]
         );
         if (pageRes.rows.length > 0) {
             return pageRes.rows[0];
         }
 
-        const fallbackRes = await pool.query(`SELECT page_id, page_name FROM pages LIMIT 1`);
-        if (fallbackRes.rows.length > 0) {
-            return fallbackRes.rows[0];
-        }
-
-        return { page_id: null, page_name: 'Student Affairs Office' };
+        return { page_id: null, page_name: null, department_code: 'WMSU' };
     } catch (err) {
         console.error('Error in getUserPageDetails:', err.message);
-        return { page_id: null, page_name: 'Student Affairs Office' };
+        return { page_id: null, page_name: null, department_code: 'WMSU' };
     }
 }
 
@@ -81,10 +88,17 @@ router.get('/my-page-status', async (req, res) => {
         if (!userId) return;
 
         const pageQuery = await pool.query(
-            `SELECT page_id, page_name, page_description, description, status, department_id, organization_id
-             FROM pages
-             WHERE created_by = $1
-             ORDER BY page_id DESC
+            `SELECT p.page_id, p.page_name, p.page_description, p.status, p.department_id, p.organization_id,
+                    d.department_name, d.department_code, o.organization_name
+             FROM pages p
+             LEFT JOIN departments d ON p.department_id = d.department_id
+             LEFT JOIN organizations o ON p.organization_id = o.organization_id
+             WHERE p.created_by = $1
+                OR EXISTS (
+                    SELECT 1 FROM page_staff ps
+                    WHERE ps.page_id = p.page_id AND ps.user_id = $1 AND LOWER(ps.status) = 'active'
+                )
+             ORDER BY p.page_id DESC
              LIMIT 1`,
             [userId]
         );
@@ -94,12 +108,16 @@ router.get('/my-page-status', async (req, res) => {
         }
 
         const page = pageQuery.rows[0];
+        const resolvedName = page.page_name || page.department_name || page.organization_name || '';
+        const resolvedCode = page.department_code || (page.organization_name ? page.organization_name.substring(0, 4).toUpperCase() : resolvedName.substring(0, 3).toUpperCase()) || 'WMSU';
 
         return res.status(200).json({
             exists: true,
             pageId: page.page_id,
-            pageName: page.page_name,
-            description: page.page_description || page.description || '',
+            pageName: resolvedName,
+            pageCode: resolvedCode,
+            departmentName: page.department_name || page.organization_name || resolvedName,
+            description: page.page_description || '',
             status: String(page.status || 'Pending').toLowerCase(),
             category: page.department_id ? 'Academic College' : 'Student Organization'
         });
@@ -109,19 +127,20 @@ router.get('/my-page-status', async (req, res) => {
     }
 });
 
-// FETCH DASHBOARD FEED DATA (Includes category_id and category_name)
+// FETCH DASHBOARD FEED DATA (Includes category_id, category_name, page_name, department_name, department_code)
 const handleDashboardFetch = async (req, res) => {
     try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
-
         const annRes = await pool.query(
-            `SELECT a.announcement_id, a.title, COALESCE(a.content, a.description, '') as content, 
-                    a.created_at, a.image_url, a.page_id, a.category_id,
-                    COALESCE(c.category_name, 'General') as category_name,
-                    COALESCE(p.page_name, 'Student Affairs Office') as page_name 
-             FROM announcements a 
-             LEFT JOIN pages p ON a.page_id = p.page_id 
+            `SELECT a.announcement_id, a.announcement_id AS id, a.title, a.content, a.content AS description,
+                    a.created_at, a.page_id, a.category_id,
+                    COALESCE(c.category_name, 'General') AS category_name,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS page_name,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS department_name,
+                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+             FROM announcements a
+             LEFT JOIN pages p ON a.page_id = p.page_id
+             LEFT JOIN departments d ON p.department_id = d.department_id
+             LEFT JOIN organizations o ON p.organization_id = o.organization_id
              LEFT JOIN announcement_categories c ON a.category_id = c.category_id
              WHERE a.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY a.created_at DESC`
@@ -131,12 +150,21 @@ const handleDashboardFetch = async (req, res) => {
         });
 
         const evRes = await pool.query(
-            `SELECT e.event_id, COALESCE(e.event_title, e.title) as event_title, 
-                    COALESCE(e.event_description, e.description, '') as event_description, 
-                    e.event_date, COALESCE(e.location, e.venue) as location, e.capacity, 
-                    e.created_at, e.image_url, e.page_id, COALESCE(p.page_name, 'Student Affairs Office') as page_name 
-             FROM events e 
-             LEFT JOIN pages p ON e.page_id = p.page_id 
+            `SELECT e.event_id, e.event_id AS id,
+                    e.event_title, e.event_title AS title,
+                    COALESCE(e.event_description, '') AS event_description,
+                    COALESCE(e.event_description, '') AS description,
+                    e.event_date, e.event_date AS date,
+                    e.location, e.location AS venue, e.capacity,
+                    e.created_at, e.poster_url, e.poster_url AS image_url,
+                    e.page_id,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
+                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+             FROM events e
+             LEFT JOIN pages p ON e.page_id = p.page_id
+             LEFT JOIN departments d ON p.department_id = d.department_id
+             LEFT JOIN organizations o ON p.organization_id = o.organization_id
              WHERE e.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY e.created_at DESC`
         ).catch((err) => {
@@ -157,7 +185,7 @@ const handleDashboardFetch = async (req, res) => {
 router.get('/dashboard-data', handleDashboardFetch);
 router.post('/dashboard-data', handleDashboardFetch);
 
-// GET /api/mypage/posts (Includes categories)
+// GET /api/mypage/posts (Includes categories, department_name, department_code)
 router.get('/mypage/posts', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
@@ -165,8 +193,26 @@ router.get('/mypage/posts', async (req, res) => {
 
         const { pageId } = req.query;
 
-        let annQuery = `SELECT a.*, a.category_id, COALESCE(c.category_name, 'General') as category_name, COALESCE(p.page_name, 'Student Affairs Office') as page_name FROM announcements a LEFT JOIN pages p ON a.page_id = p.page_id LEFT JOIN announcement_categories c ON a.category_id = c.category_id`;
-        let evQuery = `SELECT e.*, COALESCE(p.page_name, 'Student Affairs Office') as page_name FROM events e LEFT JOIN pages p ON e.page_id = p.page_id`;
+        let annQuery = `
+            SELECT a.*, a.announcement_id AS id, a.content AS description, a.category_id,
+                   COALESCE(c.category_name, 'General') AS category_name,
+                   COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS page_name,
+                   COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS department_name,
+                   COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+            FROM announcements a
+            LEFT JOIN pages p ON a.page_id = p.page_id
+            LEFT JOIN departments d ON p.department_id = d.department_id
+            LEFT JOIN organizations o ON p.organization_id = o.organization_id
+            LEFT JOIN announcement_categories c ON a.category_id = c.category_id`;
+        let evQuery = `
+            SELECT e.*, e.event_id AS id, e.event_title AS title, e.event_description AS description, e.event_date AS date,
+                   COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
+                   COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
+                   COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+            FROM events e
+            LEFT JOIN pages p ON e.page_id = p.page_id
+            LEFT JOIN departments d ON p.department_id = d.department_id
+            LEFT JOIN organizations o ON p.organization_id = o.organization_id`;
         const params = [];
 
         if (pageId) {
@@ -209,7 +255,7 @@ router.post('/announcements', async (req, res) => {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
 
-        const { title, content, description, pageId, image_url, category_id, is_pinned } = req.body;
+        const { title, content, description, pageId, category_id, is_pinned } = req.body;
         const bodyText = content || description || '';
 
         if (!title || !bodyText) {
@@ -230,8 +276,8 @@ router.post('/announcements', async (req, res) => {
 
         const query = `
             INSERT INTO announcements 
-            (page_id, creator_user_id, category_id, title, content, description, is_pinned, status, created_at, updated_at, image_url) 
-            VALUES ($1, $2, $3, $4, $5, $5, $6, 'Published', NOW(), NOW(), $7) 
+            (page_id, creator_user_id, category_id, title, content, is_pinned, status, created_at, updated_at) 
+            VALUES ($1, $2, $3, $4, $5, $6, 'Published', NOW(), NOW()) 
             RETURNING *;
         `;
 
@@ -241,15 +287,20 @@ router.post('/announcements', async (req, res) => {
             finalCategoryId,
             title,
             bodyText,
-            Boolean(is_pinned),
-            image_url || null
+            Boolean(is_pinned)
         ];
 
         const result = await pool.query(query, values);
+        const row = result.rows[0];
+        const pageName = userPage.page_name || 'Student Affairs Office';
 
         const newAnnouncement = {
-            ...result.rows[0],
-            page_name: userPage.page_name || 'Student Affairs Office'
+            ...row,
+            id: row.announcement_id,
+            description: row.content,
+            page_name: pageName,
+            department_name: pageName,
+            department_code: userPage.department_code || 'WMSU'
         };
 
         return res.status(201).json({ 
@@ -285,12 +336,12 @@ router.post('/events', async (req, res) => {
 
         const eDate = event_date || new Date().toISOString().split('T')[0];
         const eVenue = location || venue || 'TBD';
-        const imgUrl = image_url || poster_url || null;
+        const imgUrl = poster_url || image_url || null;
 
         const query = `
             INSERT INTO events 
-            (page_id, creator_user_id, event_title, title, event_description, description, event_date, venue, location, capacity, image_url, poster_url, organizer_info, status, created_at) 
-            VALUES ($1, $2, $3, $3, $4, $4, $5, $6, $6, $7, $8, $8, $9, 'Published', NOW()) 
+            (page_id, creator_user_id, event_title, event_description, event_date, location, capacity, poster_url, organizer_info, status, created_at) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Upcoming', NOW()) 
             RETURNING *;
         `;
 
@@ -307,10 +358,20 @@ router.post('/events', async (req, res) => {
         ];
 
         const result = await pool.query(query, values);
+        const row = result.rows[0];
+        const pageName = userPage.page_name || 'Student Affairs Office';
 
         const newEvent = {
-            ...result.rows[0],
-            page_name: userPage.page_name || 'Student Affairs Office'
+            ...row,
+            id: row.event_id,
+            title: row.event_title,
+            description: row.event_description,
+            date: row.event_date,
+            venue: row.location,
+            image_url: row.poster_url,
+            page_name: pageName,
+            department_name: pageName,
+            department_code: userPage.department_code || 'WMSU'
         };
 
         return res.status(201).json({ 
@@ -332,19 +393,22 @@ router.put('/announcements/:id', async (req, res) => {
         const { title, content, description, category_id } = req.body;
         const bodyText = content || description || '';
 
-        let query = `UPDATE announcements SET title = $1, content = $2, description = $2, updated_at = NOW()`;
+        let query = `UPDATE announcements SET title = $1, content = $2, updated_at = NOW()`;
         const params = [title, bodyText];
 
         if (category_id) {
             params.push(Number(category_id));
-            query += `, category_id = $${params.length}`;
+            query += `, category_id = ${params.length}`;
         }
 
         params.push(id);
-        query += ` WHERE announcement_id = $${params.length} RETURNING *`;
+        query += ` WHERE announcement_id = ${params.length} RETURNING *`;
 
         const result = await pool.query(query, params);
-        return res.status(200).json({ announcement: result.rows[0] });
+        const row = result.rows[0];
+        return res.status(200).json({
+            announcement: row ? { ...row, id: row.announcement_id, description: row.content } : null
+        });
     } catch (err) {
         console.error('Error updating announcement:', err.message);
         return res.status(500).json({ message: err.message });
@@ -362,10 +426,21 @@ router.put('/events/:id', async (req, res) => {
         const eDesc = event_description || description || '';
 
         const result = await pool.query(
-            `UPDATE events SET title = $1, event_title = $1, description = $2, event_description = $2, event_date = $3, location = $4, venue = $4, capacity = $5 WHERE event_id = $6 RETURNING *`,
+            `UPDATE events SET event_title = $1, event_description = $2, event_date = $3, location = $4, capacity = $5 WHERE event_id = $6 RETURNING *`,
             [eTitle, eDesc, event_date, location || venue || 'TBD', capacity ? Number(capacity) : null, id]
         );
-        return res.status(200).json({ event: result.rows[0] });
+        const row = result.rows[0];
+        return res.status(200).json({
+            event: row ? {
+                ...row,
+                id: row.event_id,
+                title: row.event_title,
+                description: row.event_description,
+                date: row.event_date,
+                venue: row.location,
+                image_url: row.poster_url
+            } : null
+        });
     } catch (err) {
         console.error('Error updating event:', err.message);
         return res.status(500).json({ message: err.message });

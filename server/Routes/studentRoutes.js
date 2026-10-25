@@ -6,10 +6,14 @@ const pool = require('../db');
 router.post('/dashboard-data', async (req, res) => {
     try {
         const announcements = await pool.query(
-            `SELECT a.*, p.page_name AS department_name, 
-                    CASE WHEN p.department_id IS NOT NULL THEN 'Academic College' ELSE 'Student Organization' END AS department_code 
-             FROM announcements a 
-             LEFT JOIN pages p ON a.page_id = p.page_id 
+            `SELECT a.*, a.announcement_id AS id,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS page_name,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS department_name,
+                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+             FROM announcements a
+             LEFT JOIN pages p ON a.page_id = p.page_id
+             LEFT JOIN departments d ON p.department_id = d.department_id
+             LEFT JOIN organizations o ON p.organization_id = o.organization_id
              WHERE p.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY a.created_at DESC`
         );
@@ -24,9 +28,14 @@ router.post('/dashboard-data', async (req, res) => {
 router.get('/events-data', async (req, res) => {
     try {
         const events = await pool.query(
-            `SELECT e.*, p.page_name AS department_name 
-             FROM events e 
-             LEFT JOIN pages p ON e.page_id = p.page_id 
+            `SELECT e.*, e.event_id AS id, e.event_title AS title, e.event_description AS description, e.event_date AS date,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
+                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+             FROM events e
+             LEFT JOIN pages p ON e.page_id = p.page_id
+             LEFT JOIN departments d ON p.department_id = d.department_id
+             LEFT JOIN organizations o ON p.organization_id = o.organization_id
              WHERE p.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY e.event_date ASC`
         );

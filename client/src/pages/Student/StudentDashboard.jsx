@@ -83,11 +83,11 @@ export default function StudentDashboard() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '5.75rem', backgroundColor: 'var(--amber-100)', color: 'var(--amber-700)', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                    WMSU
+                    {item.department_code || 'WMSU'}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>{item.department_name || 'University Notice'}</h3>
+                      <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>{item.department_name || item.page_name || 'University Notice'}</h3>
                     </div>
                     <p style={{ fontSize: '11px', color: 'var(--slate-400)', marginTop: '0.125rem' }}>
                       {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}

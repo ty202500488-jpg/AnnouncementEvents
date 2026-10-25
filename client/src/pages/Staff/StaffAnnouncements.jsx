@@ -87,7 +87,7 @@ export default function StaffAnnouncements() {
                         {item.department_code || 'WMSU'}
                       </div>
                       <div>
-                        <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>{item.department_name || 'Staff Department Office'}</h4>
+                        <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>{item.department_name || item.page_name || 'Staff Department Office'}</h4>
                         <p style={{ fontSize: '11px', color: 'var(--slate-400)' }}>
                           {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent'}
                         </p>

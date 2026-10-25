@@ -11,9 +11,13 @@ export default function StaffDashboard() {
   useEffect(() => {
     const fetchDashboardContent = async () => {
       try {
+        const token = localStorage.getItem('token');
         const response = await fetch('http://localhost:5000/api/dashboard-data', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
         });
         const data = await response.json();
         if (response.ok && data.announcements) {
@@ -77,7 +81,7 @@ export default function StaffDashboard() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>
-                          {item.department_name || 'University Notice'}
+                          {item.department_name || item.page_name || 'University Notice'}
                         </h3>
                       </div>
                       <p style={{ fontSize: '11px', color: 'var(--slate-400)', marginTop: '0.125rem' }}>
