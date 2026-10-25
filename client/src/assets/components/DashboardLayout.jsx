@@ -571,7 +571,7 @@ export default function DashboardLayout({ children, activePage }) {
             transition: 'transform 0.3s ease-in-out'
           } : {}}
         >
-          <div className="card space-y-5" style={{ padding: '1rem', height: '100%', border: 'none' }}>
+          <div className="card space-y-5" style={{ padding: '1rem', height: '95%', border: 'none' }}>
             
             <div style={{ paddingTop: '0.5rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ padding: '0 0.5rem', textAlign: 'left' }}>

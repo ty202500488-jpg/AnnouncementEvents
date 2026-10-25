@@ -640,6 +640,7 @@
         display: grid;
         grid-template-columns: repeat(12, minmax(0, 1fr));
         height: calc(100vh - 65px);
+        gap: 1.25rem;
         overflow: hidden;
     }
 
@@ -647,22 +648,26 @@
         display: flex;
         flex-direction: column;
         height: 100%;
-        overflow-y: auto;
+        max-height: 100%;
         grid-column: span 3 / span 3;
+        overflow: hidden;
     }
 
-    /* Full height card containers for Sidebars */
+    /* Fixed height card containers for Sidebars with visible rounded corners */
     .student-dashboard-wrapper #leftSidebar .card,
     .student-dashboard-wrapper .lg-col-3:last-child .card {
-        min-height: 100%;
+        height: 100%;
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
+        overflow-y: auto;
+        border-radius: 1rem;
     }
 
     /* Independently Scrollable Center Feed */
     .student-dashboard-wrapper .lg-col-6 {
         height: 100%;
+        max-height: 100%;
         overflow-y: auto;
         padding-right: 0.25rem;
         grid-column: span 6 / span 6;
