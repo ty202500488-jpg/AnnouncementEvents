@@ -24,6 +24,7 @@ import ProfileModal from "./ProfileModal.jsx";
 import { useData } from "../../pages/Admin/context/DataContext.jsx";
 import "../../pages/styles/admin.css";
 import logo from "../../assets/images/logo.jpg";
+import useSessionGuard from "./useSessionGuard";
 
 const MAIN = [
   { to: "/admin/dashboard", label: "Overview", icon: LayoutGrid, end: true },
@@ -112,6 +113,7 @@ function DepartmentsRail() {
 export default function Layout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  useSessionGuard();
   const { loading, error, refresh, profile, updateProfile } = useData();
   const [menu, setMenu] = useState(null); // "notif" | "user" | null
   const [profileOpen, setProfileOpen] = useState(false);

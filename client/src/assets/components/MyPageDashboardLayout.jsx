@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/MyPageDashboard.css';
 import logo from '../../assets/images/logo.jpg';
+import useSessionGuard from './useSessionGuard';
 
 export default function MyPageDashboardLayout({ children, activeTab, onTabChange, onSwitchToStaffDashboard }) {
   const navigate = useNavigate();
+  useSessionGuard();
 
   const [user, setUser] = useState({
     firstName: 'Charm',
@@ -152,15 +154,10 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Live storage update listener
-    const handleStorageChange = () => {
-      loadUserData();
-    };
-    window.addEventListener('storage', handleStorageChange);
+    // Cross-tab session detection is handled by useSessionGuard hook
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 

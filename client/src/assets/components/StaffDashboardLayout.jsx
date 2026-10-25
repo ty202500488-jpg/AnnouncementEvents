@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/StudentDashboard.css';
 import logo from '../../assets/images/logo.jpg';
+import useSessionGuard from './useSessionGuard';
 
 export default function StaffDashboardLayout({ children, activePage }) {
   const navigate = useNavigate();
+  useSessionGuard();
 
   const [user, setUser] = useState({
     firstName: 'Alex',
@@ -150,14 +152,10 @@ export default function StaffDashboardLayout({ children, activePage }) {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    const handleStorageChange = () => {
-      loadUserData();
-    };
-    window.addEventListener('storage', handleStorageChange);
+    // Cross-tab session detection is handled by useSessionGuard hook
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
