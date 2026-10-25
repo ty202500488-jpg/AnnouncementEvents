@@ -1417,6 +1417,50 @@
   flex-wrap: wrap;
 }
 
+/* ================= Mobile Layout Fixes for Manage Pages & Page Requests ================= */
+.admin-app .req-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px;
+  border-top: 1px solid var(--admin-line);
+  box-sizing: border-box;
+}
+
+.admin-app .req-by {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 13.5px;
+}
+
+.admin-app .req-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--admin-ink);
+  word-break: break-word;
+}
+
+.admin-app .req-sub {
+  font-size: 14px;
+  color: var(--admin-muted);
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+.admin-app .pending-pill {
+  background: #fef3c7;
+  color: #d97706;
+  font-weight: 800;
+  font-size: 11.5px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
 /* ================= Responsive Queries ================= */
 @media (max-width: 1400px) {
   .admin-app .stats {
@@ -1442,6 +1486,66 @@
   .admin-app .shell.has-rail {
     grid-template-columns: 1fr !important;
     padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Page Requests Mobile Layout Fixes */
+  .admin-app .req-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .admin-app .req-icon {
+    display: none;
+  }
+
+  .admin-app .req-by {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .admin-app .req-row .btn-reject,
+  .admin-app .req-row .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Manage Pages Page Header & Controls */
+  .admin-app .page-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .admin-app .page-head .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Action Buttons inside List Rows */
+  .admin-app .list-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .admin-app .row-actions {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .admin-app .row-actions button,
+  .admin-app .row-actions .btn-replace,
+  .admin-app .row-actions .btn-primary {
+    flex: 1;
+    justify-content: center;
   }
 }
 
