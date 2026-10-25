@@ -64,130 +64,151 @@ export default function MyPageEvents() {
 
   return (
     <MyPageDashboardLayout activeTab="events">
-      <main className="lg-col-6 space-y-6">
-        <div className="card" style={{ padding: '1.75rem' }}>
-          <div className="flex items-center justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
-            <div>
-              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Campus Events & Activities</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Monitor department events and university schedules.</p>
-            </div>
-            
-            {/* Filter Buttons */}
-            <div className="flex items-center gap-2">
-              <button 
-                type="button"
-                onClick={() => setFilter('all')} 
-                style={{
-                  padding: '0.375rem 0.75rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: filter === 'all' ? '#fff1f2' : 'transparent',
-                  color: filter === 'all' ? '#881337' : 'var(--slate-600)',
-                  fontWeight: 600,
-                  fontSize: '0.75rem',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                All
-              </button>
-              <button 
-                type="button"
-                onClick={() => setFilter('registered')} 
-                style={{
-                  padding: '0.375rem 0.75rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: filter === 'registered' ? '#fff1f2' : 'transparent',
-                  color: filter === 'registered' ? '#881337' : 'var(--slate-600)',
-                  fontWeight: 600,
-                  fontSize: '0.75rem',
-                  border: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                Registered
-              </button>
-            </div>
+      <main 
+        className="lg-col-6 hide-scrollbar" 
+        style={{ 
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          paddingBottom: '2rem'
+        }}
+      >
+        <style>{`
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+
+        {/* Compact Title & Filter Header */}
+        <div 
+          className="flex items-center justify-between" 
+          style={{ 
+            marginBottom: '0.875rem', 
+            paddingBottom: '0.625rem', 
+            borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
+          }}
+        >
+          <div>
+            <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.0625rem' }}>Campus Events & Activities</h3>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Monitor department events and university schedules.</p>
           </div>
+          
+          <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
+            {['all', 'registered'].map((type) => {
+              const isActive = filter === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setFilter(type)}
+                  style={{
+                    padding: '0.3rem 0.625rem',
+                    borderRadius: '0.375rem',
+                    backgroundColor: isActive ? 'var(--brand-600, #2563eb)' : 'transparent',
+                    color: isActive ? '#ffffff' : 'var(--slate-600)',
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {type}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-          {loading ? (
-            <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading events...</p>
-          ) : filteredEvents.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)' }}>
-              <i className="fa-regular fa-calendar-xmark" style={{ fontSize: '2rem', marginBottom: '0.75rem', color: 'var(--slate-300)' }}></i>
-              <p style={{ fontSize: '0.875rem' }}>No events found for this filter.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredEvents.map((item, index) => (
-                <article key={item.id || index} className="card card-interactive" style={{ padding: '1.25rem', border: '1px solid var(--slate-100)' }}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div style={{
-                        width: '2.75rem',
-                        height: '2.75rem',
-                        borderRadius: '0.75rem',
-                        backgroundColor: '#fff1f2',
-                        color: '#881337',
-                        fontWeight: 700,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.75rem',
-                        border: '1px solid #fecdd3'
-                      }}>
-                        <i className="fa-regular fa-calendar" style={{ fontSize: '0.875rem', marginBottom: '1px' }}></i>
-                      </div>
-                      <div>
-                        <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.9375rem' }}>{item.title}</h4>
-                        <p style={{ fontSize: '11px', color: 'var(--slate-500)', marginTop: '0.125rem' }}>
-                          <i className="fa-solid fa-location-dot" style={{ marginRight: '0.25rem', color: 'var(--slate-400)' }}></i>
-                          {item.location || 'University Campus'} • {item.date ? new Date(item.date).toLocaleDateString() : 'TBA'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.75rem', lineHeight: 1.5 }}>
-                    {item.description}
-                  </p>
-
-                  <div className="flex items-center justify-between" style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--slate-100)' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--slate-400)', fontWeight: 500 }}>
-                      Organized by {item.department_name || 'University Office'}
-                    </span>
-                    <button 
-                      type="button"
-                      onClick={() => !item.is_registered && handleRegister(item.id)}
-                      disabled={item.is_registered}
-                      style={item.is_registered ? {
-                        backgroundColor: '#ecfdf5',
-                        color: '#047857',
-                        border: '1px solid #d1fae5',
-                        padding: '0.375rem 0.875rem',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'default'
-                      } : {
-                        backgroundColor: '#881337',
-                        color: '#ffffff',
-                        border: 'none',
-                        padding: '0.375rem 0.875rem',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
+        {loading ? (
+          <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>
+            <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--brand-600)' }}></i>
+            <p style={{ fontSize: '0.875rem' }}>Loading events...</p>
+          </div>
+        ) : filteredEvents.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)', backgroundColor: '#ffffff', borderRadius: '0.625rem', border: '1px solid var(--slate-200)' }}>
+            <i className="fa-regular fa-calendar-xmark" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
+            <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No events found for this filter.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredEvents.map((item, index) => (
+              <article 
+                key={item.id || index} 
+                className="card card-interactive" 
+                style={{ 
+                  padding: '1.125rem', 
+                  borderRadius: '0.625rem',
+                  border: '1px solid var(--slate-200, #e2e8f0)',
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      style={{ 
+                        width: '2.5rem', 
+                        height: '2.5rem', 
+                        borderRadius: '0.5rem', 
+                        backgroundColor: 'var(--brand-50, #eff6ff)', 
+                        color: 'var(--brand-600, #2563eb)', 
+                        fontWeight: 700, 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        border: '1px solid var(--brand-100, #dbeafe)' 
                       }}
                     >
-                      {item.is_registered ? 'Registered ✓' : 'Register Now'}
-                    </button>
+                      <i className="fa-regular fa-calendar" style={{ fontSize: '1rem' }}></i>
+                    </div>
+                    <div>
+                      <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.9375rem' }}>{item.title}</h4>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--slate-500)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                        <i className="fa-solid fa-location-dot" style={{ color: 'var(--slate-400)' }}></i>
+                        <span>{item.location || 'University Campus'}</span>
+                        <span>•</span>
+                        <i className="fa-regular fa-clock" style={{ color: 'var(--slate-400)' }}></i>
+                        <span>{item.date ? new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBA'}</span>
+                      </p>
+                    </div>
                   </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
+                </div>
+
+                <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.75rem', lineHeight: 1.5 }}>
+                  {item.description}
+                </p>
+
+                <div className="flex items-center justify-between" style={{ marginTop: '0.875rem', paddingTop: '0.625rem', borderTop: '1px solid var(--slate-100)' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 500 }}>
+                    Organized by <strong style={{ color: 'var(--slate-700)' }}>{item.department_name || 'University Office'}</strong>
+                  </span>
+
+                  <button 
+                    type="button"
+                    onClick={() => !item.is_registered && handleRegister(item.id)}
+                    disabled={item.is_registered}
+                    style={{
+                      padding: '0.375rem 0.75rem',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: item.is_registered ? 'default' : 'pointer',
+                      backgroundColor: item.is_registered ? 'var(--emerald-50, #ecfdf5)' : 'var(--brand-600, #2563eb)',
+                      color: item.is_registered ? 'var(--emerald-700, #047857)' : '#ffffff',
+                      border: `1px solid ${item.is_registered ? 'var(--emerald-200, #a7f3d0)' : 'transparent'}`,
+                      boxShadow: item.is_registered ? 'none' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {item.is_registered ? 'Registered ✓' : 'Register Now'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </main>
     </MyPageDashboardLayout>
   );

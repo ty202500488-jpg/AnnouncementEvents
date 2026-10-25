@@ -8,7 +8,7 @@ export default function MyPageNotifications() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // 'all', 'unread', 'archived'
+  const [filter, setFilter] = useState('all');
 
   const token = localStorage.getItem('token');
 
@@ -130,26 +130,46 @@ export default function MyPageNotifications() {
 
   return (
     <MyPageDashboardLayout activeTab="notifications">
-      <main className="lg-col-6 space-y-6">
-        <div className="card" style={{ padding: '1.75rem', backgroundColor: '#ffffff', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
-          
-          {/* Header */}
-          <div className="flex items-center justify-between" style={{ marginBottom: '1.25rem'}}>
-            <div>
-              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem', margin: 0 }}>MyPage Notifications</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>
-                Stay updated with page registrations, status changes, and announcements.
-              </p>
-            </div>
+      <main 
+        className="lg-col-6 hide-scrollbar" 
+        style={{ 
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          paddingBottom: '2rem'
+        }}
+      >
+        <style>{`
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+
+        {/* Compact Header */}
+        <div 
+          className="flex items-center justify-between" 
+          style={{ 
+            marginBottom: '0.875rem', 
+            paddingBottom: '0.625rem', 
+            borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
+          }}
+        >
+          <div>
+            <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.0625rem', margin: 0 }}>MyPage Notifications</h3>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>
+              Stay updated with page registrations, status changes, and announcements.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
             {unreadCount > 0 && (
               <button
                 type="button"
                 onClick={handleMarkAllAsRead}
                 style={{
                   background: 'transparent',
-                  border: '1px solid #881337',
-                  color: '#881337',
-                  padding: '0.375rem 0.75rem',
+                  border: '1px solid var(--brand-200, #bfdbfe)',
+                  color: 'var(--brand-600, #2563eb)',
+                  padding: '0.3rem 0.625rem',
                   borderRadius: '0.375rem',
                   fontSize: '0.75rem',
                   fontWeight: 600,
@@ -159,138 +179,133 @@ export default function MyPageNotifications() {
                 Mark all as read
               </button>
             )}
-          </div>
 
-          {/* Tab Filters */}
-          <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--slate-200, #e2e8f0)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
-            <button
-              type="button"
-              onClick={() => setFilter('all')}
-              style={{
-                padding: '0.375rem 0.875rem',
-                borderRadius: '0.375rem',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: filter === 'all' ? '#881337' : 'transparent',
-                color: filter === 'all' ? '#ffffff' : 'var(--slate-500)'
-              }}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilter('unread')}
-              style={{
-                padding: '0.375rem 0.875rem',
-                borderRadius: '0.375rem',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: filter === 'unread' ? '#881337' : 'transparent',
-                color: filter === 'unread' ? '#ffffff' : 'var(--slate-500)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.375rem'
-              }}
-            >
-              Unread
-              {unreadCount > 0 && (
-                <span style={{ backgroundColor: filter === 'unread' ? '#ffffff' : '#881337', color: filter === 'unread' ? '#881337' : '#ffffff', fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '9999px' }}>
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilter('archived')}
-              style={{
-                padding: '0.375rem 0.875rem',
-                borderRadius: '0.375rem',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: filter === 'archived' ? '#881337' : 'transparent',
-                color: filter === 'archived' ? '#ffffff' : 'var(--slate-500)'
-              }}
-            >
-              Archived
-            </button>
-          </div>
-
-          {loading ? (
-            <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading notifications...</p>
-          ) : filteredNotifications.length === 0 ? (
-            <div className="notif-empty-state">
-              <i className="fa-regular fa-bell-slash"></i>
-              <p>No new notifications for your page.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredNotifications.map((notif) => (
-                <div 
-                  key={notif.id} 
-                  className={`notif-item-card ${notif.is_read ? 'read' : 'unread'}`}
-                  onClick={() => handleNotificationClick(notif)}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: notif.url ? 'pointer' : 'default' }}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`notif-icon-box ${notif.type === 'event' || notif.type === 'registration' ? 'event' : 'announcement'}`}>
-                      <i className={
-                        notif.type === 'registration' ? 'fa-solid fa-user-plus' :
-                        notif.type === 'event' ? 'fa-regular fa-calendar-days' : 
-                        'fa-solid fa-bullhorn'
-                      }></i>
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="notif-page-name">{notif.page_name || 'MyPage Alert'}</span>
-                        <span className="notif-type-tag">{notif.type || 'system'}</span>
-                      </div>
-                      <p className="notif-message-text">{notif.message}</p>
-                      <span className="notif-time-stamp">
-                        {notif.created_at ? new Date(notif.created_at).toLocaleString() : 'Recent'}
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
+              {['all', 'unread'].map((type) => {
+                const isActive = filter === type;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setFilter(type)}
+                    style={{
+                      padding: '0.3rem 0.625rem',
+                      borderRadius: '0.375rem',
+                      backgroundColor: isActive ? 'var(--brand-600, #2563eb)' : 'transparent',
+                      color: isActive ? '#ffffff' : 'var(--slate-600)',
+                      fontWeight: 600,
+                      fontSize: '0.75rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <span>{type}</span>
+                    {type === 'unread' && unreadCount > 0 && (
+                      <span style={{ 
+                        backgroundColor: isActive ? '#ffffff' : 'var(--brand-600, #2563eb)', 
+                        color: isActive ? 'var(--brand-600, #2563eb)' : '#ffffff', 
+                        fontSize: '9px', 
+                        fontWeight: 700, 
+                        padding: '1px 5px', 
+                        borderRadius: '9999px' 
+                      }}>
+                        {unreadCount}
                       </span>
-                    </div>
-                  </div>
-
-                  {/* Action controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                    {!notif.is_read && (
-                      <button 
-                        type="button"
-                        onClick={(e) => handleMarkAsRead(notif.id, e)} 
-                        title="Mark as read"
-                        style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.25rem' }}
-                      >
-                        <i className="fa-regular fa-circle-check"></i>
-                      </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleArchive(notif.id, notif.is_archived, e)}
-                      title={notif.is_archived ? 'Unarchive' : 'Archive'}
-                      style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: '0.25rem' }}
-                    >
-                      <i className={`fa-solid ${notif.is_archived ? 'fa-box-open' : 'fa-box-archive'}`}></i>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => handleDelete(notif.id, e)}
-                      title="Delete"
-                      style={{ background: 'transparent', border: 'none', color: '#e11d48', cursor: 'pointer', padding: '0.25rem' }}
-                    >
-                      <i className="fa-regular fa-trash-can"></i>
-                    </button>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>
+            <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--brand-600)' }}></i>
+            <p style={{ fontSize: '0.875rem' }}>Loading notifications...</p>
+          </div>
+        ) : filteredNotifications.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)', backgroundColor: '#ffffff', borderRadius: '0.625rem', border: '1px solid var(--slate-200)' }}>
+            <i className="fa-regular fa-bell-slash" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
+            <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No new notifications available.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredNotifications.map((notif) => (
+              <div 
+                key={notif.id} 
+                className={`notif-item-card ${notif.is_read ? 'read' : 'unread'}`}
+                onClick={() => handleNotificationClick(notif)}
+                style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '1.125rem',
+                  borderRadius: '0.625rem',
+                  border: '1px solid var(--slate-200, #e2e8f0)',
+                  backgroundColor: '#ffffff',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                  cursor: notif.url ? 'pointer' : 'default'
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`notif-icon-box ${notif.type === 'event' || notif.type === 'registration' ? 'event' : 'announcement'}`}>
+                    <i className={
+                      notif.type === 'registration' ? 'fa-solid fa-user-plus' :
+                      notif.type === 'event' ? 'fa-regular fa-calendar-days' : 
+                      'fa-solid fa-bullhorn'
+                    }></i>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="notif-page-name">{notif.page_name || 'MyPage Alert'}</span>
+                      <span className="notif-type-tag">{notif.type || 'system'}</span>
+                    </div>
+                    <p className="notif-message-text" style={{ marginTop: '0.25rem', color: 'var(--slate-700)', fontSize: '0.875rem' }}>{notif.message}</p>
+                    <span className="notif-time-stamp" style={{ fontSize: '0.75rem', color: 'var(--slate-400)', marginTop: '0.25rem', display: 'inline-block' }}>
+                      {notif.created_at ? new Date(notif.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'}
+                    </span>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                  {!notif.is_read && (
+                    <button 
+                      type="button"
+                      onClick={(e) => handleMarkAsRead(notif.id, e)} 
+                      title="Mark as read"
+                      style={{ background: 'transparent', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', padding: '0.25rem' }}
+                    >
+                      <i className="fa-regular fa-circle-check"></i>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => handleToggleArchive(notif.id, notif.is_archived, e)}
+                    title={notif.is_archived ? 'Unarchive' : 'Archive'}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', padding: '0.25rem' }}
+                  >
+                    <i className={`fa-solid ${notif.is_archived ? 'fa-box-open' : 'fa-box-archive'}`}></i>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(notif.id, e)}
+                    title="Delete"
+                    style={{ background: 'transparent', border: 'none', color: 'var(--rose-600, #e11d48)', cursor: 'pointer', padding: '0.25rem' }}
+                  >
+                    <i className="fa-regular fa-trash-can"></i>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </main>
     </MyPageDashboardLayout>
   );
