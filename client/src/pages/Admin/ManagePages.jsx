@@ -43,29 +43,51 @@ export default function ManagePages() {
 
   return (
     <>
-      <div className="manage-pages-head">
-        <div>
+      {/* Header section with responsive inline layout */}
+      <div 
+        className="manage-pages-head"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: "24px",
+          marginBottom: "24px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: "1 1 280px", minWidth: 0 }}>
           <span className="badge">ADMINISTRATOR WORKSPACE</span>
           <h1>Manage pages</h1>
-          <p style={{ color: "var(--admin-muted, #64748b)", maxWidth: 560, margin: 0 }}>
+          <p style={{ color: "var(--admin-muted, #64748b)", maxWidth: 560, margin: "6px 0 0 0" }}>
             Create official pages for active departments and organizations.
           </p>
         </div>
 
-        <div className="manage-pages-controls">
+        {/* Controls toolbar designed to wrap fluidly on smaller viewports */}
+        <div 
+          className="manage-pages-controls"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+            flex: "1 1 450px",
+            justifyContent: "flex-end",
+          }}
+        >
           <input
             className="text-input"
             placeholder="New page name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && add()}
-            style={{ minWidth: 0, flex: "1 1 200px" }}
+            style={{ minWidth: "180px", flex: "1 1 180px", minHeight: "48px", margin: 0 }}
           />
           <select
             className="select"
             value={owner}
             onChange={(event) => setOwner(event.target.value)}
-            style={{ minWidth: 0, flex: "1 1 220px" }}
+            style={{ minWidth: "200px", flex: "1 1 200px", minHeight: "48px", margin: 0 }}
           >
             <option value="">Choose department or organization</option>
             {owners.map((item) => (
@@ -81,6 +103,7 @@ export default function ManagePages() {
             style={{
               minHeight: "48px",
               flexShrink: 0,
+              flex: "0 0 auto",
             }}
           >
             <Plus size={18} /> Add page
@@ -90,10 +113,11 @@ export default function ManagePages() {
 
       {owners.length === 0 && (
         <div className="assign-msg">
-          No active departments or organizations are available to create a page.
+          No active departments or organizations are available to create a page[cite: 2].
         </div>
       )}
 
+      {/* Pages Grid */}
       <div
         style={{
           display: "grid",
@@ -156,7 +180,7 @@ export default function ManagePages() {
                     wordBreak: "break-word",
                   }}
                 >
-                  {page.dept} · {page.followers.toLocaleString()} followers
+                  {page.dept}
                 </div>
               </div>
               <button
