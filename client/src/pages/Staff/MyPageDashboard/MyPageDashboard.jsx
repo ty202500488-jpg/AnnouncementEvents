@@ -268,6 +268,16 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const hideScrollbarStyle = `
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  `;
+
   return (
     <MyPageDashboardLayout 
       activeTab={activeTab} 
@@ -281,7 +291,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       }} 
       onSwitchToStaffDashboard={onSwitchToStaffDashboard}
     >
-      <main className="lg-col-6 space-y-6" style={{ width: '100%', maxWidth: '680px', margin: '0 auto' }}>
+      <style>{hideScrollbarStyle}</style>
+
+      <main className="lg-col-6 space-y-6 no-scrollbar" style={{ width: '100%', maxWidth: '680px', margin: '0 auto' }}>
         
         {/* Trigger Box */}
         <div className="card" style={{ padding: '1.25rem', width: '100%', borderRadius: '1rem', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -338,13 +350,15 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             onClick={resetForm}
           >
             <div 
+              className="no-scrollbar"
               style={{
                 backgroundColor: '#ffffff',
                 width: '100%',
                 maxWidth: '540px',
                 borderRadius: '1rem',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                overflow: 'hidden'
+                maxHeight: '90vh',
+                overflowY: 'auto',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
               }}
               onClick={(e) => e.stopPropagation()}
             >
