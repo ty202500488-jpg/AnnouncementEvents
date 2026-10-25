@@ -524,6 +524,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                       </div>
                       <div>
                         <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2 }}>{item.page_name || pageName}</h3>
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '9999px', backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', marginTop: '2px', display: 'inline-block' }}>Announcement</span>
                         <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '2px 0 0 0' }}>
                           {formatPostTime(item.created_at)}
                         </p>
@@ -616,6 +617,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                       </div>
                       <div>
                         <h3 style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2 }}>{ev.page_name || pageName}</h3>
+                        <span style={{ fontSize: '10px', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '9999px', backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', marginTop: '2px', display: 'inline-block' }}>Event</span>
                         <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '2px 0 0 0' }}>
                           {formatPostTime(ev.created_at)}
                         </p>
