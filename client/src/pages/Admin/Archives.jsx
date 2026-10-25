@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Bookmark } from "lucide-react";
+import { Bookmark, ChevronLeft, ChevronRight } from "lucide-react";
 import { useData } from "./context/DataContext.jsx";
 
 const formatDate = (iso) => {
@@ -16,9 +16,14 @@ export default function Archives() {
     from: "",
     to: "",
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
   const unique = (key) => [...new Set(archives.map((record) => record[key]))];
-  const set = (key) => (event) =>
+  const set = (key) => (event) => {
     setFilters((current) => ({ ...current, [key]: event.target.value }));
+    setCurrentPage(1); // Reset to page 1 on filter change
+  };
 
   const rows = useMemo(
     () =>
@@ -32,6 +37,19 @@ export default function Archives() {
       ),
     [archives, filters],
   );
+
+  // Pagination computations
+  const totalPages = Math.ceil(rows.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const currentRows = rows.slice(startIndex, startIndex + itemsPerPage);
+
+  const handlePrev = () => {
+    if (currentPage > 1) setCurrentPage((prev) => prev - 1);
+  };
+
+  const handleNext = () => {
+    if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
+  };
 
   const exportCsv = () => {
     const head = ["Record", "Type", "College", "Department", "School Year", "Date"];
@@ -274,7 +292,7 @@ export default function Archives() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((record) => (
+            {currentRows.map((record) => (
               <tr key={record.id}>
                 <td style={{ ...styles.td, ...styles.thFirst }}>
                   <div style={styles.titleText}>{record.title}</div>
@@ -299,6 +317,38 @@ export default function Archives() {
             )}
           </tbody>
         </table>
+
+        {/* Pagination Bar */}
+        {rows.length > 0 && (
+          <div className="pagination-bar">
+            <div className="pagination-info">
+              Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, rows.length)} of {rows.length} records
+            </div>
+            <div className="pagination-controls">
+              <span className="page-number">
+                Page {currentPage} of {totalPages || 1}
+              </span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  className="btn-outline icon-only"
+                  onClick={handlePrev}
+                  disabled={currentPage === 1}
+                  aria-label="Previous Page"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  className="btn-outline icon-only"
+                  onClick={handleNext}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  aria-label="Next Page"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

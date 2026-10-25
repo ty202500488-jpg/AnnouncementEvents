@@ -6,7 +6,6 @@ import {
   UserMinus,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
   UserCheck,
   GraduationCap,
   Users as UsersIcon,
@@ -27,24 +26,23 @@ export default function Users() {
 
   const q = query.trim().toLowerCase().replace(/^@/, "");
 
+  // Exclude admin accounts completely from the user list view
+  const nonAdminUsers = useMemo(() => {
+    return users.filter((u) => !ADMIN_ROLES.includes(u.role?.toLowerCase()));
+  }, [users]);
+
   const filtered = useMemo(() => {
-    return users.filter((u) => {
+    return nonAdminUsers.filter((u) => {
       if (!q) return true;
       const uname = usernameOf(u.email).toLowerCase();
       const name = (u.name || "").toLowerCase();
       const email = (u.email || "").toLowerCase();
       return uname.includes(q) || name.includes(q) || email.includes(q);
     });
-  }, [users, q]);
+  }, [nonAdminUsers, q]);
 
-  // FIXED: Case-insensitive role matching (Lines 41-45)
   const staff = useMemo(
     () => filtered.filter((u) => u.role?.toLowerCase() === "staff"),
-    [filtered]
-  );
-  
-  const admins = useMemo(
-    () => filtered.filter((u) => ADMIN_ROLES.includes(u.role?.toLowerCase())),
     [filtered]
   );
   
@@ -57,14 +55,12 @@ export default function Users() {
     switch (activeTab) {
       case "staff":
         return staff;
-      case "admins":
-        return admins;
       case "students":
         return students;
       default:
         return filtered;
     }
-  }, [activeTab, filtered, staff, admins, students]);
+  }, [activeTab, filtered, staff, students]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -91,7 +87,6 @@ export default function Users() {
   };
 
   const toggleStatus = async (u) => {
-    if (ADMIN_ROLES.includes(u.role?.toLowerCase())) return;
     await updateUser(u.id, { active: !u.active });
   };
 
@@ -127,7 +122,6 @@ export default function Users() {
             {[
               { id: "all", label: `All (${filtered.length})`, icon: UsersIcon },
               { id: "staff", label: `Staff (${staff.length})`, icon: UserCheck },
-              { id: "admins", label: `Admins (${admins.length})`, icon: ShieldCheck },
               { id: "students", label: `Students (${students.length})`, icon: GraduationCap },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -180,7 +174,6 @@ export default function Users() {
           {paginatedUsers.length > 0 ? (
             paginatedUsers.map((u, idx) => {
               const roleLower = u.role?.toLowerCase() || "";
-              const isAdmin = ADMIN_ROLES.includes(roleLower);
               const isStaff = roleLower === "staff";
               const isStudent = roleLower === "student";
 
@@ -193,7 +186,7 @@ export default function Users() {
                   <div style={{ flex: 1, minWidth: "220px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                       <span style={{ fontWeight: 700, fontSize: "15.5px", color: "#16162b" }}>{u.name}</span>
-                      <span style={{ fontSize: "10.5px", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", textTransform: "uppercase", backgroundColor: isStaff ? "#e0f2fe" : isAdmin ? "#fce7f3" : "#f1f5f9", color: isStaff ? "#0369a1" : isAdmin ? "#be185d" : "#64748b" }}>
+                      <span style={{ fontSize: "10.5px", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", textTransform: "uppercase", backgroundColor: isStaff ? "#e0f2fe" : "#f1f5f9", color: isStaff ? "#0369a1" : "#64748b" }}>
                         {u.role}
                       </span>
                     </div>
@@ -216,7 +209,6 @@ export default function Users() {
                     )}
 
                     <button
-                      disabled={isAdmin}
                       onClick={() => toggleStatus(u)}
                       style={{
                         minHeight: "36px",
@@ -227,8 +219,7 @@ export default function Users() {
                         border: u.active ? "1px solid #bbf0d8" : "1px solid #cbd5e1",
                         backgroundColor: u.active ? "#e6f7ef" : "#f1f5f9",
                         color: u.active ? "#0f8a5f" : "#64748b",
-                        cursor: isAdmin ? "default" : "pointer",
-                        opacity: isAdmin ? 0.85 : 1,
+                        cursor: "pointer",
                       }}
                     >
                       {u.active ? "Active" : "Inactive"}
@@ -244,7 +235,7 @@ export default function Users() {
           )}
         </div>
 
-        {/* FIXED: Formatted Pagination Page Numbers (Lines 200-210) */}
+        {/* Pagination Page Numbers */}
         {totalItems > 0 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderTop: "1px solid #e6ebf0", backgroundColor: "#ffffff", flexWrap: "wrap", gap: "12px" }}>
             <span style={{ fontSize: "13.5px", color: "#64748b" }}>

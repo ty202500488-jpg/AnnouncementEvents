@@ -63,6 +63,8 @@ export default function Events() {
       <main 
         className="lg-col-6 hide-scrollbar" 
         style={{ 
+          height: 'calc(100vh - 5rem)', 
+          overflowY: 'auto',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
           paddingBottom: '2rem'
