@@ -5,7 +5,7 @@ const pool = require('../db');
 // -------- VIEW ANNOUNCEMENTS / DASHBOARD FEED -------- //
 router.post('/dashboard-data', async (req, res) => {
     try {
-        const announcements = await pool.query(
+        const annRes = await pool.query(
             `SELECT a.*, a.announcement_id AS id,
                     COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS page_name,
                     COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS department_name,
@@ -17,7 +17,30 @@ router.post('/dashboard-data', async (req, res) => {
              WHERE p.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY a.created_at DESC`
         );
-        res.status(200).json({ announcements: announcements.rows });
+
+        const evRes = await pool.query(
+            `SELECT e.event_id, e.event_id AS id,
+                    e.event_title AS title, e.event_title,
+                    COALESCE(e.event_description, '') AS content,
+                    COALESCE(e.event_description, '') AS description,
+                    e.event_date, e.event_date AS date,
+                    e.location, e.capacity, e.created_at,
+                    e.poster_url, e.page_id,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
+                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
+                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+             FROM events e
+             LEFT JOIN pages p ON e.page_id = p.page_id
+             LEFT JOIN departments d ON p.department_id = d.department_id
+             LEFT JOIN organizations o ON p.organization_id = o.organization_id
+             WHERE e.page_id IS NULL OR LOWER(p.status) = 'approved'
+             ORDER BY e.created_at DESC`
+        );
+
+        res.status(200).json({
+            announcements: annRes.rows,
+            events: evRes.rows
+        });
     } catch (error) {
         console.error('Error fetching dashboard data:', error.message);
         res.status(500).json({ message: 'Server error fetching dashboard data.' });

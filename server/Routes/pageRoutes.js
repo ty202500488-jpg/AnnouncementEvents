@@ -393,6 +393,23 @@ router.put('/announcements/:id', async (req, res) => {
         const { title, content, description, category_id } = req.body;
         const bodyText = content || description || '';
 
+        // Authorization: user must be the creator OR active staff of the announcement's page
+        const annOwnerCheck = await pool.query(
+            `SELECT a.announcement_id FROM announcements a
+             WHERE a.announcement_id = $1
+               AND (
+                   a.creator_user_id = $2
+                   OR EXISTS (
+                       SELECT 1 FROM page_staff ps
+                       WHERE ps.page_id = a.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
+                   )
+               )`,
+            [id, userId]
+        );
+        if (annOwnerCheck.rowCount === 0) {
+            return res.status(403).json({ message: 'You are not authorized to edit this announcement.' });
+        }
+
         let query = `UPDATE announcements SET title = $1, content = $2, updated_at = NOW()`;
         const params = [title, bodyText];
 
@@ -425,6 +442,23 @@ router.put('/events/:id', async (req, res) => {
         const eTitle = event_title || title;
         const eDesc = event_description || description || '';
 
+        // Authorization: user must be the creator OR active staff of the event's page
+        const evOwnerCheck = await pool.query(
+            `SELECT e.event_id FROM events e
+             WHERE e.event_id = $1
+               AND (
+                   e.creator_user_id = $2
+                   OR EXISTS (
+                       SELECT 1 FROM page_staff ps
+                       WHERE ps.page_id = e.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
+                   )
+               )`,
+            [id, userId]
+        );
+        if (evOwnerCheck.rowCount === 0) {
+            return res.status(403).json({ message: 'You are not authorized to edit this event.' });
+        }
+
         const result = await pool.query(
             `UPDATE events SET event_title = $1, event_description = $2, event_date = $3, location = $4, capacity = $5 WHERE event_id = $6 RETURNING *`,
             [eTitle, eDesc, event_date, location || venue || 'TBD', capacity ? Number(capacity) : null, id]
@@ -452,7 +486,26 @@ router.delete('/announcements/:id', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
-        await pool.query(`DELETE FROM announcements WHERE announcement_id = $1`, [req.params.id]);
+        const { id } = req.params;
+
+        // Authorization: user must be the creator OR active staff of the announcement's page
+        const annDelCheck = await pool.query(
+            `SELECT a.announcement_id FROM announcements a
+             WHERE a.announcement_id = $1
+               AND (
+                   a.creator_user_id = $2
+                   OR EXISTS (
+                       SELECT 1 FROM page_staff ps
+                       WHERE ps.page_id = a.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
+                   )
+               )`,
+            [id, userId]
+        );
+        if (annDelCheck.rowCount === 0) {
+            return res.status(403).json({ message: 'You are not authorized to delete this announcement.' });
+        }
+
+        await pool.query(`DELETE FROM announcements WHERE announcement_id = $1`, [id]);
         return res.status(200).json({ message: 'Announcement deleted successfully' });
     } catch (err) {
         console.error('Error deleting announcement:', err.message);
@@ -465,7 +518,26 @@ router.delete('/events/:id', async (req, res) => {
     try {
         const userId = await authenticateUser(req, res);
         if (!userId) return;
-        await pool.query(`DELETE FROM events WHERE event_id = $1`, [req.params.id]);
+        const { id } = req.params;
+
+        // Authorization: user must be the creator OR active staff of the event's page
+        const evDelCheck = await pool.query(
+            `SELECT e.event_id FROM events e
+             WHERE e.event_id = $1
+               AND (
+                   e.creator_user_id = $2
+                   OR EXISTS (
+                       SELECT 1 FROM page_staff ps
+                       WHERE ps.page_id = e.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
+                   )
+               )`,
+            [id, userId]
+        );
+        if (evDelCheck.rowCount === 0) {
+            return res.status(403).json({ message: 'You are not authorized to delete this event.' });
+        }
+
+        await pool.query(`DELETE FROM events WHERE event_id = $1`, [id]);
         return res.status(200).json({ message: 'Event deleted successfully' });
     } catch (err) {
         console.error('Error deleting event:', err.message);

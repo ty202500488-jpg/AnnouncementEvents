@@ -105,7 +105,7 @@ router.post('/', registerLimiter, async (req, res) => {
         const existingUser = await client.query(
             `SELECT email FROM users WHERE LOWER(email) = $1 OR student_id = $2
              UNION
-             SELECT email FROM pending_registrations WHERE LOWER(email) = $1 OR student_id = $2 AND expires_at >= NOW()`,
+             SELECT email FROM pending_registrations WHERE (LOWER(email) = $1 OR student_id = $2) AND expires_at >= NOW()`,
             [normalizedEmail, student_id.trim()]
         );
 

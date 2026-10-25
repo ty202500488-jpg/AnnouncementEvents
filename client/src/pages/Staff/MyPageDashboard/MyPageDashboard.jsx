@@ -662,18 +662,22 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                     <p style={{ color: '#475569', fontSize: '0.875rem', margin: 0, lineHeight: 1.6 }}>{ev.event_description || ev.description}</p>
                   </div>
 
-                  {/* Image Attachment + Badge Overlay */}
-                  <div style={{ position: 'relative', width: '100%', borderRadius: '0.75rem', overflow: 'hidden', marginBottom: '1rem' }}>
-                    <img 
-                      src={ev.image_url || "https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=1000&auto=format&fit=crop"} 
-                      alt="Event" 
-                      style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '380px', objectFit: 'cover' }} 
-                    />
-                    
-                    <div style={{ position: 'absolute', bottom: '0.75rem', right: '0.75rem', backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#ffffff', fontSize: '0.75rem', fontWeight: 600, padding: '0.35rem 0.75rem', borderRadius: '0.5rem', backdropFilter: 'blur(4px)' }}>
-                      {ev.event_date ? `Event Date: ${new Date(ev.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Event Open'}
+                  {/* Image Attachment (only when image exists) */}
+                  {ev.image_url && (
+                    <div style={{ position: 'relative', width: '100%', borderRadius: '0.75rem', overflow: 'hidden', marginBottom: '1rem' }}>
+                      <img
+                        src={ev.image_url}
+                        alt="Event"
+                        style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '380px', objectFit: 'cover' }}
+                      />
                     </div>
-                  </div>
+                  )}
+                  {/* Event date badge (shown when event_date exists) */}
+                  {ev.event_date && (
+                    <div style={{ display: 'inline-block', backgroundColor: '#f0f9ff', color: '#0369a1', fontSize: '0.75rem', fontWeight: 600, padding: '0.35rem 0.75rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+                      Event Date: {new Date(ev.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </div>
+                  )}
 
                   {/* Footer Action Links */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9', color: '#64748b', fontSize: '0.8125rem', fontWeight: 600 }}>
