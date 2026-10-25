@@ -90,7 +90,7 @@ export default function MyPageAnnouncements() {
           </div>
           
           <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
-            {['all', 'department', 'university'].map((type) => {
+            {['all', 'university'].map((type) => {
               const isActive = filter === type;
               return (
                 <button
