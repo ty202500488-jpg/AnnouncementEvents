@@ -122,8 +122,6 @@ export default function DashboardLayout({ children, activePage }) {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Cross-tab session detection is handled by useSessionGuard hook
-
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
@@ -191,7 +189,7 @@ export default function DashboardLayout({ children, activePage }) {
             title: d.name,
             category: 'departments',
             type: 'Department Page',
-            url: `/student/page/${d.id}`
+            url: d.url || `/student/page/${d.id}`
           }));
 
         const staticSystemRecords = [
@@ -237,7 +235,7 @@ export default function DashboardLayout({ children, activePage }) {
   };
 
   return (
-    <div className="student-dashboard-wrapper" style={{ minHeight: '100vh', paddingBottom: '4.5rem' }}>
+    <div className="student-dashboard-wrapper" style={{ minHeight: '100vh', paddingBottom: '4.5rem', overflowX: 'hidden' }}>
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
@@ -248,37 +246,40 @@ export default function DashboardLayout({ children, activePage }) {
           }
         }
         @media (max-width: 640px) {
-          .profile-details-text {
+          .header-container {
+            gap: 0.375rem !important;
+            padding: 0.5rem 0.5rem !important;
+          }
+          .user-program {
             display: none !important;
           }
-          .header-container {
-            gap: 0.5rem !important;
-            padding: 0.5rem 0.75rem !important;
+          .search-input {
+            font-size: 0.75rem !important;
           }
         }
       `}</style>
 
       {/* TOP NAVBAR */}
-      <header className="header" style={{ position: 'sticky', top: 0, zIndex: 40, backgroundColor: '#ffffff' }}>
-        <div className="header-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+      <header className="header" style={{ position: 'sticky', top: 0, zIndex: 40, backgroundColor: '#ffffff', width: '100%' }}>
+        <div className="header-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.5rem 1rem' }}>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexShrink: 0 }}>
             <button 
               type="button" 
               className="mobile-menu-btn icon-btn" 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              style={{ color: 'var(--slate-600)', background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{ color: 'var(--slate-600)', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
               aria-label="Toggle Menu"
             >
               <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
             </button>
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              <img src={logo} alt="CRIMSON Logo" style={{ height: '38px', width: '38px', objectFit: 'contain', borderRadius: '50%' }} />
+              <img src={logo} alt="CRIMSON Logo" style={{ height: '36px', width: '36px', objectFit: 'contain', borderRadius: '50%' }} />
             </div>
           </div>
 
           {/* Search Bar */}
-          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative', flex: '1 1 auto', maxWidth: '480px' }}>
+          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative', flex: '1 1 auto', minWidth: 0, maxWidth: '480px' }}>
             <div className="search-wrapper" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
               <input 
@@ -329,7 +330,7 @@ export default function DashboardLayout({ children, activePage }) {
                 {isSearching ? (
                   <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>Searching database...</p>
                 ) : searchResults.length === 0 ? (
-                  <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>No matching records found</p>
+                  <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>No matching records found in system</p>
                 ) : (
                   searchResults.map(result => (
                     <a
@@ -365,7 +366,7 @@ export default function DashboardLayout({ children, activePage }) {
           </div>
 
           {/* Quick Actions & Profile */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}> 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexShrink: 0, minWidth: 0 }}> 
             
             {/* QR Camera Scan Button */}
             <button
@@ -373,13 +374,12 @@ export default function DashboardLayout({ children, activePage }) {
               className="icon-btn"
               onClick={() => navigate('/student/attendance/check-in/scan')}
               style={{
-                background: 'transparent',
+                background: '#fff1f2',
                 color: '#7B0D1E',
                 border: '1px solid #fecdd3',
-                backgroundColor: '#fff1f2',
                 borderRadius: '0.375rem',
-                width: '34px',
-                height: '34px',
+                width: '32px',
+                height: '32px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -388,11 +388,11 @@ export default function DashboardLayout({ children, activePage }) {
               }}
               title="Scan QR Attendance with Camera"
             >
-              <i className="fa-solid fa-qrcode" style={{ fontSize: '0.875rem' }}></i>
+              <i className="fa-solid fa-qrcode" style={{ fontSize: '0.8125rem' }}></i>
             </button>
 
             {/* Notifications Dropdown */}
-            <div ref={notifDropdownRef} style={{ position: 'relative' }}>
+            <div ref={notifDropdownRef} style={{ position: 'relative', flexShrink: 0 }}>
               <button 
                 type="button" 
                 className="icon-btn" 
@@ -411,7 +411,7 @@ export default function DashboardLayout({ children, activePage }) {
                     position: 'absolute',
                     top: 'calc(100% + 0.5rem)',
                     right: 0,
-                    width: 'clamp(280px, 85vw, 320px)',
+                    width: 'clamp(270px, 82vw, 320px)',
                     backgroundColor: '#ffffff',
                     borderRadius: '0.75rem',
                     border: '1px solid var(--slate-200, #e2e8f0)',
@@ -475,19 +475,22 @@ export default function DashboardLayout({ children, activePage }) {
               )}
             </div>
 
-            <div ref={profileDropdownRef} style={{ position: 'relative' }}>
+            {/* Profile Dropdown Container */}
+            <div ref={profileDropdownRef} style={{ position: 'relative', flexShrink: 0, minWidth: 0 }}>
               <div 
                 className="profile-btn" 
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)} 
-                style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', cursor: 'pointer', userSelect: 'none' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', userSelect: 'none', maxWidth: '140px' }}
               >
-                <div className="profile-details-text" style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2 }}>
-                    {user.firstName}
+                <div className="profile-details-text" style={{ textAlign: 'left', minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.firstName} {user.lastName}
                   </div>
-                  <div style={{ fontSize: '10px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
+                  <div className="user-program" style={{ fontSize: '10px', color: 'var(--slate-500)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.program}
+                  </div>
                 </div>
-                <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
+                <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px', flexShrink: 0 }}></i>
               </div>
 
               {showProfileDropdown && (
@@ -496,7 +499,7 @@ export default function DashboardLayout({ children, activePage }) {
                     position: 'absolute',
                     top: 'calc(100% + 0.5rem)',
                     right: 0,
-                    width: '200px',
+                    width: '190px',
                     backgroundColor: '#ffffff',
                     borderRadius: '0.75rem',
                     border: '1px solid var(--slate-200, #e2e8f0)',
@@ -509,8 +512,12 @@ export default function DashboardLayout({ children, activePage }) {
                   }}
                 >
                   <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--slate-100)', marginBottom: '0.25rem' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)' }}>{user.firstName} {user.lastName}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user.program}</div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {user.firstName} {user.lastName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {user.program}
+                    </div>
                   </div>
 
                   <a href="/student/profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
@@ -571,7 +578,7 @@ export default function DashboardLayout({ children, activePage }) {
             transition: 'transform 0.3s ease-in-out'
           } : {}}
         >
-          <div className="card space-y-5" style={{ padding: '1rem', height: '95%', border: 'none' }}>
+          <div className="card space-y-5" style={{ padding: '1rem', height: '100%', border: 'none' }}>
             
             <div style={{ paddingTop: '0.5rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ padding: '0 0.5rem', textAlign: 'left' }}>
@@ -690,7 +697,7 @@ export default function DashboardLayout({ children, activePage }) {
                 departments.map((dept, index) => (
                   <a 
                     key={dept.id || index} 
-                    href={`/student/page/${dept.id}`} 
+                    href={dept.url || `/student/page/${dept.id}`} 
                     className="dept-item"
                     style={{
                       display: 'block',
@@ -702,6 +709,18 @@ export default function DashboardLayout({ children, activePage }) {
                       textDecoration: 'none',
                       transition: 'all 0.2s ease',
                       boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#fff5f6';
+                      e.currentTarget.style.borderColor = '#fecdd3';
+                      e.currentTarget.style.borderLeftColor = '#881337';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(136, 19, 55, 0.06)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#ffffff';
+                      e.currentTarget.style.borderColor = '#e2e8f0';
+                      e.currentTarget.style.borderLeftColor = '#e2e8f0';
+                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.02)';
                     }}
                   >
                     <div className="dept-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -753,7 +772,6 @@ export default function DashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-solid fa-house" style={{ fontSize: '1.1rem' }}></i>
-          
         </a>
 
         <a 
@@ -770,7 +788,6 @@ export default function DashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-solid fa-bullhorn" style={{ fontSize: '1.1rem' }}></i>
-          
         </a>
 
         <a 
@@ -787,7 +804,6 @@ export default function DashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
-          
         </a>
 
         <a 
@@ -804,7 +820,6 @@ export default function DashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-regular fa-user" style={{ fontSize: '1.1rem' }}></i>
-          
         </a>
       </nav>
     </div>
