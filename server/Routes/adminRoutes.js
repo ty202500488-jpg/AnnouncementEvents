@@ -247,7 +247,7 @@ router.get('/pages', async (req, res) => {
             LEFT JOIN departments d ON p.department_id = d.department_id
             LEFT JOIN organizations o ON p.organization_id = o.organization_id
             LEFT JOIN page_follows pf ON pf.page_id = p.page_id
-            WHERE LOWER(p.status) = 'approved'
+            WHERE LOWER(p.status) IN ('approved', 'inactive')
             GROUP BY p.page_id, d.department_name, d.department_code, o.organization_name
             ORDER BY p.page_name ASC
         `);
@@ -582,7 +582,7 @@ router.get('/page-options', async (req, res) => {
               AND NOT EXISTS (
                   SELECT 1 FROM pages p
                   WHERE p.department_id = d.department_id
-                  AND LOWER(p.status) IN ('approved', 'pending')
+                  AND LOWER(p.status) IN ('approved', 'pending', 'inactive')
               )
             ORDER BY d.department_name ASC
         `);
@@ -594,7 +594,7 @@ router.get('/page-options', async (req, res) => {
               AND NOT EXISTS (
                   SELECT 1 FROM pages p
                   WHERE p.organization_id = o.organization_id
-                  AND LOWER(p.status) IN ('approved', 'pending')
+                  AND LOWER(p.status) IN ('approved', 'pending', 'inactive')
               )
             ORDER BY o.organization_name ASC
         `);

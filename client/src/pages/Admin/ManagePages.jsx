@@ -32,6 +32,15 @@ export default function ManagePages() {
     }
   };
 
+  const confirmToggle = (page) => {
+    const message = page.active
+      ? `Do you want to deactivate "${page.name}"? Its status will be set to Inactive and it will be hidden from students and staff.`
+      : `Do you want to reactivate "${page.name}"?`;
+    if (window.confirm(message)) {
+      togglePage(page.id);
+    }
+  };
+
   return (
     <>
       <div className="manage-pages-head">
@@ -184,7 +193,7 @@ export default function ManagePages() {
                   : page.name}
               </span>
               <button
-                onClick={() => togglePage(page.id)}
+                onClick={() => confirmToggle(page)}
                 className={`pill-toggle ${page.active ? "on" : "off"}`}
                 style={{
                   flexShrink: 0,
