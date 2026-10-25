@@ -30,6 +30,7 @@ import StaffProfile from './pages/Staff/StaffProfile';
 import StaffNotifications from './pages/Staff/StaffNotification';
 import StaffMyEvents from './pages/Staff/StaffMyEvents';
 import StaffSettings from './pages/Staff/StaffSettings';
+import StaffQRCheckIn from './pages/Staff/StaffQrCheckIn';
 
 // Admin Imports
 import AdminDashboard from './pages/Admin/AdminDashboard.jsx';
@@ -105,6 +106,8 @@ function App() {
         <Route path="/staff/notifications" element={<StaffNotifications />} />
         <Route path="/staff/my-events" element={<StaffMyEvents />} />
         <Route path="/staff/settings" element={<StaffSettings />} />
+        <Route path="/staff/attendance/check-in/scan" element={<StaffQRCheckIn />} />
+        <Route path="/staff/attendance/check-in/:token" element={<StaffQRCheckIn />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />}>

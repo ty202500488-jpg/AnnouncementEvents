@@ -265,42 +265,55 @@ export default function StaffDashboardLayout({ children, activePage }) {
   const isPageApproved = pageStatus.exists && (pageStatus.status === 'approved' || pageStatus.status === 'active');
 
   return (
-    <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ paddingBottom: '4rem' }}>
+    <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ minHeight: '100vh', paddingBottom: '4.5rem' }}>
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
             display: none !important;
           }
+          .staff-dashboard-wrapper {
+            padding-bottom: 2rem !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .profile-details-text {
+            display: none !important;
+          }
+          .header-container {
+            gap: 0.5rem !important;
+            padding: 0.5rem 0.75rem !important;
+          }
         }
       `}</style>
 
       {/* TOP NAVBAR */}
-      <header className="header">
-        <div className="header-container">
+      <header className="header" style={{ position: 'sticky', top: 0, zIndex: 40, backgroundColor: '#ffffff' }}>
+        <div className="header-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
           
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
             <button 
               type="button" 
               className="mobile-menu-btn icon-btn" 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              style={{ color: 'var(--slate-600)' }}
+              style={{ color: 'var(--slate-600)', background: 'none', border: 'none', cursor: 'pointer' }}
               aria-label="Toggle Menu"
             >
               <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
             </button>
-            <div className="flex items-center gap-2">
-              <img src={logo} alt="CRIMSON Logo" style={{ height: '48px', width: 'auto', objectFit: 'contain', borderRadius: '50%' }} />
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <img src={logo} alt="CRIMSON Logo" style={{ height: '38px', width: '38px', objectFit: 'contain', borderRadius: '50%' }} />
             </div>
           </div>
 
           {/* Search Bar */}
-          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative' }}>
-            <div className="search-wrapper">
+          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative', flex: '1 1 auto', maxWidth: '480px' }}>
+            <div className="search-wrapper" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
               <input 
                 type="text" 
                 placeholder={`Search ${filterCategory === 'all' ? 'Announcement, Events, Departments...' : filterCategory + '...'}`} 
                 className="search-input"
+                style={{ width: '100%', fontSize: '0.8125rem' }}
                 value={searchQuery}
                 onChange={handleSearchChange}
                 onFocus={() => searchQuery.trim() && setShowDropdown(true)}
@@ -312,7 +325,10 @@ export default function StaffDashboardLayout({ children, activePage }) {
                 title={`Current Filter: ${filterCategory.toUpperCase()}`}
                 style={{
                   color: filterCategory !== 'all' ? '#881337' : 'inherit',
-                  fontWeight: filterCategory !== 'all' ? 700 : 400
+                  fontWeight: filterCategory !== 'all' ? 700 : 400,
+                  background: 'none',
+                  border: 'none',
+                  padding: '0.25rem'
                 }}
               >
                 <i className="fa-sliders fa-solid" style={{ fontSize: '0.75rem' }}></i>
@@ -376,18 +392,42 @@ export default function StaffDashboardLayout({ children, activePage }) {
           </div>
 
           {/* Right Header Actions */}
-          <div className="flex items-center gap-3"> 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}> 
             
+            {/* QR Camera Scan Button */}
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => navigate('/staff/attendance/check-in/scan')}
+              style={{
+                background: 'transparent',
+                color: '#7B0D1E',
+                border: '1px solid #fecdd3',
+                backgroundColor: '#fff1f2',
+                borderRadius: '0.375rem',
+                width: '34px',
+                height: '34px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+              title="Scan QR Attendance with Camera"
+            >
+              <i className="fa-solid fa-qrcode" style={{ fontSize: '0.875rem' }}></i>
+            </button>
+
             {/* Notifications Dropdown */}
             <div ref={notifDropdownRef} style={{ position: 'relative' }}>
               <button 
                 type="button" 
                 className="icon-btn" 
                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none' }}
+                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none', padding: '0.25rem' }}
                 aria-label="Notifications"
               >
-                <i className="fa-regular fa-bell" style={{ fontSize: '1rem' }}></i>
+                <i className="fa-regular fa-bell" style={{ fontSize: '1.1rem' }}></i>
                 {unreadNotifCount > 0 && <span className="badge-dot"></span>}
               </button>
 
@@ -398,7 +438,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
                     position: 'absolute',
                     top: 'calc(100% + 0.5rem)',
                     right: 0,
-                    width: '320px',
+                    width: 'clamp(280px, 85vw, 320px)',
                     backgroundColor: '#ffffff',
                     borderRadius: '0.75rem',
                     border: '1px solid var(--slate-200, #e2e8f0)',
@@ -438,16 +478,9 @@ export default function StaffDashboardLayout({ children, activePage }) {
                             borderRadius: '0.5rem',
                             backgroundColor: !notif.is_read ? '#fff5f6' : 'transparent',
                             cursor: 'pointer',
-                            transition: 'background-color 0.15s ease',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '0.2rem'
-                          }}
-                          onMouseEnter={(e) => {
-                            if (notif.is_read) e.currentTarget.style.backgroundColor = 'var(--slate-50, #f8fafc)';
-                          }}
-                          onMouseLeave={(e) => {
-                            if (notif.is_read) e.currentTarget.style.backgroundColor = 'transparent';
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -469,19 +502,17 @@ export default function StaffDashboardLayout({ children, activePage }) {
               )}
             </div>
 
-            <div className="divider-v"></div>
-
             <div ref={profileDropdownRef} style={{ position: 'relative' }}>
               <div 
                 className="profile-btn" 
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)} 
-                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', userSelect: 'none' }}
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.375rem', userSelect: 'none' }}
               >
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.85rem', lineHeight: 1.2 }}>
+                <div className="profile-details-text" style={{ textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2 }}>
                     {user.firstName} {user.lastName}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
                 </div>
                 <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
               </div>
@@ -568,26 +599,26 @@ export default function StaffDashboardLayout({ children, activePage }) {
             backgroundColor: '#ffffff',
             boxShadow: '10px 0 25px rgba(0, 0, 0, 0.15)',
             overflowY: 'auto',
-            padding: '1rem'
+            padding: '1rem',
+            transition: 'transform 0.3s ease-in-out'
           } : {}}
         >
-          <div className="card space-y-5" style={{ padding: '1rem', height: '100%' }}>
+          <div className="card space-y-5" style={{ padding: '1rem', height: '100%', border: 'none' }}>
             
-            <div style={{ paddingTop: '0.75rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ padding: '0 0.75rem', textAlign: 'left' }}>
-                <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem', lineHeight: 1.2 }}>
+            <div style={{ paddingTop: '0.5rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: '0 0.5rem', textAlign: 'left' }}>
+                <span style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem', display: 'block', lineHeight: 1.2 }}>
                   {user.firstName} {user.lastName}
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--slate-500)', lineHeight: 1.2, marginTop: '2px' }}>
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--slate-500)', display: 'block', marginTop: '3px', lineHeight: 1.2 }}>
                   {user.program}
-                </div>
+                </span>
               </div>
               {isMobileMenuOpen && (
                 <button 
                   type="button" 
-                  className="icon-btn lg:hidden" 
                   onClick={() => setIsMobileMenuOpen(false)}
-                  style={{ color: 'var(--slate-600)' }}
+                  style={{ color: 'var(--slate-600)', background: 'none', border: 'none', padding: '0.5rem', cursor: 'pointer' }}
                 >
                   <i className="fa-solid fa-xmark" style={{ fontSize: '1.2rem' }}></i>
                 </button>
@@ -747,13 +778,13 @@ export default function StaffDashboardLayout({ children, activePage }) {
           bottom: 0,
           left: 0,
           right: 0,
-          height: '60px',
+          height: '56px',
           backgroundColor: '#ffffff',
           borderTop: '1px solid var(--slate-200, #e2e8f0)',
           display: 'flex',
           justifyContent: 'space-around',
           alignItems: 'center',
-          zIndex: 100,
+          zIndex: 40,
           boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)'
         }}
       >
