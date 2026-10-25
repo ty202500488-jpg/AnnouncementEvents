@@ -123,6 +123,7 @@ const handleDashboardFetch = async (req, res) => {
              FROM announcements a 
              LEFT JOIN pages p ON a.page_id = p.page_id 
              LEFT JOIN announcement_categories c ON a.category_id = c.category_id
+             WHERE a.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY a.created_at DESC`
         ).catch((err) => {
             console.error('Error fetching announcements:', err.message);
@@ -136,6 +137,7 @@ const handleDashboardFetch = async (req, res) => {
                     e.created_at, e.image_url, e.page_id, COALESCE(p.page_name, 'Student Affairs Office') as page_name 
              FROM events e 
              LEFT JOIN pages p ON e.page_id = p.page_id 
+             WHERE e.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY e.created_at DESC`
         ).catch((err) => {
             console.error('Error fetching events:', err.message);
@@ -399,11 +401,112 @@ router.delete('/events/:id', async (req, res) => {
 // GET APPROVED PAGES
 router.get('/approved-pages', async (req, res) => {
     try {
-        const result = await pool.query(`SELECT page_id AS id, page_name AS name, page_description AS description, status FROM pages WHERE status = 'Approved'`);
+        const result = await pool.query(
+            `SELECT page_id AS id, page_name AS name, page_description AS description, status,
+                    CASE WHEN department_id IS NOT NULL THEN 'Academic College' ELSE 'Student Organization' END AS category
+             FROM pages WHERE LOWER(status) = 'approved' ORDER BY page_name ASC`
+        );
         return res.status(200).json({ pages: result.rows });
     } catch (err) {
         console.error('Error fetching approved pages:', err.message);
         return res.status(500).json({ message: err.message });
+    }
+});
+
+// CREATE PAGE (submitted as 'Pending' for admin approval)
+router.post('/create-page', async (req, res) => {
+    const userId = await authenticateUser(req, res);
+    if (!userId) return;
+
+    const { pageName, pageCategory, pageDescription, organizationId, departmentId } = req.body || {};
+    const name = String(pageName || '').trim();
+
+    if (!name) {
+        return res.status(400).json({ message: 'Page name is required.' });
+    }
+
+    const isOrgCategory = pageCategory === 'Student Organization' || pageCategory === 'Campus Council';
+    const orgId = isOrgCategory ? Number(organizationId) : null;
+    const deptId = isOrgCategory ? null : Number(departmentId);
+    const ownerId = isOrgCategory ? orgId : deptId;
+
+    if (!Number.isSafeInteger(ownerId) || ownerId <= 0) {
+        return res.status(400).json({
+            message: isOrgCategory ? 'Please select a valid organization.' : 'Please select a valid department.'
+        });
+    }
+
+    const client = await pool.connect();
+    try {
+        const existing = await client.query(
+            `SELECT page_id FROM pages WHERE created_by = $1 AND LOWER(status) IN ('pending', 'approved') LIMIT 1`,
+            [userId]
+        );
+        if (existing.rows.length > 0) {
+            return res.status(409).json({ message: 'You already have a pending or approved page.' });
+        }
+
+        await client.query('BEGIN');
+        const insert = await client.query(
+            `INSERT INTO pages (page_name, page_description, department_id, organization_id, created_by, status)
+             VALUES ($1, $2, $3, $4, $5, 'Pending')
+             RETURNING page_id, page_name, page_description, status`,
+            [name, pageDescription || null, deptId, orgId, userId]
+        );
+        const page = insert.rows[0];
+
+        await client.query(
+            `INSERT INTO page_staff (page_id, user_id, role_on_page, assigned_by, status)
+             VALUES ($1, $2, 'Admin', $2, 'Active')`,
+            [page.page_id, userId]
+        );
+        await client.query('COMMIT');
+
+        return res.status(201).json({
+            message: 'Page submitted for approval.',
+            page: { pageId: page.page_id, pageName: page.page_name, description: page.page_description, status: page.status }
+        });
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('Error creating page:', err.stack || err.message);
+        if (err.code === '23505') {
+            return res.status(409).json({ message: 'A page already exists for that department/organization.' });
+        }
+        if (err.code === '23503') {
+            return res.status(400).json({ message: 'The selected department/organization does not exist.' });
+        }
+        return res.status(500).json({ message: 'Failed to create page: ' + err.message });
+    } finally {
+        client.release();
+    }
+});
+
+// UPDATE OWN PAGE (name and description only; owner department/organization is fixed)
+router.put('/mypage/update', async (req, res) => {
+    try {
+        const userId = await authenticateUser(req, res);
+        if (!userId) return;
+
+        const { pageName, description } = req.body || {};
+        const name = String(pageName || '').trim();
+        if (!name) {
+            return res.status(400).json({ message: 'Page name is required.' });
+        }
+
+        const result = await pool.query(
+            `UPDATE pages SET page_name = $1, page_description = $2
+             WHERE page_id = (SELECT page_id FROM pages WHERE created_by = $3 ORDER BY page_id DESC LIMIT 1)
+             RETURNING page_id, page_name, page_description, status`,
+            [name, description || null, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'You do not have a page to update.' });
+        }
+        return res.status(200).json({ message: 'Page updated successfully.', page: result.rows[0] });
+    } catch (err) {
+        console.error('Error updating page:', err.message);
+        return res.status(500).json({ message: 'Failed to update page: ' + err.message });
     }
 });
 

@@ -10,6 +10,7 @@ router.post('/dashboard-data', async (req, res) => {
                     CASE WHEN p.department_id IS NOT NULL THEN 'Academic College' ELSE 'Student Organization' END AS department_code 
              FROM announcements a 
              LEFT JOIN pages p ON a.page_id = p.page_id 
+             WHERE p.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY a.created_at DESC`
         );
         res.status(200).json({ announcements: announcements.rows });
@@ -26,6 +27,7 @@ router.get('/events-data', async (req, res) => {
             `SELECT e.*, p.page_name AS department_name 
              FROM events e 
              LEFT JOIN pages p ON e.page_id = p.page_id 
+             WHERE p.page_id IS NULL OR LOWER(p.status) = 'approved'
              ORDER BY e.event_date ASC`
         );
         res.status(200).json({ events: events.rows });

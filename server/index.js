@@ -22,6 +22,8 @@ app.use(express.json());
 app.use('/api/users', userRoutes); 
 app.use('/api', pageRoutes);
 app.use('/api/student', studentRoutes);
+// The student UI calls these endpoints under /users/* (no /api prefix)
+app.use('/users', studentRoutes);
 app.use('/api/mypage/notifications', mypageNotificationRoutes);
 app.use('/api/mypage/attendance', mypageAttendanceRoutes);
 app.use('/api/mypage', mypageRegistrationRoutes);
