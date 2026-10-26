@@ -390,3 +390,27 @@ INSERT INTO system_settings (key, value, category, description) VALUES
 ('maintenance_mode_enabled', 'false', 'maintenance', 'Locks non-administrator public access'),
 ('maintenance_message', 'System is undergoing scheduled administrative maintenance. Please check back shortly.', 'maintenance', 'Public notification banner text')
 ON CONFLICT (key) DO NOTHING;
+
+-- Create academic_years table if it does not already exist
+CREATE TABLE IF NOT EXISTS academic_years (
+    id SERIAL PRIMARY KEY,
+    start_year INTEGER NOT NULL,
+    end_year INTEGER NOT NULL,
+    semester VARCHAR(50) NOT NULL, -- '1st Semester', '2nd Semester', 'Summer'
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(255),
+    CONSTRAINT chk_end_year CHECK (end_year = start_year + 1),
+    CONSTRAINT unique_school_year_semester UNIQUE (start_year, end_year, semester)
+);
+
+-- Ensure partial unique index so that only one academic period can be active at a time
+CREATE UNIQUE INDEX IF NOT EXISTS idx_single_active_academic_year 
+ON academic_years (is_active) 
+WHERE is_active = TRUE;
+
+-- Insert initial current academic year if table is empty
+INSERT INTO academic_years (start_year, end_year, semester, is_active, created_by)
+SELECT 2026, 2027, '1st Semester', TRUE, 'MISTO System'
+WHERE NOT EXISTS (SELECT 1 FROM academic_years);

@@ -45,7 +45,6 @@ body {
   will-change: transform, border-radius;
 }
 
-/* LEFT SIDE BLOBS */
 .blob-1 {
   width: 500px;
   height: 500px;
@@ -70,7 +69,6 @@ body {
   background: radial-gradient(circle, rgba(199, 183, 163, 0.25) 0%, transparent 75%);
 }
 
-/* RIGHT SIDE BLOBS */
 .blob-2 {
   width: 550px;
   height: 550px;
@@ -95,7 +93,6 @@ body {
   background: radial-gradient(circle, rgba(109, 41, 50, 0.6) 0%, transparent 80%);
 }
 
-/* CENTER & SCATTERED BLOBS */
 .blob-3 {
   width: 380px;
   height: 380px;
@@ -131,7 +128,6 @@ body {
   opacity: 0.4;
 }
 
-/* CONTINUOUS AUTOMATIC FLOATING ANIMATIONS */
 .float-anim-1 { animation: floatAnim1 14s infinite ease-in-out, morphBlob 12s infinite alternate ease-in-out; }
 .float-anim-2 { animation: floatAnim2 18s infinite ease-in-out, morphBlob 16s infinite alternate-reverse ease-in-out; }
 .float-anim-3 { animation: floatAnim3 12s infinite ease-in-out, morphBlob 10s infinite alternate ease-in-out; }
@@ -166,7 +162,6 @@ body {
   100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
 }
 
-/* STAR BLOBS */
 .star-blob {
   position: absolute;
   border-radius: 50%;
@@ -191,7 +186,7 @@ body {
 
 @keyframes starGlow {
   0% { opacity: 0.25; box-shadow: 0 0 6px rgba(232, 216, 196, 0.3); }
-  100% { opacity: 1; box-shadow: 0 0 22px rgba(232, 216, 196, 0.9), 0 0 35px rgba(199, 183, 163, 0.6); }
+  100% { opacity: 1; box-shadow: 0 0 22px rgba(232, 216, 196, 0.9), 0 0 35px rgba(199, 183, 163, 0.9); }
 }
 
 @keyframes starFloat {
@@ -221,7 +216,7 @@ body {
 }
 
 .login-card-wrapper.wide-mode {
-  max-width: 620px;
+  max-width: 580px;
 }
 
 .card-glow-bg {
@@ -363,20 +358,33 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  width: 100%;
 }
 
 .form-row {
   display: grid;
   gap: 0.8rem;
   width: 100%;
+  align-items: flex-start;
 }
 
 .form-row.two-cols {
   grid-template-columns: 1fr 1fr;
 }
 
-.form-row.three-cols {
-  grid-template-columns: 1fr 1fr 1fr;
+.form-row.grid-name-row {
+  grid-template-columns: 1fr 70px 1fr;
+}
+
+.whitespace-nowrap {
+  white-space: nowrap;
+}
+
+.optional-tag {
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--color-muted-beige);
+  opacity: 0.7;
 }
 
 .label-row {
@@ -390,8 +398,10 @@ body {
   font-weight: 600;
   color: var(--color-light-cream);
   letter-spacing: 0.02em;
+  height: 1.2rem;
+  display: flex;
+  align-items: center;
 }
-
 
 .forgot-link, .inline-link {
   font-size: 0.8rem;
@@ -408,23 +418,27 @@ body {
 /* ====================================================
    INPUT & SELECT STYLING
    ==================================================== */
-.input-container {
+.input-container,
+.select-container {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .input-container input,
 .select-container select {
   width: 100%;
-  padding: 0.8rem 1rem;
+  height: 44px;
+  padding: 0 0.9rem;
   background: rgba(199, 183, 163, 0.06);
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   color: var(--color-light-cream);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   outline: none;
   transition: all 0.25s ease;
+  box-sizing: border-box;
 }
 
 .password-container input {
@@ -449,8 +463,8 @@ body {
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23C7B7A3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.8rem center;
-  padding-right: 2.5rem;
+  background-position: right 0.85rem center;
+  padding-right: 2.4rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -502,6 +516,102 @@ body {
 
 .toggle-password-btn.visible .eye-off-icon {
   display: block;
+}
+
+/* ====================================================
+   NOTIFICATION MODAL STYLING
+   ==================================================== */
+.auth-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(15, 4, 7, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: backdropFade 0.25s ease-out;
+}
+
+@keyframes backdropFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.auth-modal-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-deep2);
+  border: 1px solid var(--border-glow);
+  border-radius: 20px;
+  padding: 2rem 1.75rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 40px rgba(86, 28, 36, 0.3);
+  animation: modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScaleUp {
+  from { opacity: 0; transform: scale(0.92) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.auth-modal-icon-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.auth-modal-icon-badge svg {
+  width: 28px;
+  height: 28px;
+}
+
+/* Modal Variant Colors */
+.auth-modal-card.success .auth-modal-icon-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.auth-modal-card.error .auth-modal-icon-badge {
+  background: rgba(225, 29, 72, 0.15);
+  color: #f43f5e;
+  border: 1px solid rgba(225, 29, 72, 0.3);
+}
+
+.auth-modal-card.warning .auth-modal-icon-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.auth-modal-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-light-cream);
+  margin-bottom: 0.4rem;
+}
+
+.auth-modal-message {
+  font-size: 0.88rem;
+  color: var(--color-muted-beige);
+  line-height: 1.45;
+  margin-bottom: 1.5rem;
+  opacity: 0.9;
+}
+
+.modal-action-btn {
+  margin-top: 0;
+  min-width: 140px;
 }
 
 /* ====================================================
@@ -603,13 +713,13 @@ body {
 @media (max-width: 580px) {
   .login-card { padding: 2rem 1.25rem; }
   .form-row.two-cols,
-  .form-row.three-cols {
+  .form-row.grid-name-row {
     grid-template-columns: 1fr;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bg-blob, .star-blob, .login-card, .auth-form {
+  .bg-blob, .star-blob, .login-card, .auth-form, .auth-modal-card {
     animation: none !important;
   }
 }

@@ -1,0 +1,687 @@
+/* Custom Isolated CSS for WMSU Admin Archives Page */
+
+:root {
+  --wmsu-maroon: #7B0D1E;
+  --wmsu-dark-maroon: #5a0915;
+  --wmsu-light-maroon: #9e1a2e;
+  --wmsu-gold: #f5b400;
+  --wmsu-bg: #f0f2f5;
+  --wmsu-card-bg: #ffffff;
+  --wmsu-text-main: #1e293b;
+  --wmsu-text-muted: #64748b;
+  --wmsu-border: #e2e8f0;
+}
+
+.archives-page {
+  padding: 1.5rem;
+  background-color: var(--wmsu-bg);
+  min-height: 100vh;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+/* Alert Box */
+.archives-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.archives-alert-success {
+  background-color: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.archives-alert-error {
+  background-color: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.archives-alert-close {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* Page Header */
+.archives-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.archives-breadcrumb {
+  font-size: 0.8125rem;
+  color: var(--wmsu-text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.archives-breadcrumb a {
+  color: var(--wmsu-maroon);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.archives-breadcrumb-separator {
+  margin: 0 0.5rem;
+}
+
+.archives-title-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.archives-header-icon {
+  font-size: 2rem;
+  color: var(--wmsu-maroon);
+  background: #f8fafc;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--wmsu-border);
+}
+
+.archives-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--wmsu-text-main);
+  margin: 0;
+}
+
+.archives-subtitle {
+  font-size: 0.875rem;
+  color: var(--wmsu-text-muted);
+  margin: 0.25rem 0 0 0;
+}
+
+.archives-header-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Buttons */
+.archives-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.archives-btn-primary {
+  background-color: var(--wmsu-maroon);
+  color: #ffffff;
+}
+
+.archives-btn-primary:hover:not(:disabled) {
+  background-color: var(--wmsu-dark-maroon);
+}
+
+.archives-btn-secondary {
+  background-color: #ffffff;
+  color: var(--wmsu-text-main);
+  border-color: var(--wmsu-border);
+}
+
+.archives-btn-secondary:hover:not(:disabled) {
+  background-color: #f8fafc;
+}
+
+.archives-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.archives-btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.archives-btn-text {
+  background: none;
+  border: none;
+  color: var(--wmsu-maroon);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Summary Grid */
+.archives-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.archives-card {
+  background-color: var(--wmsu-card-bg);
+  border-radius: 0.5rem;
+  border: 1px solid var(--wmsu-border);
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.archives-card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.archives-card-label {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--wmsu-text-muted);
+  font-weight: 500;
+}
+
+.archives-card-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--wmsu-text-main);
+  margin-top: 0.25rem;
+}
+
+.archives-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.archives-icon-maroon {
+  background: #fdf2f4;
+  color: var(--wmsu-maroon);
+}
+
+.archives-icon-gold {
+  background: #fefce8;
+  color: #d97706;
+}
+
+.archives-icon-dark {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.archives-icon-slate {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+/* Controls & Filters */
+.archives-controls-container {
+  background-color: var(--wmsu-card-bg);
+  border-radius: 0.5rem 0.5rem 0 0;
+  border: 1px solid var(--wmsu-border);
+  border-bottom: none;
+}
+
+.archives-category-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--wmsu-border);
+  overflow-x: auto;
+}
+
+.archives-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--wmsu-text-muted);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.archives-tab-btn.active {
+  border-bottom-color: var(--wmsu-maroon);
+  color: var(--wmsu-maroon);
+}
+
+.archives-filters-panel {
+  padding: 1rem 1.25rem;
+}
+
+.archives-filter-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.archives-filter-row-secondary {
+  margin-top: 0.75rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.archives-search-group {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+.archives-search-icon {
+  position: absolute;
+  left: 0.875rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--wmsu-text-muted);
+  font-size: 0.875rem;
+}
+
+.archives-input,
+.archives-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--wmsu-border);
+  border-radius: 0.375rem;
+  outline: none;
+  background-color: #ffffff;
+  color: var(--wmsu-text-main);
+  box-sizing: border-box;
+}
+
+.archives-search-input {
+  padding-left: 2.25rem;
+}
+
+.archives-search-clear {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--wmsu-text-muted);
+  cursor: pointer;
+}
+
+.archives-filter-select-wrapper {
+  min-width: 180px;
+}
+
+.archives-date-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.archives-date-label {
+  font-size: 0.8125rem;
+  color: var(--wmsu-text-muted);
+  font-weight: 500;
+}
+
+.archives-date-input {
+  width: auto;
+}
+
+.archives-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.archives-count-indicator {
+  font-size: 0.8125rem;
+  color: var(--wmsu-text-muted);
+}
+
+/* Table */
+.archives-table-card {
+  background-color: var(--wmsu-card-bg);
+  border: 1px solid var(--wmsu-border);
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.archives-table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.archives-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.archives-table th {
+  background-color: #f8fafc;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--wmsu-text-muted);
+  border-bottom: 1px solid var(--wmsu-border);
+}
+
+.archives-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--wmsu-border);
+  color: var(--wmsu-text-main);
+}
+
+.archives-title-btn {
+  background: none;
+  border: none;
+  color: var(--wmsu-maroon);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  font-size: 0.875rem;
+}
+
+.archives-title-btn:hover {
+  text-decoration: underline;
+}
+
+.archives-td-muted {
+  color: var(--wmsu-text-muted);
+}
+
+.text-right {
+  text-align: right;
+}
+
+/* Badges & Tags */
+.archives-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.archives-badge-announcement {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+}
+
+.archives-badge-event {
+  background-color: #fefce8;
+  color: #a16207;
+}
+
+.archives-badge-page {
+  background-color: #f3e8ff;
+  color: #7e22ce;
+}
+
+.archives-badge-archived {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.archives-reason-tag {
+  font-size: 0.8125rem;
+  color: var(--wmsu-text-muted);
+}
+
+/* Actions */
+.archives-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.archives-action-btn {
+  background: none;
+  border: 1px solid var(--wmsu-border);
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.375rem;
+  color: var(--wmsu-text-muted);
+  cursor: pointer;
+}
+
+.archives-action-btn:hover {
+  background-color: #f8fafc;
+  color: var(--wmsu-text-main);
+}
+
+.archives-action-restore:hover {
+  background-color: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+/* Mobile Cards Container */
+.archives-mobile-cards {
+  display: none;
+  padding: 1rem;
+}
+
+.archives-mobile-card {
+  background: #ffffff;
+  border: 1px solid var(--wmsu-border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.archives-mobile-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.archives-mobile-date {
+  font-size: 0.75rem;
+  color: var(--wmsu-text-muted);
+}
+
+.archives-mobile-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: var(--wmsu-maroon);
+}
+
+.archives-mobile-meta {
+  font-size: 0.8125rem;
+  color: var(--wmsu-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.archives-mobile-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* States */
+.archives-loading-state,
+.archives-empty-state,
+.archives-error-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--wmsu-text-muted);
+}
+
+.archives-spinner {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  color: var(--wmsu-maroon);
+}
+
+.archives-empty-state i,
+.archives-error-state i {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Pagination */
+.archives-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid var(--wmsu-border);
+}
+
+.archives-pagination-info {
+  font-size: 0.8125rem;
+  color: var(--wmsu-text-muted);
+}
+
+.archives-pagination-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Modals */
+.archives-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.archives-modal-container {
+  background: #ffffff;
+  border-radius: 0.5rem;
+  width: 100%;
+  max-width: 650px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.archives-modal-sm {
+  max-width: 480px;
+}
+
+.archives-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--wmsu-border);
+}
+
+.archives-modal-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--wmsu-text-main);
+}
+
+.archives-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--wmsu-text-muted);
+}
+
+.archives-modal-body {
+  padding: 1.25rem;
+  overflow-y: auto;
+}
+
+.archives-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.archives-detail-grid label,
+.archives-detail-section label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--wmsu-text-muted);
+
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.archives-detail-grid p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--wmsu-text-main);
+  font-weight: 500;
+}
+
+.archives-content-preview {
+  background-color: #f8fafc;
+  padding: 0.875rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--wmsu-border);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.archives-notice-box {
+  margin: 1rem 0 0 0;
+  padding: 0.875rem;
+  background-color: #fffbebf5;
+  border-left: 4px solid var(--wmsu-gold);
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+  color: #78350f;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.archives-modal-footer {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--wmsu-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+/* Screen Breakpoint Adaptations */
+@media (max-width: 768px) {
+  .archives-table-responsive {
+    display: none;
+  }
+  .archives-mobile-cards {
+    display: block;
+  }
+  .archives-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .archives-filter-row-secondary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

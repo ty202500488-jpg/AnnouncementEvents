@@ -114,6 +114,32 @@ export default function Auth() {
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
 
+  // Custom Notification Modal State
+  const [modalConfig, setModalConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'error', // 'success' | 'error' | 'warning'
+    onConfirm: null
+  });
+
+  const showAlert = (title, message, type = 'error', onConfirm = null) => {
+    setModalConfig({
+      isOpen: true,
+      title,
+      message,
+      type,
+      onConfirm
+    });
+  };
+
+  const closeModal = () => {
+    if (modalConfig.onConfirm) {
+      modalConfig.onConfirm();
+    }
+    setModalConfig({ isOpen: false, title: '', message: '', type: 'error', onConfirm: null });
+  };
+
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [regData, setRegData] = useState({
     studentId: '', 
@@ -162,19 +188,23 @@ export default function Auth() {
           3
         );
 
-        if (roleName === 'admin' || role === 1) {
-          navigate('/admin/dashboard');
-        } else if (roleName === 'staff' || role === 2) {
-          navigate('/staff/dashboard');
-        } else {
-          navigate('/student/dashboard');
-        }
+        const handleRedirect = () => {
+          if (roleName === 'admin' || role === 1) {
+            navigate('/admin/dashboard');
+          } else if (roleName === 'staff' || role === 2) {
+            navigate('/staff/dashboard');
+          } else {
+            navigate('/student/dashboard');
+          }
+        };
+
+        showAlert('Welcome Back!', 'Signed in successfully.', 'success', handleRedirect);
       } else {
-        alert(data.message || 'Login failed');
+        showAlert('Authentication Failed', data.message || 'Login failed. Please check your credentials.', 'error');
       }
     } catch (err) {
       console.error('Backend connection error:', err);
-      alert('Could not connect to the backend server.');
+      showAlert('Connection Error', 'Could not connect to the backend server. Make sure localhost:5000 is running.', 'error');
     }
   };
 
@@ -182,15 +212,15 @@ export default function Auth() {
     e.preventDefault();
 
     if (regData.password !== regData.confirmPassword) {
-      alert('Passwords do not match.');
+      showAlert('Password Mismatch', 'Passwords do not match. Please verify both fields.', 'warning');
       return;
     }
     if (regData.password.length < 8) {
-      alert('Password must be at least 8 characters.');
+      showAlert('Weak Password', 'Password must be at least 8 characters long.', 'warning');
       return;
     }
     if (!regData.termsAccepted) {
-      alert('You must accept the Terms and Conditions.');
+      showAlert('Terms Required', 'You must agree to the Terms & Conditions before registering.', 'warning');
       return;
     }
     
@@ -217,7 +247,7 @@ export default function Auth() {
       });
     } catch (err) {
       console.error('Backend connection error:', err);
-      alert('Could not reach the backend server. Make sure it is running at http://localhost:5000.');
+      showAlert('Network Error', 'Could not reach the backend server at http://localhost:5000.', 'error');
       return;
     }
 
@@ -226,15 +256,19 @@ export default function Auth() {
       data = await response.json();
     } catch (err) {
       console.error('Invalid registration API response:', err);
-      alert('The backend returned an invalid response. Check the server terminal for errors.');
+      showAlert('Server Error', 'The server returned an invalid response structure.', 'error');
       return;
     }
 
     if (response.ok) {
-      alert(data.message || 'Student account created successfully!');
-      setActiveTab('login');
+      showAlert(
+        'Account Created!', 
+        data.message || 'Student account created successfully. You may now sign in.', 
+        'success', 
+        () => setActiveTab('login')
+      );
     } else {
-      alert(data.message || 'Registration failed');
+      showAlert('Registration Failed', data.message || 'Registration could not be completed.', 'error');
     }
   };
 
@@ -334,7 +368,7 @@ export default function Auth() {
               <div className="form-section-title">Personal Information</div>
 
               <div className="form-group">
-                <label className="form-label" >Student ID</label>
+                <label className="form-label">Student ID</label>
                 <div className="input-container">
                   <input 
                     type="text" 
@@ -346,7 +380,7 @@ export default function Auth() {
                 </div>
               </div>
 
-              <div className="form-row three-cols">
+              <div className="form-row grid-name-row">
                 <div className="form-group">
                   <label className="form-label">First Name</label>
                   <div className="input-container">
@@ -359,18 +393,22 @@ export default function Auth() {
                     />
                   </div>
                 </div>
+
                 <div className="form-group">
-                  <label className="form-label">Middle Initial</label>
+                  <label className="form-label whitespace-nowrap">
+                    M.I. <span className="optional-tag">(Optional)</span>
+                  </label>
                   <div className="input-container">
                     <input 
                       type="text" 
-                      placeholder="M" 
+                      placeholder="M." 
                       maxLength="5" 
                       value={regData.middleInitial}
                       onChange={(e) => setRegData({ ...regData, middleInitial: e.target.value })}
                     />
                   </div>
                 </div>
+
                 <div className="form-group">
                   <label className="form-label">Last Name</label>
                   <div className="input-container">
@@ -408,7 +446,7 @@ export default function Auth() {
                       onChange={(e) => setRegData({ ...regData, programId: e.target.value })} 
                       disabled={!selectedCollege}
                     >
-                      <option value="" disabled>{selectedCollege ? 'Select Course (Optional)' : 'Select Department First'}</option>
+                      <option value="" disabled>{selectedCollege ? 'Select Course' : 'Select Dept First'}</option>
                       {availableCourses.map((course) => (
                         <option key={course.id} value={course.id}>{course.name}</option>
                       ))}
@@ -516,6 +554,32 @@ export default function Auth() {
           </div>
         </div>
       </main>
+
+      {/* Modern Notification Modal UI */}
+      {modalConfig.isOpen && (
+        <div className="auth-modal-backdrop" onClick={closeModal}>
+          <div className={`auth-modal-card ${modalConfig.type}`} onClick={(e) => e.stopPropagation()}>
+            <div className="auth-modal-icon-badge">
+              {modalConfig.type === 'success' && (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              )}
+              {modalConfig.type === 'error' && (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              )}
+              {modalConfig.type === 'warning' && (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              )}
+            </div>
+
+            <h3 className="auth-modal-title">{modalConfig.title}</h3>
+            <p className="auth-modal-message">{modalConfig.message}</p>
+
+            <button type="button" className="btn-primary modal-action-btn" onClick={closeModal}>
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

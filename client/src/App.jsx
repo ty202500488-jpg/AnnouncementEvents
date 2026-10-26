@@ -38,6 +38,10 @@ import ContentFeed from './pages/Admin/ContentFeed.jsx';
 import UserManagement from './pages/Admin/UserManagement.jsx';
 import PageManagement from './pages/Admin/PageManagement.jsx';
 import PostApproval from './pages/Admin/PostApproval.jsx';
+import Archives from './pages/Admin/Archives.jsx';
+import ReportStatistics from './pages/Admin/ReportStatistics.jsx';
+import AuditLogs from './pages/Admin/AuditLogs.jsx';
+import SystemSettings from './pages/Admin/SystemSettings.jsx';
 
 function App() {
   return (
@@ -114,6 +118,10 @@ function App() {
         <Route path="/admin/pages" element={<PageManagement />} />
         <Route path="/admin/posts" element={<PostApproval />} />
         <Route path="/admin/post-approval" element={<PostApproval />} />
+        <Route path="/admin/archives" element={<Archives />} />
+        <Route path="/admin/reports" element={<ReportStatistics />} />
+        <Route path="/admin/audit-logs" element={<AuditLogs />} />
+        <Route path="/admin/settings" element={<SystemSettings />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
 
         {/* Fallback Catch-All Route */}
