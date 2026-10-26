@@ -35,8 +35,8 @@ export default function StaffMyPage() {
   const [postContent, setPostContent] = useState('');
   const [submittingPost, setSubmittingPost] = useState(false);
 
-  // Post Delete State
-  const [deletingPostId, setDeletingPostId] = useState(null);
+  // Post Delete State — stores the full post object so we always have type + id
+  const [deletingPost, setDeletingPost] = useState(null);
 
   useEffect(() => {
     fetchPageData();
@@ -100,7 +100,10 @@ export default function StaffMyPage() {
       });
       if (res.ok) {
         const postData = await res.json();
-        const postList = Array.isArray(postData) ? postData : (postData.posts || []);
+        // Tag each item with its type so delete/edit can call the correct endpoint
+        const announcements = (postData.announcements || []).map(a => ({ ...a, type: 'Announcement' }));
+        const events = (postData.events || []).map(e => ({ ...e, type: 'Event' }));
+        const postList = [...announcements, ...events];
         const sorted = postList.sort((a, b) => new Date(b.date || b.created_at || b.eventDate) - new Date(a.date || a.created_at || a.eventDate));
         setPosts(sorted);
       } else {
@@ -209,49 +212,46 @@ export default function StaffMyPage() {
     if (!editingPost) return;
     setSubmittingPost(true);
 
-    const targetId = editingPost.id || editingPost.post_id;
+    const isEvent = editingPost.type === 'Event';
+    const targetId = isEvent
+      ? (editingPost.event_id || editingPost.id)
+      : (editingPost.announcement_id || editingPost.id);
+    const editEndpoint = isEvent
+      ? `http://localhost:5000/api/events/${targetId}`
+      : `http://localhost:5000/api/announcements/${targetId}`;
     const token = localStorage.getItem('token');
 
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${targetId}`, {
+      const bodyData = isEvent ? {
+        event_title: postTitle,
+        event_description: postContent
+      } : {
+        title: postTitle,
+        content: postContent
+      };
+
+      const res = await fetch(editEndpoint, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          title: postTitle,
-          type: postType,
-          content: postContent
-        })
+        body: JSON.stringify(bodyData)
       });
 
       if (res.ok) {
-        setPosts(prev => prev.map(p => (p.id || p.post_id) === targetId ? {
-          ...p,
-          title: postTitle,
-          type: postType,
-          content: postContent,
-          description: postContent
-        } : p));
+        // Only update local state on server success
+        setPosts(prev => prev.map(p => {
+          const pId = isEvent ? (p.event_id || p.id) : (p.announcement_id || p.id);
+          return pId === targetId ? { ...p, title: postTitle, content: postContent, description: postContent } : p;
+        }));
       } else {
-        setPosts(prev => prev.map(p => (p.id || p.post_id) === targetId ? {
-          ...p,
-          title: postTitle,
-          type: postType,
-          content: postContent,
-          description: postContent
-        } : p));
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || 'Failed to update post.');
       }
     } catch (err) {
       console.error('Error editing post:', err);
-      setPosts(prev => prev.map(p => (p.id || p.post_id) === targetId ? {
-        ...p,
-        title: postTitle,
-        type: postType,
-        content: postContent,
-        description: postContent
-      } : p));
+      alert('Network error while updating post.');
     } finally {
       setSubmittingPost(false);
       setEditingPost(null);
@@ -260,25 +260,37 @@ export default function StaffMyPage() {
 
   // Delete Post Handler
   const handleDeletePost = async () => {
-    if (!deletingPostId) return;
+    if (!deletingPost) return;
     const token = localStorage.getItem('token');
 
+    const isEventPost = deletingPost.type === 'Event';
+    const deleteId = isEventPost
+      ? (deletingPost.event_id || deletingPost.id)
+      : (deletingPost.announcement_id || deletingPost.id);
+    const deleteEndpoint = isEventPost
+      ? `http://localhost:5000/api/events/${deleteId}`
+      : `http://localhost:5000/api/announcements/${deleteId}`;
+
+    console.log('[Delete] Calling:', deleteEndpoint);
+
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${deletingPostId}`, {
+      const res = await fetch(deleteEndpoint, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (res.ok || res.status === 404) {
-        setPosts(prev => prev.filter(p => (p.id || p.post_id) !== deletingPostId));
+      if (res.ok) {
+        // Remove from UI only after backend confirms deletion
+        setPosts(prev => prev.filter(p => p !== deletingPost));
       } else {
-        setPosts(prev => prev.filter(p => (p.id || p.post_id) !== deletingPostId));
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || 'Failed to delete post.');
       }
     } catch (err) {
       console.error('Error deleting post:', err);
-      setPosts(prev => prev.filter(p => (p.id || p.post_id) !== deletingPostId));
+      alert('Network error while deleting post.');
     } finally {
-      setDeletingPostId(null);
+      setDeletingPost(null);
       setActiveMenuId(null);
     }
   };
@@ -512,7 +524,7 @@ export default function StaffMyPage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => { setDeletingPostId(pId); setActiveMenuId(null); }}
+                                  onClick={() => { setDeletingPost(post); setActiveMenuId(null); }}
                                   style={{
                                     width: '100%',
                                     padding: '0.5rem 1rem',
@@ -804,7 +816,7 @@ export default function StaffMyPage() {
         )}
 
         {/* Delete Confirmation Modal */}
-        {deletingPostId && (
+        {deletingPost && (
           <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
             <div style={{ backgroundColor: '#ffffff', borderRadius: '1rem', padding: '1.75rem', maxWidth: '400px', width: '100%', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--slate-200)', textAlign: 'center' }}>
               <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'var(--rose-50)', color: 'var(--rose-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', margin: '0 auto 1rem' }}>
@@ -815,7 +827,7 @@ export default function StaffMyPage() {
                 Are you sure you want to delete this post? This action cannot be undone.
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
-                <button type="button" onClick={() => setDeletingPostId(null)} style={{ padding: '0.55rem 1.25rem', backgroundColor: 'var(--slate-100)', color: 'var(--slate-700)', border: '1px solid var(--slate-300)', borderRadius: '0.375rem', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer' }}>
+                <button type="button" onClick={() => setDeletingPost(null)} style={{ padding: '0.55rem 1.25rem', backgroundColor: 'var(--slate-100)', color: 'var(--slate-700)', border: '1px solid var(--slate-300)', borderRadius: '0.375rem', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer' }}>
                   Cancel
                 </button>
                 <button type="button" onClick={handleDeletePost} style={{ padding: '0.55rem 1.25rem', backgroundColor: 'var(--rose-600)', color: '#ffffff', border: 'none', borderRadius: '0.375rem', fontWeight: 700, fontSize: '0.8125rem', cursor: 'pointer' }}>

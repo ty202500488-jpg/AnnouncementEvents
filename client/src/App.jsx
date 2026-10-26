@@ -34,13 +34,10 @@ import StaffQRCheckIn from './pages/Staff/StaffQrCheckIn';
 
 // Admin Imports
 import AdminDashboard from './pages/Admin/AdminDashboard.jsx';
-import AdminOverview from './pages/Admin/Overview.jsx';
-import AdminUsers from './pages/Admin/Users.jsx';
-import AdminManagePages from './pages/Admin/ManagePages.jsx';
-import AdminPageRequests from './pages/Admin/PageRequests.jsx';
-import AdminArchives from './pages/Admin/Archives.jsx';
-import AdminReports from './pages/Admin/Reports.jsx';
-import AdminSettings from './pages/Admin/Settings.jsx';
+import ContentFeed from './pages/Admin/ContentFeed.jsx';
+import UserManagement from './pages/Admin/UserManagement.jsx';
+import PageManagement from './pages/Admin/PageManagement.jsx';
+import PostApproval from './pages/Admin/PostApproval.jsx';
 
 function App() {
   return (
@@ -110,16 +107,14 @@ function App() {
         <Route path="/staff/attendance/check-in/:token" element={<StaffQRCheckIn />} />
 
         {/* Admin Routes */}
-        <Route path="/admin" element={<AdminDashboard />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<AdminOverview />} />
-          <Route path="users" element={<AdminUsers />} />
-          <Route path="page-requests" element={<AdminPageRequests />} />
-          <Route path="pages" element={<AdminManagePages />} />
-          <Route path="archives" element={<AdminArchives />} />
-          <Route path="reports" element={<AdminReports />} />
-          <Route path="settings" element={<AdminSettings />} />
-        </Route>
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/content-feed" element={<ContentFeed />} />
+        <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/pages" element={<PageManagement />} />
+        <Route path="/admin/posts" element={<PostApproval />} />
+        <Route path="/admin/post-approval" element={<PostApproval />} />
+        <Route path="/admin/*" element={<AdminDashboard />} />
 
         {/* Fallback Catch-All Route */}
         <Route path="*" element={<Navigate to="/" replace />} />

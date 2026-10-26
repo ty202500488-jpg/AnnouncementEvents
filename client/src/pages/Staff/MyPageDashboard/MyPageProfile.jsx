@@ -218,20 +218,33 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
     if (!deletingPostId) return;
     const token = localStorage.getItem('token');
 
+    const isEvent = deletingPostId.type === 'Event' || Boolean(deletingPostId.event_id || deletingPostId.event_title);
+    const targetId = isEvent
+      ? (deletingPostId.event_id || deletingPostId.id || deletingPostId.post_id)
+      : (deletingPostId.announcement_id || deletingPostId.id || deletingPostId.post_id);
+    const endpoint = isEvent
+      ? `http://localhost:5000/api/events/${targetId}`
+      : `http://localhost:5000/api/announcements/${targetId}`;
+
     try {
-      const res = await fetch(`http://localhost:5000/api/posts/${deletingPostId}`, {
+      const res = await fetch(endpoint, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (res.ok || res.status === 404) {
-        setPosts(prev => prev.filter(p => (p.id || p.post_id) !== deletingPostId));
+      if (res.ok) {
+        setPosts(prev => prev.filter(p => {
+          const pIsEvent = p.type === 'Event' || Boolean(p.event_id || p.event_title);
+          const pTargetId = pIsEvent ? (p.event_id || p.id || p.post_id) : (p.announcement_id || p.id || p.post_id);
+          return !(pIsEvent === isEvent && String(pTargetId) === String(targetId));
+        }));
       } else {
-        setPosts(prev => prev.filter(p => (p.id || p.post_id) !== deletingPostId));
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || 'Failed to delete post from database.');
       }
     } catch (err) {
       console.error('Error deleting post:', err);
-      setPosts(prev => prev.filter(p => (p.id || p.post_id) !== deletingPostId));
+      alert('Network error while deleting post.');
     } finally {
       setDeletingPostId(null);
       setActiveMenuId(null);
@@ -356,7 +369,9 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
 
           {posts.length > 0 ? (
             posts.map((post, idx) => {
-              const pId = post.id || post.post_id || idx;
+              const isEvent = post.type === 'Event' || Boolean(post.event_id || post.event_title);
+              const rawId = isEvent ? (post.event_id || post.id || post.post_id) : (post.announcement_id || post.id || post.post_id);
+              const pId = `${isEvent ? 'Event' : 'Announcement'}-${rawId ?? idx}`;
               const formattedDate = post.date || post.created_at || post.event_date || 'Just now';
               const isMenuOpen = activeMenuId === pId;
 
@@ -370,8 +385,8 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
                         {pageData?.name || 'Page Admin'}
                       </h4>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span style={{ fontSize: '0.675rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '0.25rem', backgroundColor: post.type === 'Event' ? '#fef3c7' : '#fff1f2', color: post.type === 'Event' ? '#b45309' : '#e11d48' }}>
-                          {post.type || 'Announcement'}
+                        <span style={{ fontSize: '0.675rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '0.25rem', backgroundColor: isEvent ? '#fef3c7' : '#fff1f2', color: isEvent ? '#b45309' : '#e11d48' }}>
+                          {isEvent ? 'Event' : 'Announcement'}
                         </span>
                         <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>•</span>
                         <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{formattedDate}</span>
@@ -437,7 +452,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
                           </button>
                           <button
                             type="button"
-                            onClick={() => { setDeletingPostId(pId); setActiveMenuId(null); }}
+                            onClick={() => { setDeletingPostId(post); setActiveMenuId(null); }}
                             style={{
                               width: '100%',
                               padding: '0.5rem 1rem',

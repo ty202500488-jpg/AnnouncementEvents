@@ -370,3 +370,23 @@ CREATE TABLE IF NOT EXISTS event_attendance_audit_logs (
 CREATE INDEX IF NOT EXISTS idx_attendance_records_event ON event_attendance_records(event_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_qr_event ON event_attendance_qr_tokens(event_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_audit_record ON event_attendance_audit_logs(record_id);
+
+CREATE TABLE IF NOT EXISTS system_settings (
+  key VARCHAR(100) PRIMARY KEY,
+  value TEXT NOT NULL,
+  category VARCHAR(50) NOT NULL,
+  description TEXT,
+  updated_by INT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO system_settings (key, value, category, description) VALUES
+('system_display_name', 'WMSU Campus Announcements & Events System', 'general', 'Public university header title'),
+('default_time_zone', 'Asia/Manila', 'general', 'Primary administrative timezone'),
+('allow_student_registration', 'true', 'registration', 'Global student registration toggle'),
+('require_manual_verification', 'true', 'registration', 'Mandatory COR and Student ID administrative review'),
+('staff_scheduling_enabled', 'true', 'policies', 'Allows staff to schedule future publications'),
+('max_upload_size_mb', '10', 'policies', 'Maximum allowed poster/attachment size in MB'),
+('maintenance_mode_enabled', 'false', 'maintenance', 'Locks non-administrator public access'),
+('maintenance_message', 'System is undergoing scheduled administrative maintenance. Please check back shortly.', 'maintenance', 'Public notification banner text')
+ON CONFLICT (key) DO NOTHING;

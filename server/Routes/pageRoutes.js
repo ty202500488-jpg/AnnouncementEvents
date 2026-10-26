@@ -194,7 +194,7 @@ router.get('/mypage/posts', async (req, res) => {
         const { pageId } = req.query;
 
         let annQuery = `
-            SELECT a.*, a.announcement_id AS id, a.content AS description, a.category_id,
+            SELECT a.*, a.announcement_id AS id, a.content AS description, a.category_id, 'Announcement' AS type,
                    COALESCE(c.category_name, 'General') AS category_name,
                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS page_name,
                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS department_name,
@@ -205,7 +205,7 @@ router.get('/mypage/posts', async (req, res) => {
             LEFT JOIN organizations o ON p.organization_id = o.organization_id
             LEFT JOIN announcement_categories c ON a.category_id = c.category_id`;
         let evQuery = `
-            SELECT e.*, e.event_id AS id, e.event_title AS title, e.event_description AS description, e.event_date AS date,
+            SELECT e.*, e.event_id AS id, e.event_title AS title, e.event_description AS description, e.event_date AS date, 'Event' AS type,
                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
@@ -398,7 +398,7 @@ router.put('/announcements/:id', async (req, res) => {
             `SELECT a.announcement_id FROM announcements a
              WHERE a.announcement_id = $1
                AND (
-                   a.creator_user_id = $2
+                   a.creator_user_id = $2 OR EXISTS (SELECT 1 FROM pages p WHERE p.page_id = a.page_id AND p.created_by = $2)
                    OR EXISTS (
                        SELECT 1 FROM page_staff ps
                        WHERE ps.page_id = a.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
@@ -447,7 +447,7 @@ router.put('/events/:id', async (req, res) => {
             `SELECT e.event_id FROM events e
              WHERE e.event_id = $1
                AND (
-                   e.creator_user_id = $2
+                   e.creator_user_id = $2 OR EXISTS (SELECT 1 FROM pages p WHERE p.page_id = e.page_id AND p.created_by = $2)
                    OR EXISTS (
                        SELECT 1 FROM page_staff ps
                        WHERE ps.page_id = e.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
@@ -493,7 +493,7 @@ router.delete('/announcements/:id', async (req, res) => {
             `SELECT a.announcement_id FROM announcements a
              WHERE a.announcement_id = $1
                AND (
-                   a.creator_user_id = $2
+                   a.creator_user_id = $2 OR EXISTS (SELECT 1 FROM pages p WHERE p.page_id = a.page_id AND p.created_by = $2)
                    OR EXISTS (
                        SELECT 1 FROM page_staff ps
                        WHERE ps.page_id = a.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
@@ -525,7 +525,7 @@ router.delete('/events/:id', async (req, res) => {
             `SELECT e.event_id FROM events e
              WHERE e.event_id = $1
                AND (
-                   e.creator_user_id = $2
+                   e.creator_user_id = $2 OR EXISTS (SELECT 1 FROM pages p WHERE p.page_id = e.page_id AND p.created_by = $2)
                    OR EXISTS (
                        SELECT 1 FROM page_staff ps
                        WHERE ps.page_id = e.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
