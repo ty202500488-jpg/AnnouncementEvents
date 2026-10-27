@@ -297,10 +297,23 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
     >
       <style>{hideScrollbarStyle}</style>
 
-      <main className="lg-col-6 no-scrollbar" style={{ paddingBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
+      <main 
+        className="lg-col-6 no-scrollbar" 
+        style={{ 
+          flex: 1, 
+          minHeight: 0, 
+          height: '100%', 
+          overflowY: 'auto', 
+          paddingBottom: '3rem', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '0.75rem', 
+          width: '100%' 
+        }}
+      >
         
         {/* Page Header Profile Card */}
-        <div style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200, #e2e8f0)', padding: '1.75rem', boxShadow: 'var(--shadow-card, 0 1px 3px 0 rgba(0,0,0,0.05))', position: 'relative' }}>
+        <div style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200, #e2e8f0)', padding: '1.75rem', boxShadow: 'var(--shadow-card, 0 1px 3px 0 rgba(0,0,0,0.05))', position: 'relative', flexShrink: 0 }}>
           
           {/* Top-Right Action Button */}
           <div style={{ position: 'absolute', top: '1.75rem', right: '1.75rem', display: 'flex', gap: '0.625rem', alignItems: 'center' }}>
@@ -353,7 +366,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
         </div>
 
         {/* Small and Visible All Posts Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0.25rem 0 0.25rem', margin: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0.25rem 0 0.25rem', margin: 0, flexShrink: 0 }}>
           <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--slate-700, #334155)', margin: 0 }}>
             All Posts
           </h3>
@@ -385,7 +398,8 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
                   border: '1px solid var(--slate-200, #e2e8f0)',
                   backgroundColor: '#ffffff',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  flexShrink: 0
                 }}
               >
                 {/* Post Header */}
@@ -508,7 +522,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
             );
           })
         ) : (
-          <div style={{ textAlign: 'center', padding: '3rem 1rem', backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200, #e2e8f0)', boxShadow: 'var(--shadow-card, 0 1px 3px 0 rgba(0,0,0,0.05))' }}>
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200, #e2e8f0)', boxShadow: 'var(--shadow-card, 0 1px 3px 0 rgba(0,0,0,0.05))', flexShrink: 0 }}>
             <i className="fa-solid fa-bullhorn" style={{ fontSize: '2rem', color: 'var(--slate-400, #94a3b8)', marginBottom: '0.75rem' }}></i>
             <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--slate-800, #1e293b)', margin: '0 0 0.25rem 0' }}>No posts published yet</h3>
             <p style={{ fontSize: '0.875rem', color: 'var(--slate-500, #64748b)', margin: '0 0 1rem 0' }}>Create your first announcement or event from your page dashboard.</p>

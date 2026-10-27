@@ -295,14 +295,11 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
   };
 
   return (
-    <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ minHeight: '100vh', paddingBottom: '4.5rem' }}>
+    <div className="staff-dashboard staff-dashboard-wrapper student-dashboard-wrapper">
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
             display: none !important;
-          }
-          .staff-dashboard-wrapper {
-            padding-bottom: 2rem !important;
           }
         }
         @media (max-width: 640px) {

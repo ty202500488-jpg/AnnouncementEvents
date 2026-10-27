@@ -247,19 +247,17 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         style={{ 
           flex: 1,
           minHeight: 0,
-          maxHeight: 'calc(100vh - 4.5rem)',
+          height: '100%',
           overflowY: 'auto', 
           display: 'flex', 
           flexDirection: 'column', 
           gap: '1.25rem', 
-          paddingBottom: '2.5rem',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none'
+          paddingBottom: '2.5rem'
         }}
       >
         
         {/* Trigger Box */}
-        <div className="card" style={{ padding: '1.25rem', width: '100%', borderRadius: '1rem', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div className="card" style={{ padding: '1.25rem', width: '100%', borderRadius: '1rem', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', flexShrink: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div 
               onClick={() => { setEditingPost(null); setIsModalOpen(true); }}
@@ -321,9 +319,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 borderRadius: '1rem',
                 maxHeight: '90vh',
                 overflowY: 'auto',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none'
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -503,7 +499,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   border: '1px solid var(--slate-200, #e2e8f0)',
                   backgroundColor: '#ffffff',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  flexShrink: 0
                 }}
               >
                 {/* 1. POST HEADER */}

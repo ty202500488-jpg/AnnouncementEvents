@@ -152,8 +152,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
     };
     document.addEventListener('mousedown', handleClickOutside);
 
-    // Cross-tab session detection is handled by useSessionGuard hook
-
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
@@ -263,14 +261,11 @@ export default function StaffDashboardLayout({ children, activePage }) {
   const isPageApproved = pageStatus.exists && (pageStatus.status === 'approved' || pageStatus.status === 'active');
 
   return (
-    <div className="staff-dashboard-wrapper student-dashboard-wrapper" style={{ minHeight: '100vh', paddingBottom: '4.5rem' }}>
+    <div className="staff-dashboard staff-dashboard-wrapper student-dashboard-wrapper">
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
             display: none !important;
-          }
-          .staff-dashboard-wrapper {
-            padding-bottom: 2rem !important;
           }
         }
         @media (max-width: 640px) {
@@ -800,7 +795,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-solid fa-house" style={{ fontSize: '1.1rem' }}></i>
-          
         </a>
 
         <a 
@@ -817,7 +811,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-solid fa-bullhorn" style={{ fontSize: '1.1rem' }}></i>
-          
         </a>
 
         <a 
@@ -834,7 +827,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
-         
         </a>
 
         <a 
@@ -851,7 +843,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-solid fa-flag" style={{ fontSize: '1.1rem' }}></i>
-          
         </a>
 
         <a 
@@ -868,7 +859,6 @@ export default function StaffDashboardLayout({ children, activePage }) {
           }}
         >
           <i className="fa-regular fa-user" style={{ fontSize: '1.1rem' }}></i>
-          
         </a>
       </nav>
     </div>

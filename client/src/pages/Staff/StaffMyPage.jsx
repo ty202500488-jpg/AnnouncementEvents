@@ -337,12 +337,24 @@ export default function StaffMyPage() {
   return (
     <StaffDashboardLayout activePage="mypage">
       <style>{hideScrollbarStyle}</style>
-      <main className="lg-col-6 no-scrollbar" style={{ paddingBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <main 
+        className="lg-col-6 no-scrollbar" 
+        style={{ 
+          flex: 1, 
+          minHeight: 0, 
+          height: '100%', 
+          overflowY: 'auto', 
+          paddingBottom: '3rem', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '0.75rem' 
+        }}
+      >
         
         {pageData ? (
           <>
             {/* Page Header Profile Card with Profile Image */}
-            <div style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200)', padding: '1.75rem', boxShadow: 'var(--shadow-card)', position: 'relative' }}>
+            <div style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200)', padding: '1.75rem', boxShadow: 'var(--shadow-card)', position: 'relative', flexShrink: 0 }}>
               
               {/* Top-Right Action Buttons */}
               <div style={{ position: 'absolute', top: '1.75rem', right: '1.75rem', display: 'flex', gap: '0.625rem', alignItems: 'center' }}>
@@ -402,7 +414,7 @@ export default function StaffMyPage() {
             </div>
 
             {/* Small and Visible All Posts Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0.25rem 0 0.25rem', margin: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0.25rem 0 0.25rem', margin: 0, flexShrink: 0 }}>
               <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--slate-700)', margin: 0 }}>
                 All Posts
               </h3>
@@ -434,7 +446,8 @@ export default function StaffMyPage() {
                       border: '1px solid var(--slate-200, #e2e8f0)',
                       backgroundColor: '#ffffff',
                       boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      flexShrink: 0
                     }}
                   >
                     {/* Post Header */}
@@ -557,7 +570,7 @@ export default function StaffMyPage() {
                 );
               })
             ) : (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200)', boxShadow: 'var(--shadow-card)' }}>
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200)', boxShadow: 'var(--shadow-card)', flexShrink: 0 }}>
                 <i className="fa-solid fa-bullhorn" style={{ fontSize: '2rem', color: 'var(--slate-400)', marginBottom: '0.75rem' }}></i>
                 <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--slate-800)', margin: '0 0 0.25rem 0' }}>No posts published yet</h3>
                 <p style={{ fontSize: '0.875rem', color: 'var(--slate-500)', margin: '0 0 1rem 0' }}>Create your first announcement or event from your page dashboard.</p>
@@ -572,7 +585,7 @@ export default function StaffMyPage() {
           </>
         ) : (
           /* Create Page Form View */
-          <div className="my-page-container">
+          <div className="my-page-container" style={{ flexShrink: 0 }}>
             <div className="creator-wrapper-single">
               <div className="creator-sidebar" style={{ maxWidth: '700px', margin: '0 auto', width: '100%' }}>
                 <h2 className="creator-title">Create Page</h2>

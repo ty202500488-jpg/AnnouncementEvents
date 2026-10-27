@@ -235,14 +235,11 @@ export default function DashboardLayout({ children, activePage }) {
   };
 
   return (
-    <div className="student-dashboard-wrapper" style={{ minHeight: '100vh', paddingBottom: '4.5rem', overflowX: 'hidden' }}>
+    <div className="student-dashboard-wrapper">
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
             display: none !important;
-          }
-          .student-dashboard-wrapper {
-            padding-bottom: 2rem !important;
           }
         }
         @media (max-width: 640px) {

@@ -59,7 +59,19 @@ export default function StudentDashboard() {
       `}</style>
 
       {/* ==================== CENTER MAIN CONTENT (DYNAMIC FEED) ==================== */}
-      <main className="lg-col-6 no-scrollbar" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem' }}>
+      <main 
+        className="lg-col-6 no-scrollbar" 
+        style={{ 
+          overflowY: 'auto', 
+          maxHeight: '100%',
+          minHeight: 0, 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '1.25rem', 
+          paddingBottom: '2rem' 
+        }}
+      >
         {loading ? (
           <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading database feeds...</p>
         ) : feed.length === 0 ? (
@@ -95,7 +107,8 @@ export default function StudentDashboard() {
                   border: '1px solid var(--slate-200, #e2e8f0)',
                   backgroundColor: '#ffffff',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  flexShrink: 0
                 }}
               >
                 {/* 1. POST HEADER */}
