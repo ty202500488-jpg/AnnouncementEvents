@@ -7,6 +7,7 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [followedDepts, setFollowedDepts] = useState({});
 
   useEffect(() => {
     const fetchDashboardContent = async () => {
@@ -35,26 +36,11 @@ export default function StudentDashboard() {
     fetchDashboardContent();
   }, []);
 
-  const handleRegister = async (eventId) => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      const parsedUser = storedUser ? JSON.parse(storedUser) : {};
-      const studentId = parsedUser.id || parsedUser.student_id;
-
-      const response = await fetch(`http://localhost:5000/users/events/${eventId}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: studentId })
-      });
-      
-      if (response.ok) {
-        setFeed(prev =>
-          prev.map(item => item._type === 'Event' && item.id === eventId ? { ...item, is_registered: true } : item)
-        );
-      }
-    } catch (err) {
-      console.error('Failed to register for event', err);
-    }
+  const toggleFollow = (deptKey) => {
+    setFollowedDepts(prev => ({
+      ...prev,
+      [deptKey]: !prev[deptKey]
+    }));
   };
 
   return (
@@ -83,176 +69,209 @@ export default function StudentDashboard() {
         ) : (
           feed.map((item, index) => {
             const isEvent = item._type === 'Event';
-
-            if (isEvent) {
-              return (
-                <article 
-                  key={item.id || index} 
-                  className="card card-interactive" 
-                  style={{ 
-                    padding: '1.5rem', 
-                    borderRadius: '1.25rem',
-                    border: '1px solid var(--slate-200, #e2e8f0)',
-                    backgroundColor: '#ffffff',
-                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                    transition: 'transform 0.15s ease, box-shadow 0.15s ease'
-                  }}
-                >
-                  {/* Header: Icon + Title & Location/Date Meta */}
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
-                    <div 
-                      style={{ 
-                        width: '3.25rem', 
-                        height: '3.25rem', 
-                        borderRadius: '0.875rem', 
-                        backgroundColor: '#fdf0f3', 
-                        color: '#8c1030', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        flexShrink: 0 
-                      }}
-                    >
-                      <i className="fa-regular fa-calendar" style={{ fontSize: '1.35rem' }}></i>
-                    </div>
-
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.3, margin: 0 }}>
-                        {item.title}
-                      </h4>
-                      
-                      <div style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i>
-                          <span>{item.location || 'University Campus'}</span>
-                        </span>
-                        <span>•</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i>
-                          <span>{item.event_date || item.date ? new Date(item.event_date || item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBA'}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Body Content */}
-                  <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '1.25rem', marginBottom: '1.5rem', lineHeight: 1.6 }}>
-                    {item.content || item.description}
-                  </p>
-
-                  {/* Footer: Organized by + Action Buttons */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '1rem', borderTop: '1px solid #e6ebf0', gap: '1rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.875rem', color: '#64748b', fontWeight: 500 }}>
-                      Organized by <strong style={{ color: '#16162b' }}>{item.department_name || item.page_name || 'University Office'}</strong>
-                    </span>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      {item.is_registered && (
-                        <button
-                          onClick={() => {
-                            const token = prompt("Scan or enter event QR token:");
-                            if (token) {
-                              const clean = token.trim().split('/').pop();
-                              navigate(`/student/attendance/check-in/${clean}`);
-                            }
-                          }}
-                          style={{ 
-                            backgroundColor: '#ffffff', 
-                            color: '#475569', 
-                            border: '1px solid #e6ebf0', 
-                            padding: '0.55rem 1.125rem', 
-                            borderRadius: '0.625rem', 
-                            fontSize: '0.875rem', 
-                            fontWeight: 600, 
-                            cursor: 'pointer', 
-                            display: 'inline-flex', 
-                            alignItems: 'center', 
-                            gap: '0.5rem'
-                          }}
-                        >
-                          <i className="fa-solid fa-qrcode"></i> Scan Attendance
-                        </button>
-                      )}
-
-                      <button 
-                        onClick={() => !item.is_registered && handleRegister(item.id)}
-                        disabled={item.is_registered}
-                        style={{
-                          padding: '0.55rem 1.25rem',
-                          borderRadius: '0.625rem',
-                          fontSize: '0.875rem',
-                          fontWeight: 600,
-                          cursor: item.is_registered ? 'default' : 'pointer',
-                          backgroundColor: item.is_registered ? '#e6f7ef' : '#8c1030',
-                          color: item.is_registered ? '#0f8a5f' : '#ffffff',
-                          border: `1px solid ${item.is_registered ? '#a7e3c8' : 'transparent'}`,
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {item.is_registered ? 'Registered ✓' : 'Register Now'}
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            }
-
-            // Standard Announcement Layout (Matching design with Profile Avatar)
             const deptName = item.department_name || item.page_name || 'University Notice';
             const avatarText = item.code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+            
+            // Unique identifier for follow state per department/page
+            const deptKey = item.department_id || item.page_id || deptName;
+            const isFollowed = !!followedDepts[deptKey];
+            
+            // Format Timestamp / Date
+            const postDate = item.created_at || item.date ? new Date(item.created_at || item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+            const postImage = item.image_url || item.image || null;
+
+            // Event-specific details
+            const currentRegistered = item.registered_count ?? item.current_registered ?? 0;
+            const maxCapacity = item.max_capacity || item.capacity || 'Unlimited';
+            const locationText = item.location || 'University Campus';
 
             return (
               <article 
                 key={item.id || index} 
                 className="card card-interactive" 
                 style={{ 
-                  padding: '1.5rem', 
+                  padding: '1rem 0', 
                   borderRadius: '1.25rem',
                   border: '1px solid var(--slate-200, #e2e8f0)',
                   backgroundColor: '#ffffff',
-                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)'
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                  overflow: 'hidden'
                 }}
               >
-                {/* Header: Department Avatar + Name & Creation Date */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', marginBottom: '1.25rem' }}>
-                  <div 
-                    style={{ 
-                      width: '3.25rem', 
-                      height: '3.25rem', 
-                      borderRadius: '50%', 
-                      backgroundColor: '#fbe4e8', 
-                      color: '#8c1030', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      fontWeight: 800, 
-                      fontSize: '0.875rem',
-                      flexShrink: 0
-                    }}
-                  >
-                    {avatarText}
-                  </div>
+                {/* 1. POST HEADER */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem 0.875rem 1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                    <div 
+                      style={{ 
+                        width: '2.5rem', 
+                        height: '2.5rem', 
+                        borderRadius: '50%', 
+                        backgroundColor: '#fbe4e8', 
+                        color: '#8c1030', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        fontWeight: 800, 
+                        fontSize: '0.8rem',
+                        flexShrink: 0
+                      }}
+                    >
+                      {avatarText}
+                    </div>
 
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '1.0625rem', margin: 0, lineHeight: 1.3 }}>
-                      {deptName}
-                    </h4>
-                    <div style={{ fontSize: '0.875rem', color: '#8a97a6', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <i className="fa-regular fa-clock" style={{ fontSize: '0.8125rem', color: '#94a3b8' }}></i>
-                      <span>{item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}</span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {deptName}
+                      </h4>
+                      <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                        {isEvent ? (
+                          <>
+                            <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
+                            <span>•</span>
+                            <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
+                            <span>•</span>
+                            <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                    {!isFollowed && (
+                      <button 
+                        onClick={() => toggleFollow(deptKey)}
+                        style={{
+                          backgroundColor: '#8c1030',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '0.5rem',
+                          padding: '0.4rem 1rem',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'opacity 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => e.target.style.opacity = '0.9'}
+                        onMouseLeave={(e) => e.target.style.opacity = '1'}
+                      >
+                        Follow
+                      </button>
+                    )}
+
+                    {isFollowed && (
+                      <button 
+                        onClick={() => toggleFollow(deptKey)}
+                        style={{
+                          backgroundColor: '#f1f5f9',
+                          color: '#475569',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '0.5rem',
+                          padding: '0.4rem 1rem',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        title="Click to unfollow"
+                      >
+                        Following ✓
+                      </button>
+                    )}
+
+                    <button 
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#16162b',
+                        cursor: 'pointer',
+                        padding: '0.25rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="More options"
+                    >
+                      <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Body Content */}
-                <div>
-                  <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
-                    {item.title}
-                  </h3>
-                  <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '0.75rem', lineHeight: 1.6, margin: '0.75rem 0 0 0' }}>
-                    {item.content || item.description}
-                  </p>
-                </div>
+                {/* 2. POST MEDIA / CONTENT CONTAINER */}
+                {postImage ? (
+                  <div style={{ 
+                    backgroundColor: '#0f172a', 
+                    width: '100%',
+                    maxHeight: '450px',
+                    overflow: 'hidden',
+                    display: 'flex', 
+                    justifyContent: 'center', 
+                    alignItems: 'center',
+                    position: 'relative'
+                  }}>
+                    <img 
+                      src={postImage} 
+                      alt={item.title} 
+                      style={{ width: '100%', height: 'auto', objectFit: 'cover' }} 
+                    />
+                  </div>
+                ) : (
+                  <div style={{ padding: '0.5rem 1rem 1rem 1rem' }}>
+                    <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
+                      {item.title}
+                    </h3>
+                    <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '0.75rem', lineHeight: 1.6, margin: '0.75rem 0 0 0' }}>
+                      {item.content || item.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Caption / Title for Image Posts */}
+                {postImage && (
+                  <div style={{ padding: '0.875rem 1rem 0.5rem 1rem' }}>
+                    <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
+                      {item.title}
+                    </h3>
+                    <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: 1.5, margin: '0.4rem 0 0 0' }}>
+                      {item.content || item.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* 3. OPTIONAL ATTENDANCE SCAN BAR FOR REGISTERED EVENTS */}
+                {isEvent && item.is_registered && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0.75rem 1rem 0.25rem 1rem', paddingTop: '0.75rem', borderTop: '1px solid #e6ebf0' }}>
+                    <button
+                      onClick={() => {
+                        const token = prompt("Scan or enter event QR token:");
+                        if (token) {
+                          const clean = token.trim().split('/').pop();
+                          navigate(`/student/attendance/check-in/${clean}`);
+                        }
+                      }}
+                      style={{ 
+                        backgroundColor: '#ffffff', 
+                        color: '#475569', 
+                        border: '1px solid #e2e8f0', 
+                        padding: '0.4rem 0.875rem', 
+                        borderRadius: '0.5rem', 
+                        fontSize: '0.8125rem', 
+                        fontWeight: 600, 
+                        cursor: 'pointer', 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        gap: '0.4rem'
+                      }}
+                    >
+                      <i className="fa-solid fa-qrcode"></i> Scan Attendance
+                    </button>
+                  </div>
+                )}
               </article>
             );
           })

@@ -144,7 +144,7 @@ export default function MyPageNotifications() {
           }
         `}</style>
 
-        {/* Compact Header */}
+        {/* Header */}
         <div 
           className="flex items-center justify-between" 
           style={{ 
@@ -167,8 +167,8 @@ export default function MyPageNotifications() {
                 onClick={handleMarkAllAsRead}
                 style={{
                   background: 'transparent',
-                  border: '1px solid var(--brand-200, #bfdbfe)',
-                  color: 'var(--brand-600, #2563eb)',
+                  border: '1px solid #8c1030',
+                  color: '#8c1030',
                   padding: '0.3rem 0.625rem',
                   borderRadius: '0.375rem',
                   fontSize: '0.75rem',
@@ -192,7 +192,7 @@ export default function MyPageNotifications() {
                     style={{
                       padding: '0.3rem 0.625rem',
                       borderRadius: '0.375rem',
-                      backgroundColor: isActive ? 'var(--brand-600, #2563eb)' : 'transparent',
+                      backgroundColor: isActive ? '#8c1030' : 'transparent',
                       color: isActive ? '#ffffff' : 'var(--slate-600)',
                       fontWeight: 600,
                       fontSize: '0.75rem',
@@ -208,8 +208,8 @@ export default function MyPageNotifications() {
                     <span>{type}</span>
                     {type === 'unread' && unreadCount > 0 && (
                       <span style={{ 
-                        backgroundColor: isActive ? '#ffffff' : 'var(--brand-600, #2563eb)', 
-                        color: isActive ? 'var(--brand-600, #2563eb)' : '#ffffff', 
+                        backgroundColor: isActive ? '#ffffff' : '#8c1030', 
+                        color: isActive ? '#8c1030' : '#ffffff', 
                         fontSize: '9px', 
                         fontWeight: 700, 
                         padding: '1px 5px', 
@@ -227,7 +227,7 @@ export default function MyPageNotifications() {
 
         {loading ? (
           <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>
-            <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--brand-600)' }}></i>
+            <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#8c1030' }}></i>
             <p style={{ fontSize: '0.875rem' }}>Loading notifications...</p>
           </div>
         ) : filteredNotifications.length === 0 ? (

@@ -6,6 +6,7 @@ export default function Announcements() {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [followedDepts, setFollowedDepts] = useState({});
 
   useEffect(() => {
     const fetchAnnouncements = async () => {
@@ -27,6 +28,13 @@ export default function Announcements() {
 
     fetchAnnouncements();
   }, []);
+
+  const toggleFollow = (deptKey) => {
+    setFollowedDepts(prev => ({
+      ...prev,
+      [deptKey]: !prev[deptKey]
+    }));
+  };
 
   const filteredAnnouncements = announcements.filter(item => {
     if (filter === 'university') return item.is_university;
@@ -74,7 +82,7 @@ export default function Announcements() {
                   style={{
                     padding: '0.3rem 0.625rem',
                     borderRadius: '0.375rem',
-                    backgroundColor: isActive ? 'var(--brand-600, #2563eb)' : 'transparent',
+                    backgroundColor: isActive ? '#8c1030' : 'transparent',
                     color: isActive ? '#ffffff' : 'var(--slate-600)',
                     fontWeight: 600,
                     fontSize: '0.75rem',
@@ -93,7 +101,7 @@ export default function Announcements() {
 
         {loading ? (
           <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>
-            <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--brand-600)' }}></i>
+            <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#8c1030' }}></i>
             <p style={{ fontSize: '0.875rem' }}>Loading announcements...</p>
           </div>
         ) : filteredAnnouncements.length === 0 ? (
@@ -103,60 +111,161 @@ export default function Announcements() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {filteredAnnouncements.map((item, index) => (
-              <article 
-                key={item.id || index} 
-                className="card card-interactive" 
-                style={{ 
-                  padding: '1.125rem', 
-                  borderRadius: '0.625rem',
-                  border: '1px solid var(--slate-200, #e2e8f0)',
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
-                }}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      style={{ 
-                        width: '2.25rem', 
-                        height: '2.25rem', 
-                        borderRadius: '50%', 
-                        backgroundColor: 'var(--brand-50, #eff6ff)', 
-                        color: 'var(--brand-600, #2563eb)', 
-                        fontWeight: 700, 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        fontSize: '0.75rem',
-                        border: '1px solid var(--brand-100, #dbeafe)'
-                      }}
-                    >
-                      {item.department_code || 'WMSU'}
+            {filteredAnnouncements.map((item, index) => {
+              const deptName = item.department_name || item.page_name || 'University Notice';
+              const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+              const deptKey = item.department_id || item.page_id || deptName;
+              const isFollowed = !!followedDepts[deptKey];
+              const postDate = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+              const postImage = item.image_url || item.image || null;
+
+              return (
+                <article 
+                  key={item.id || index} 
+                  className="card card-interactive" 
+                  style={{ 
+                    padding: '1rem 0', 
+                    borderRadius: '1.25rem',
+                    border: '1px solid var(--slate-200, #e2e8f0)',
+                    backgroundColor: '#ffffff',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Post Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem 0.875rem 1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                      <div 
+                        style={{ 
+                          width: '2.5rem', 
+                          height: '2.5rem', 
+                          borderRadius: '50%', 
+                          backgroundColor: '#fbe4e8', 
+                          color: '#8c1030', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          fontWeight: 800, 
+                          fontSize: '0.8rem',
+                          flexShrink: 0
+                        }}
+                      >
+                        {avatarText}
+                      </div>
+
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {deptName}
+                        </h4>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.875rem' }}>
-                        {item.department_name || item.page_name || 'University Notice'}
-                      </h4>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--slate-400)', marginTop: '0.125rem' }}>
-                        <i className="fa-regular fa-clock" style={{ marginRight: '0.25rem' }}></i>
-                        {item.created_at ? new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}
-                      </p>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                      {!isFollowed && (
+                        <button 
+                          onClick={() => toggleFollow(deptKey)}
+                          style={{
+                            backgroundColor: '#8c1030',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '0.5rem',
+                            padding: '0.4rem 1rem',
+                            fontSize: '0.8125rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'opacity 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => e.target.style.opacity = '0.9'}
+                          onMouseLeave={(e) => e.target.style.opacity = '1'}
+                        >
+                          Follow
+                        </button>
+                      )}
+
+                      {isFollowed && (
+                        <button 
+                          onClick={() => toggleFollow(deptKey)}
+                          style={{
+                            backgroundColor: '#f1f5f9',
+                            color: '#475569',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '0.5rem',
+                            padding: '0.4rem 1rem',
+                            fontSize: '0.8125rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          title="Click to unfollow"
+                        >
+                          Following ✓
+                        </button>
+                      )}
+
+                      <button 
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#16162b',
+                          cursor: 'pointer',
+                          padding: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="More options"
+                      >
+                        <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
+                      </button>
                     </div>
                   </div>
-                </div>
 
-                <div style={{ marginTop: '0.75rem' }}>
-                  <h5 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.9375rem', lineHeight: 1.375 }}>
-                    {item.title}
-                  </h5>
-                  <p style={{ color: 'var(--slate-600)', fontSize: '0.875rem', marginTop: '0.35rem', lineHeight: 1.5 }}>
-                    {item.content}
-                  </p>
-                </div>
-              </article>
-            ))}
+                  {/* Post Media or Clean Text Body */}
+                  {postImage ? (
+                    <div style={{ 
+                      backgroundColor: '#0f172a', 
+                      width: '100%',
+                      maxHeight: '450px',
+                      overflow: 'hidden',
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center',
+                      position: 'relative'
+                    }}>
+                      <img 
+                        src={postImage} 
+                        alt={item.title} 
+                        style={{ width: '100%', height: 'auto', objectFit: 'cover' }} 
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.5rem 1rem 1rem 1rem' }}>
+                      <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
+                        {item.title}
+                      </h3>
+                      <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '0.75rem', lineHeight: 1.6, margin: '0.75rem 0 0 0' }}>
+                        {item.content}
+                      </p>
+                    </div>
+                  )}
+
+                  {postImage && (
+                    <div style={{ padding: '0.875rem 1rem 0.5rem 1rem' }}>
+                      <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
+                        {item.title}
+                      </h3>
+                      <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: 1.5, margin: '0.4rem 0 0 0' }}>
+                        {item.content}
+                      </p>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
           </div>
         )}
       </main>

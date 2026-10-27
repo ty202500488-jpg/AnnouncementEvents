@@ -19,6 +19,7 @@ export default function StaffMyPage() {
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editBio, setEditBio] = useState('');
+  const [editProfileImage, setEditProfileImage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // Initial creation form state if page doesn't exist yet
@@ -27,6 +28,7 @@ export default function StaffMyPage() {
   const [departmentId, setDepartmentId] = useState('1'); 
   const [organizationId, setOrganizationId] = useState('1');
   const [pageBio, setPageBio] = useState('');
+  const [pageProfileImage, setPageProfileImage] = useState('');
 
   // Post Edit Modal State
   const [editingPost, setEditingPost] = useState(null);
@@ -35,7 +37,7 @@ export default function StaffMyPage() {
   const [postContent, setPostContent] = useState('');
   const [submittingPost, setSubmittingPost] = useState(false);
 
-  // Post Delete State — stores the full post object so we always have type + id
+  // Post Delete State
   const [deletingPost, setDeletingPost] = useState(null);
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export default function StaffMyPage() {
         const pName = data.pageName || data.name || '';
         const rawApprovalStatus = data.status || 'pending';
         const formattedApproval = rawApprovalStatus.charAt(0).toUpperCase() + rawApprovalStatus.slice(1).toLowerCase();
+        const imgUrl = data.profile_image || data.logo || data.image_url || '';
 
         setPageData({
           pageId: data.pageId || data.page_id,
@@ -77,12 +80,14 @@ export default function StaffMyPage() {
           category: data.category,
           description: data.description || data.page_description,
           approvalStatus: formattedApproval,
-          pageStatus: data.pageStatus || 'Active'
+          pageStatus: data.pageStatus || 'Active',
+          profileImage: imgUrl
         });
 
         setEditName(pName);
         setEditCategory(data.category || '');
         setEditBio(data.description || data.page_description || '');
+        setEditProfileImage(imgUrl);
 
         fetchPagePosts(data.pageId || data.page_id, token);
       }
@@ -100,7 +105,6 @@ export default function StaffMyPage() {
       });
       if (res.ok) {
         const postData = await res.json();
-        // Tag each item with its type so delete/edit can call the correct endpoint
         const announcements = (postData.announcements || []).map(a => ({ ...a, type: 'Announcement' }));
         const events = (postData.events || []).map(e => ({ ...e, type: 'Event' }));
         const postList = [...announcements, ...events];
@@ -130,7 +134,8 @@ export default function StaffMyPage() {
       const payload = {
         pageName, 
         pageCategory, 
-        pageDescription: pageBio
+        pageDescription: pageBio,
+        profileImage: pageProfileImage
       };
 
       if (pageCategory === 'Student Organization' || pageCategory === 'Campus Council') {
@@ -178,7 +183,8 @@ export default function StaffMyPage() {
         body: JSON.stringify({
           pageName: editName,
           category: editCategory,
-          description: editBio
+          description: editBio,
+          profileImage: editProfileImage
         })
       });
 
@@ -197,7 +203,6 @@ export default function StaffMyPage() {
     }
   };
 
-  // Open Edit Post Modal
   const handleOpenEditPost = (post) => {
     setEditingPost(post);
     setPostTitle(post.title || '');
@@ -206,7 +211,6 @@ export default function StaffMyPage() {
     setActiveMenuId(null);
   };
 
-  // Save Post Edit
   const handleSavePostEdit = async (e) => {
     e.preventDefault();
     if (!editingPost) return;
@@ -240,7 +244,6 @@ export default function StaffMyPage() {
       });
 
       if (res.ok) {
-        // Only update local state on server success
         setPosts(prev => prev.map(p => {
           const pId = isEvent ? (p.event_id || p.id) : (p.announcement_id || p.id);
           return pId === targetId ? { ...p, title: postTitle, content: postContent, description: postContent } : p;
@@ -258,7 +261,6 @@ export default function StaffMyPage() {
     }
   };
 
-  // Delete Post Handler
   const handleDeletePost = async () => {
     if (!deletingPost) return;
     const token = localStorage.getItem('token');
@@ -271,8 +273,6 @@ export default function StaffMyPage() {
       ? `http://localhost:5000/api/events/${deleteId}`
       : `http://localhost:5000/api/announcements/${deleteId}`;
 
-    console.log('[Delete] Calling:', deleteEndpoint);
-
     try {
       const res = await fetch(deleteEndpoint, {
         method: 'DELETE',
@@ -280,7 +280,6 @@ export default function StaffMyPage() {
       });
 
       if (res.ok) {
-        // Remove from UI only after backend confirms deletion
         setPosts(prev => prev.filter(p => p !== deletingPost));
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -295,54 +294,28 @@ export default function StaffMyPage() {
     }
   };
 
-  // Helper for status badge styling
   const getApprovalBadgeStyle = (status) => {
     switch (status) {
       case 'Approved':
-        return {
-          backgroundColor: 'var(--emerald-50)',
-          color: 'var(--emerald-700)',
-          borderColor: 'var(--emerald-100)'
-        };
+        return { backgroundColor: 'var(--emerald-50)', color: 'var(--emerald-700)', borderColor: 'var(--emerald-100)' };
       case 'Rejected':
-        return {
-          backgroundColor: 'var(--rose-50)',
-          color: 'var(--rose-600)',
-          borderColor: 'var(--rose-100)'
-        };
+        return { backgroundColor: 'var(--rose-50)', color: 'var(--rose-600)', borderColor: 'var(--rose-100)' };
       case 'Pending':
       default:
-        return {
-          backgroundColor: 'var(--amber-100)',
-          color: 'var(--amber-800)',
-          borderColor: '#fde68a'
-        };
+        return { backgroundColor: 'var(--amber-100)', color: 'var(--amber-800)', borderColor: '#fde68a' };
     }
   };
 
   const getPageStatusBadgeStyle = (status) => {
     if (status === 'Active') {
-      return {
-        backgroundColor: 'var(--emerald-50)',
-        color: 'var(--emerald-700)',
-        borderColor: 'var(--emerald-100)'
-      };
+      return { backgroundColor: 'var(--emerald-50)', color: 'var(--emerald-700)', borderColor: 'var(--emerald-100)' };
     }
-    return {
-      backgroundColor: 'var(--slate-100)',
-      color: 'var(--slate-600)',
-      borderColor: 'var(--slate-300)'
-    };
+    return { backgroundColor: 'var(--slate-100)', color: 'var(--slate-600)', borderColor: 'var(--slate-300)' };
   };
 
   const hideScrollbarStyle = `
-    .no-scrollbar::-webkit-scrollbar {
-      display: none;
-    }
-    .no-scrollbar {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   `;
 
   if (loading) {
@@ -359,14 +332,16 @@ export default function StaffMyPage() {
     );
   }
 
+  const avatarFallback = pageData?.name ? pageData.name.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase() : 'WMSU';
+
   return (
     <StaffDashboardLayout activePage="mypage">
       <style>{hideScrollbarStyle}</style>
-      <main className="lg-col-6 space-y-6 no-scrollbar" style={{ paddingBottom: '3rem' }}>
+      <main className="lg-col-6 no-scrollbar" style={{ paddingBottom: '3rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         
         {pageData ? (
           <>
-            {/* Page Header Profile Card */}
+            {/* Page Header Profile Card with Profile Image */}
             <div style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200)', padding: '1.75rem', boxShadow: 'var(--shadow-card)', position: 'relative' }}>
               
               {/* Top-Right Action Buttons */}
@@ -386,188 +361,214 @@ export default function StaffMyPage() {
                 </button>
               </div>
 
-              {/* Left Content Area with right padding to avoid overlapping buttons */}
-              <div style={{ paddingRight: '280px' }}>
-                {/* Row 1: Page Name */}
-                <h1 style={{ fontSize: '1.625rem', fontWeight: 800, color: 'var(--slate-900)', margin: '0 0 0.25rem 0', lineHeight: 1.2 }}>
-                  {pageData.name}
-                </h1>
+              {/* Header Content with Profile Image & Text alignment */}
+              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start', paddingRight: '220px', flexWrap: 'wrap' }}>
+                
+                {/* Profile Image Avatar */}
+                <div style={{ width: '4.5rem', height: '4.5rem', borderRadius: '50%', backgroundColor: '#fbe4e8', color: '#8c1030', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.125rem', flexShrink: 0, overflow: 'hidden', border: '2px solid var(--slate-200)' }}>
+                  {pageData.profileImage ? (
+                    <img src={pageData.profileImage} alt={pageData.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    avatarFallback
+                  )}
+                </div>
 
-                {/* Row 2: Category */}
-                <p style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--color-accent)', margin: '0 0 0.875rem 0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {pageData.category}
-                </p>
+                {/* Text Info */}
+                <div style={{ flex: 1, minWidth: '180px' }}>
+                  <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--slate-900)', margin: '0 0 0.25rem 0', lineHeight: 1.2 }}>
+                    {pageData.name}
+                  </h1>
 
-                {/* Row 3: Description / Bio */}
-                <p style={{ fontSize: '0.9375rem', color: 'var(--slate-600)', lineHeight: 1.6, margin: '0 0 1.25rem 0' }}>
-                  {pageData.description || 'No description provided.'}
-                </p>
+                  <p style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--color-accent)', margin: '0 0 0.75rem 0', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    {pageData.category}
+                  </p>
 
-                {/* Row 4: Badges at the very bottom */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
-                  <span style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    padding: '0.2rem 0.625rem',
-                    borderRadius: '9999px',
-                    border: '1px solid',
-                    ...getApprovalBadgeStyle(pageData.approvalStatus)
-                  }}>
-                    <i className="fa-solid fa-circle-check" style={{ fontSize: '0.7rem', marginRight: '0.3rem' }}></i>
-                    {pageData.approvalStatus}
-                  </span>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--slate-600)', lineHeight: 1.6, margin: '0 0 1rem 0' }}>
+                    {pageData.description || 'No description provided.'}
+                  </p>
 
-                  <span style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    padding: '0.2rem 0.625rem',
-                    borderRadius: '9999px',
-                    border: '1px solid',
-                    ...getPageStatusBadgeStyle(pageData.pageStatus)
-                  }}>
-                    {pageData.pageStatus}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.625rem', borderRadius: '9999px', border: '1px solid', ...getApprovalBadgeStyle(pageData.approvalStatus) }}>
+                      <i className="fa-solid fa-circle-check" style={{ fontSize: '0.7rem', marginRight: '0.3rem' }}></i>
+                      {pageData.approvalStatus}
+                    </span>
+
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0.625rem', borderRadius: '9999px', border: '1px solid', ...getPageStatusBadgeStyle(pageData.pageStatus) }}>
+                      {pageData.pageStatus}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Latest Posts Section with Facebook-style 3-Dots Menu */}
-            <div style={{ backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200)', padding: '1.75rem', boxShadow: 'var(--shadow-card)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--slate-100)' }}>
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--slate-900)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  Published Posts <span style={{ fontSize: '0.75rem', fontWeight: 700, backgroundColor: 'var(--slate-100)', color: 'var(--slate-600)', padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>{posts.length}</span>
-                </h2>
-              </div>
+            {/* Small and Visible All Posts Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.25rem 0.25rem 0 0.25rem', margin: 0 }}>
+              <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--slate-700)', margin: 0 }}>
+                All Posts
+              </h3>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--slate-500)', backgroundColor: 'var(--slate-100)', padding: '0.1rem 0.5rem', borderRadius: '9999px', border: '1px solid var(--slate-200)' }}>
+                {posts.length} {posts.length === 1 ? 'Post' : 'Posts'}
+              </span>
+            </div>
 
-              {posts.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {posts.map((post, idx) => {
-                    const pId = post.id || post.post_id || idx;
-                    const formattedDate = post.date || post.created_at || post.eventDate || 'Recent';
-                    const isMenuOpen = activeMenuId === pId;
+            {/* Published Posts Feed Cards (Consistent with Feed UI) */}
+            {posts.length > 0 ? (
+              posts.map((post, idx) => {
+                const pId = post.id || post.post_id || idx;
+                const formattedDate = post.date || post.created_at || post.eventDate ? new Date(post.date || post.created_at || post.eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+                const isMenuOpen = activeMenuId === pId;
+                const isEvent = post.type === 'Event';
+                const postImage = post.image_url || post.image || null;
 
-                    return (
-                      <div key={pId} style={{ padding: '1.25rem', backgroundColor: 'var(--slate-50)', borderRadius: '0.75rem', border: '1px solid var(--slate-200)', position: 'relative' }}>
-                        
-                        {/* Header & 3-Dots Menu */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                          <div style={{ display: 'flex', gap: '0.875rem', alignItems: 'center' }}>
-                            <div style={{ width: '38px', height: '38px', borderRadius: '0.5rem', backgroundColor: post.type === 'Event' ? '#e0f2fe' : 'var(--rose-50)', color: post.type === 'Event' ? '#0369a1' : 'var(--color-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>
-                              <i className={post.type === 'Event' ? 'fa-solid fa-calendar-days' : 'fa-solid fa-bullhorn'}></i>
-                            </div>
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '0.25rem', backgroundColor: post.type === 'Event' ? '#e0f2fe' : 'var(--rose-50)', color: post.type === 'Event' ? '#0369a1' : 'var(--color-accent)' }}>
-                                  {post.type || 'Announcement'}
-                                </span>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>• {formattedDate}</span>
-                              </div>
-                            </div>
-                          </div>
+                const currentRegistered = post.registered_count ?? post.current_registered ?? 0;
+                const maxCapacity = post.max_capacity || post.capacity || 'Unlimited';
+                const locationText = post.location || 'University Campus';
 
-                          {/* Vertical 3 Dots Menu Button */}
-                          <div style={{ position: 'relative' }} ref={isMenuOpen ? menuRef : null}>
-                            <button 
-                              type="button" 
-                              onClick={() => setActiveMenuId(isMenuOpen ? null : pId)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--slate-500)',
-                                fontSize: '1.125rem',
-                                padding: '0.35rem 0.65rem',
-                                borderRadius: '0.375rem',
-                                cursor: 'pointer',
-                                transition: 'background 0.15s ease'
-                              }}
-                            >
-                              <i className="fa-solid fa-ellipsis-vertical"></i>
-                            </button>
+                return (
+                  <article 
+                    key={pId} 
+                    className="card card-interactive" 
+                    style={{ 
+                      padding: '1rem 0', 
+                      borderRadius: '1.25rem',
+                      border: '1px solid var(--slate-200, #e2e8f0)',
+                      backgroundColor: '#ffffff',
+                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* Post Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem 0.875rem 1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                        <div 
+                          style={{ 
+                            width: '2.5rem', 
+                            height: '2.5rem', 
+                            borderRadius: '50%', 
+                            backgroundColor: '#fbe4e8', 
+                            color: '#8c1030', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            fontWeight: 800, 
+                            fontSize: '0.8rem',
+                            flexShrink: 0,
+                            overflow: 'hidden'
+                          }}
+                        >
+                          {pageData.profileImage ? (
+                            <img src={pageData.profileImage} alt={pageData.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            avatarFallback
+                          )}
+                        </div>
 
-                            {/* Dropdown Options */}
-                            {isMenuOpen && (
-                              <div 
-                                style={{
-                                  position: 'absolute',
-                                  right: 0,
-                                  top: '100%',
-                                  marginTop: '0.25rem',
-                                  backgroundColor: '#ffffff',
-                                  borderRadius: '0.5rem',
-                                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-                                  border: '1px solid var(--slate-200)',
-                                  minWidth: '130px',
-                                  zIndex: 50,
-                                  overflow: 'hidden',
-                                  padding: '0.35rem 0'
-                                }}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenEditPost(post)}
-                                  style={{
-                                    width: '100%',
-                                    padding: '0.5rem 1rem',
-                                    textAlign: 'left',
-                                    background: 'none',
-                                    border: 'none',
-                                    fontSize: '0.8125rem',
-                                    fontWeight: 600,
-                                    color: 'var(--slate-700)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem'
-                                  }}
-                                >
-                                  <i className="fa-solid fa-pen-to-square" style={{ color: 'var(--color-accent)', fontSize: '0.85rem' }}></i> Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { setDeletingPost(post); setActiveMenuId(null); }}
-                                  style={{
-                                    width: '100%',
-                                    padding: '0.5rem 1rem',
-                                    textAlign: 'left',
-                                    background: 'none',
-                                    border: 'none',
-                                    fontSize: '0.8125rem',
-                                    fontWeight: 600,
-                                    color: 'var(--rose-600)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem'
-                                  }}
-                                >
-                                  <i className="fa-solid fa-trash-can" style={{ fontSize: '0.85rem' }}></i> Delete
-                                </button>
-                              </div>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {pageData.name}
+                          </h4>
+                          <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            {isEvent ? (
+                              <>
+                                <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
+                                <span>•</span>
+                                <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
+                                <span>•</span>
+                                <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {formattedDate}</span>
+                              </>
+                            ) : (
+                              <>
+                                <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.type || 'Announcement'} • {formattedDate}</span>
+                              </>
                             )}
                           </div>
                         </div>
-
-                        {/* Content */}
-                        <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--slate-900)', margin: '0 0 0.35rem 0' }}>{post.title}</h3>
-                        <p style={{ fontSize: '0.875rem', color: 'var(--slate-600)', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{post.description || post.content || 'No preview available.'}</p>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '3rem 1rem', backgroundColor: 'var(--slate-50)', borderRadius: '0.75rem', border: '1px dashed var(--slate-300)' }}>
-                  <i className="fa-solid fa-bullhorn" style={{ fontSize: '2rem', color: 'var(--slate-400)', marginBottom: '0.75rem' }}></i>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--slate-800)', margin: '0 0 0.25rem 0' }}>No posts published yet</h3>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--slate-500)', margin: '0 0 1rem 0' }}>Create your first announcement or event from your page dashboard.</p>
-                  <button
-                    onClick={() => navigate('/staff/mypage/dashboard')}
-                    style={{ background: 'var(--nav-gradient)', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', borderRadius: '0.375rem', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Go to Page Dashboard
-                  </button>
-                </div>
-              )}
-            </div>
+
+                      {/* 3-Dots Dropdown Menu */}
+                      <div style={{ position: 'relative', flexShrink: 0 }} ref={isMenuOpen ? menuRef : null}>
+                        <button 
+                          type="button" 
+                          onClick={() => setActiveMenuId(isMenuOpen ? null : pId)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#16162b',
+                            cursor: 'pointer',
+                            padding: '0.25rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                          }}
+                          title="More options"
+                        >
+                          <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
+                        </button>
+
+                        {isMenuOpen && (
+                          <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '0.25rem', backgroundColor: '#ffffff', borderRadius: '0.5rem', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', border: '1px solid var(--slate-200)', minWidth: '130px', zIndex: 50, padding: '0.35rem 0' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPost(post)}
+                              style={{ width: '100%', padding: '0.5rem 1rem', textAlign: 'left', background: 'none', border: 'none', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-700)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                            >
+                              <i className="fa-solid fa-pen-to-square" style={{ color: 'var(--color-accent)' }}></i> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setDeletingPost(post); setActiveMenuId(null); }}
+                              style={{ width: '100%', padding: '0.5rem 1rem', textAlign: 'left', background: 'none', border: 'none', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--rose-600)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                            >
+                              <i className="fa-solid fa-trash-can"></i> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Post Media or Clean Text Body */}
+                    {postImage ? (
+                      <div style={{ backgroundColor: '#0f172a', width: '100%', maxHeight: '450px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                        <img src={postImage} alt={post.title} style={{ width: '100%', height: 'auto', objectFit: 'cover' }} />
+                      </div>
+                    ) : (
+                      <div style={{ padding: '0.5rem 1rem 1rem 1rem' }}>
+                        <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
+                          {post.title}
+                        </h3>
+                        <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '0.75rem', lineHeight: 1.6, margin: '0.75rem 0 0 0', whiteSpace: 'pre-line' }}>
+                          {post.description || post.content || 'No preview available.'}
+                        </p>
+                      </div>
+                    )}
+
+                    {postImage && (
+                      <div style={{ padding: '0.875rem 1rem 0.5rem 1rem' }}>
+                        <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
+                          {post.title}
+                        </h3>
+                        <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: 1.5, margin: '0.4rem 0 0 0', whiteSpace: 'pre-line' }}>
+                          {post.description || post.content || 'No preview available.'}
+                        </p>
+                      </div>
+                    )}
+                  </article>
+                );
+              })
+            ) : (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid var(--slate-200)', boxShadow: 'var(--shadow-card)' }}>
+                <i className="fa-solid fa-bullhorn" style={{ fontSize: '2rem', color: 'var(--slate-400)', marginBottom: '0.75rem' }}></i>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--slate-800)', margin: '0 0 0.25rem 0' }}>No posts published yet</h3>
+                <p style={{ fontSize: '0.875rem', color: 'var(--slate-500)', margin: '0 0 1rem 0' }}>Create your first announcement or event from your page dashboard.</p>
+                <button
+                  onClick={() => navigate('/staff/mypage/dashboard')}
+                  style={{ background: 'var(--nav-gradient)', color: '#ffffff', border: 'none', padding: '0.5rem 1rem', borderRadius: '0.375rem', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Go to Page Dashboard
+                </button>
+              </div>
+            )}
           </>
         ) : (
           /* Create Page Form View */
@@ -592,6 +593,18 @@ export default function StaffMyPage() {
                       required 
                       value={pageName}
                       onChange={(e) => setPageName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="pageProfileImage" className="form-label">Profile Image URL (Logo / Avatar)</label>
+                    <input 
+                      type="url" 
+                      id="pageProfileImage" 
+                      className="form-input"
+                      placeholder="https://example.com/logo.png" 
+                      value={pageProfileImage}
+                      onChange={(e) => setPageProfileImage(e.target.value)}
                     />
                   </div>
 
@@ -698,6 +711,18 @@ export default function StaffMyPage() {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="editProfileImage" className="form-label">Profile Image URL (Logo / Avatar)</label>
+                  <input
+                    type="url"
+                    id="editProfileImage"
+                    className="form-input"
+                    placeholder="https://example.com/logo.png"
+                    value={editProfileImage}
+                    onChange={(e) => setEditProfileImage(e.target.value)}
                   />
                 </div>
 
