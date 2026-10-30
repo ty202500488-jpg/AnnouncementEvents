@@ -39,7 +39,7 @@ import UserManagement from './pages/Admin/UserManagement.jsx';
 import PageManagement from './pages/Admin/PageManagement.jsx';
 import PostApproval from './pages/Admin/PostApproval.jsx';
 import Archives from './pages/Admin/Archives.jsx';
-import Reports from './pages/Admin/Reports.jsx';
+import ReportStatistics from './pages/Admin/Report.jsx';
 import AuditLogs from './pages/Admin/AuditLogs.jsx';
 import SystemSettings from './pages/Admin/SystemSettings.jsx';
 
