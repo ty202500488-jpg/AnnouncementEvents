@@ -316,7 +316,7 @@ export default function StaffSettings() {
           {activeTab === 'account' && (
             <div className="lp-content-block">
               <div className="lp-block-header">
-                <h2>Staff Account Information</h2>
+                <h2>Account Information</h2>
                 <p>View your official institutional staff profile and assigned department</p>
               </div>
 

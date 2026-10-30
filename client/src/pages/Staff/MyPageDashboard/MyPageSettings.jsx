@@ -4,6 +4,11 @@ import '../../styles/MyPageDashboard.css';
 import '../../styles/Settings.css';
 
 export default function MyPageSettings() {
+  const [activeTab, setActiveTab] = useState('page-info');
+  const [feedback, setFeedback] = useState({ success: '', error: '' });
+  const [loading, setLoading] = useState(false);
+
+  // Page Identity & Settings State
   const [settings, setSettings] = useState({
     name: 'College Of Computing Studies',
     category: 'Academic College',
@@ -11,8 +16,11 @@ export default function MyPageSettings() {
     eventRegistrationAlerts: true,
     publicationStatusUpdates: true,
     emailNotifications: false,
+    publicFollowersVisible: true,
+    allowStudentComments: true,
   });
 
+  // Current Page Manager Info (Read-only)
   const [managerInfo] = useState({
     name: 'Charm Lagare',
     email: 'charm.lagare@university.edu.ph',
@@ -20,145 +28,189 @@ export default function MyPageSettings() {
     assignedDate: 'October 15, 2024'
   });
 
-  const [message, setMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showTransferModal, setShowTransferModal] = useState(false);
+  // Deactivation Modal State
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivationReason, setDeactivationReason] = useState('');
 
-  // Fetch settings from database backend on mount with localStorage fallback
+  const showToast = (success, error = '') => {
+    setFeedback({ success, error });
+    setTimeout(() => setFeedback({ success: '', error: '' }), 4000);
+  };
+
   useEffect(() => {
     const fetchSettings = async () => {
       const token = localStorage.getItem('token');
       try {
         const res = await fetch('/api/my-page/settings', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` }
         });
         const data = await res.json();
-        
         if (res.ok && data.settings) {
-          setSettings(data.settings);
+          setSettings(prev => ({ ...prev, ...data.settings }));
         } else {
-          const storedSettings = localStorage.getItem('myPageSettings');
-          if (storedSettings) setSettings(JSON.parse(storedSettings));
+          const stored = localStorage.getItem('myPageSettings');
+          if (stored) setSettings(prev => ({ ...prev, ...JSON.parse(stored) }));
         }
-      } catch (err) {
-        console.error('Database connection failed, loading local settings:', err);
-        const storedSettings = localStorage.getItem('myPageSettings');
-        if (storedSettings) setSettings(JSON.parse(storedSettings));
+      } catch {
+        const stored = localStorage.getItem('myPageSettings');
+        if (stored) setSettings(prev => ({ ...prev, ...JSON.parse(stored) }));
       }
     };
-
     fetchSettings();
   }, []);
 
-  const handleToggle = (e) => {
-    const { name, type, checked, value } = e.target;
-    setSettings(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setSettings(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleToggle = (key) => {
+    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSaveSettings = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLoading(true);
     const token = localStorage.getItem('token');
 
     try {
-      // 1. Save to PostgreSQL database
-      const res = await fetch('/api/my-page/settings', {
+      await fetch('/api/my-page/settings', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({ settings }),
       });
-
-      if (!res.ok) throw new Error('Failed to persist in database');
-
-      // 2. Cache in localStorage
       localStorage.setItem('myPageSettings', JSON.stringify(settings));
-
-      setMessage('Page settings successfully updated and saved to server!');
-      setErrorMessage('');
-      setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
-      console.error('Failed to save settings:', err);
+      showToast('Page settings successfully saved to server!');
+    } catch {
       localStorage.setItem('myPageSettings', JSON.stringify(settings));
-      setMessage('Settings saved locally.');
-      setTimeout(() => setMessage(''), 3000);
+      showToast('Page settings saved locally.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleTransferRequest = () => {
-    setShowTransferModal(true);
-  };
-
-  const handleDeactivationRequest = () => {
-    if (window.confirm('Are you sure you want to request page deactivation or archiving? An administrator will review your request.')) {
-      setMessage('Page deactivation request sent to administration.');
-      setTimeout(() => setMessage(''), 3000);
+  const handleDeactivateSubmit = (e) => {
+    e.preventDefault();
+    if (!deactivationReason.trim()) {
+      showToast('', 'Please provide a reason for the archiving request.');
+      return;
     }
+    setShowDeactivateModal(false);
+    setDeactivationReason('');
+    showToast('Page deactivation request sent to administration.');
   };
 
   return (
     <MyPageDashboardLayout activeTab="settings">
-      <main className="lg-col-6 space-y-6 settings-wrapper">
-        {message && (
+      {/* Hidden Scrollbars Globally */}
+      <style>{`
+        .staff-dashboard .lg-col-6,
+        .staff-dashboard .lg-col-6::-webkit-scrollbar,
+        .lp-settings-scroll,
+        .lp-settings-scroll::-webkit-scrollbar,
+        .lp-segmented-nav,
+        .lp-segmented-nav::-webkit-scrollbar {
+          -ms-overflow-style: none !important;
+          scrollbar-width: none !important;
+          padding-right: 0 !important;
+        }
+        .staff-dashboard .lg-col-6::-webkit-scrollbar,
+        .lp-settings-scroll::-webkit-scrollbar,
+        .lp-segmented-nav::-webkit-scrollbar {
+          display: none !important;
+          width: 0 !important;
+          height: 0 !important;
+          background: transparent !important;
+        }
+      `}</style>
+
+      {/* ==================== CENTER MAIN CONTENT ==================== */}
+      <main className="lg-col-6 lp-settings-scroll">
+        {/* Toast Alerts */}
+        {feedback.success && (
           <div className="alert-success">
             <i className="fa-solid fa-circle-check"></i>
-            <span>{message}</span>
+            <span>{feedback.success}</span>
           </div>
         )}
-
-        {errorMessage && (
-          <div className="alert-error" style={{ backgroundColor: '#fff1f2', color: '#e11d48', border: '1px solid #ffe4e6', padding: '0.75rem 1rem', borderRadius: '0.5rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {feedback.error && (
+          <div className="lp-toast-error">
             <i className="fa-solid fa-circle-exclamation"></i>
-            <span>{errorMessage}</span>
+            <span>{feedback.error}</span>
           </div>
         )}
 
-        <div className="settings-container-card">
-          <div className="settings-header-box">
-            <div>
-              <h3>Page Settings</h3>
-              <p>Manage your page identity, manager access, and notification preferences.</p>
-            </div>
-          </div>
+        {/* Clean Header Area */}
+        <div className="lp-header-wrap">
+          <h1 className="lp-title">Page Settings</h1>
+        </div>
 
-          <form onSubmit={handleSaveSettings}>
-            
-            {/* SECTION 1: PAGE INFORMATION */}
-            <div className="settings-section-group" style={{ paddingTop: 0 }}>
-              <h4 className="settings-section-title">Page Information</h4>
-              <p className="settings-section-desc">Essential identity details visible across the platform.</p>
-              
-              <div className="space-y-3">
-                <div className="settings-form-group">
+        {/* Gray Segmented Tab Bar */}
+        <div className="lp-segmented-nav">
+          <button
+            type="button"
+            className={`lp-nav-pill ${activeTab === 'page-info' ? 'active' : ''}`}
+            onClick={() => setActiveTab('page-info')}
+          >
+            Page Identity
+          </button>
+          <button
+            type="button"
+            className={`lp-nav-pill ${activeTab === 'notifications' ? 'active' : ''}`}
+            onClick={() => setActiveTab('notifications')}
+          >
+            Notifications
+          </button>
+          <button
+            type="button"
+            className={`lp-nav-pill ${activeTab === 'ownership' ? 'active' : ''}`}
+            onClick={() => setActiveTab('ownership')}
+          >
+            Management
+          </button>
+          <button
+            type="button"
+            className={`lp-nav-pill ${activeTab === 'advanced' ? 'active' : ''}`}
+            onClick={() => setActiveTab('advanced')}
+          >
+            Advanced
+          </button>
+        </div>
+
+        {/* Main Content Card */}
+        <div className="card lp-white-card">
+          {/* TAB 1: PAGE IDENTITY */}
+          {activeTab === 'page-info' && (
+            <div className="lp-content-block">
+              <div className="lp-block-header">
+                <h2>Page Information</h2>
+                <p>Essential identity details visible across the university platform</p>
+              </div>
+
+              <form onSubmit={handleSaveSettings} className="lp-form-layout">
+                <div className="lp-field-group">
                   <label htmlFor="name">Page Name</label>
-                  <input 
+                  <input
                     type="text"
                     id="name"
                     name="name"
                     value={settings.name}
-                    onChange={handleToggle}
-                    className="settings-select-input"
+                    onChange={handleInputChange}
                     placeholder="e.g. College of Computing Studies"
                     required
                   />
                 </div>
 
-                <div className="settings-form-group">
+                <div className="lp-field-group">
                   <label htmlFor="category">Page Category</label>
-                  <select 
+                  <select
                     id="category"
                     name="category"
                     value={settings.category}
-                    onChange={handleToggle}
-                    className="settings-select-input"
+                    onChange={handleInputChange}
                   >
                     <option value="Academic College">Academic College</option>
                     <option value="Academic Department">Academic Department</option>
@@ -168,213 +220,261 @@ export default function MyPageSettings() {
                   </select>
                 </div>
 
-                <div className="settings-form-group">
+                <div className="lp-field-group">
                   <label htmlFor="description">Page Description</label>
-                  <textarea 
+                  <textarea
                     id="description"
                     name="description"
                     rows={4}
                     value={settings.description}
-                    onChange={handleToggle}
-                    className="settings-select-input"
+                    onChange={handleInputChange}
                     placeholder="Provide a short description of this page..."
                     style={{ resize: 'vertical' }}
                   />
                 </div>
-              </div>
-            </div>
 
-            {/* SECTION 2: PAGE ACCESS & MANAGEMENT */}
-            <div className="settings-section-group">
-              <h4 className="settings-section-title">Page Access & Ownership</h4>
-              <p className="settings-section-desc">Read-only details of the current page manager and ownership change guidelines.</p>
-              
-              <div style={{ backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid var(--slate-200)', padding: '1rem', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--slate-900)' }}>{managerInfo.name}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>{managerInfo.email}</div>
+                <div className="lp-btn-action-row">
+                  <button type="submit" className="lp-primary-btn" disabled={loading}>
+                    {loading ? 'Saving...' : 'Save Page Details'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* TAB 2: NOTIFICATIONS */}
+          {activeTab === 'notifications' && (
+            <div className="lp-content-block">
+              <div className="lp-block-header">
+                <h2>Notification Preferences</h2>
+                <p>Choose which page events trigger automated alerts and notifications</p>
+              </div>
+
+              <div className="lp-toggle-rows">
+                <div className="lp-row">
+                  <div className="lp-row-text">
+                    <h3>Event Registration Alerts</h3>
+                    <p>Receive notifications when students register for events hosted by this page</p>
                   </div>
-                  <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#ecfdf5', color: '#047857', padding: '0.25rem 0.625rem', borderRadius: '1rem', border: '1px solid #a7f3d0' }}>
-                    Active Owner
-                  </span>
+                  <label className="lp-toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={settings.eventRegistrationAlerts}
+                      onChange={() => handleToggle('eventRegistrationAlerts')}
+                    />
+                    <span className="lp-toggle-slider"></span>
+                  </label>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.75rem', borderTop: '1px solid var(--slate-200)', paddingTop: '0.75rem', color: 'var(--slate-600)' }}>
-                  <div>
-                    <span style={{ color: 'var(--slate-400)', display: 'block' }}>Assigned Permission Role</span>
-                    <strong style={{ color: 'var(--slate-800)' }}>{managerInfo.role}</strong>
+                <div className="lp-row">
+                  <div className="lp-row-text">
+                    <h3>Publishing Status Results</h3>
+                    <p>Alerts when proposed announcements or events receive administrator approval</p>
                   </div>
-                  <div>
-                    <span style={{ color: 'var(--slate-400)', display: 'block' }}>Owner Since</span>
-                    <strong style={{ color: 'var(--slate-800)' }}>{managerInfo.assignedDate}</strong>
+                  <label className="lp-toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={settings.publicationStatusUpdates}
+                      onChange={() => handleToggle('publicationStatusUpdates')}
+                    />
+                    <span className="lp-toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div className="lp-row">
+                  <div className="lp-row-text">
+                    <h3>Email Notification Digests</h3>
+                    <p>Receive daily or weekly summaries of page interactions via institutional email</p>
                   </div>
+                  <label className="lp-toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={settings.emailNotifications}
+                      onChange={() => handleToggle('emailNotifications')}
+                    />
+                    <span className="lp-toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div className="lp-row">
+                  <div className="lp-row-text">
+                    <h3>Public Follower List</h3>
+                    <p>Allow enrolled students to see the list of members following this page</p>
+                  </div>
+                  <label className="lp-toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={settings.publicFollowersVisible}
+                      onChange={() => handleToggle('publicFollowersVisible')}
+                    />
+                    <span className="lp-toggle-slider"></span>
+                  </label>
+                </div>
+
+                <div className="lp-row">
+                  <div className="lp-row-text">
+                    <h3>Student Comments on Announcements</h3>
+                    <p>Allow authenticated students to post feedback on published bulletins</p>
+                  </div>
+                  <label className="lp-toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={settings.allowStudentComments}
+                      onChange={() => handleToggle('allowStudentComments')}
+                    />
+                    <span className="lp-toggle-slider"></span>
+                  </label>
                 </div>
               </div>
 
-              <div className="settings-action-stack">
-                <button 
-                  type="button" 
-                  onClick={handleTransferRequest} 
-                  className="settings-btn-secondary"
-                >
-                  <span>Request manager ownership change</span>
-                  <i className="fa-solid fa-arrow-right-arrow-left"></i>
-                </button>
-              </div>
-            </div>
-
-            {/* SECTION 3: NOTIFICATIONS */}
-            <div className="settings-section-group">
-              <h4 className="settings-section-title">Notifications</h4>
-              <p className="settings-section-desc">Choose which updates trigger automated alerts.</p>
-              
-              <div className="space-y-1">
-                <label className="settings-toggle-row">
-                  <span>Event registration alerts</span>
-                  <input 
-                    type="checkbox" 
-                    name="eventRegistrationAlerts" 
-                    checked={settings.eventRegistrationAlerts} 
-                    onChange={handleToggle} 
-                    className="settings-toggle-input"
-                  />
-                </label>
-
-                <label className="settings-toggle-row">
-                  <span>Publishing status results</span>
-                  <input 
-                    type="checkbox" 
-                    name="publicationStatusUpdates" 
-                    checked={settings.publicationStatusUpdates} 
-                    onChange={handleToggle} 
-                    className="settings-toggle-input"
-                  />
-                </label>
-
-                <label className="settings-toggle-row">
-                  <span>Email notification digests</span>
-                  <input 
-                    type="checkbox" 
-                    name="emailNotifications" 
-                    checked={settings.emailNotifications} 
-                    onChange={handleToggle} 
-                    className="settings-toggle-input"
-                  />
-                </label>
-              </div>
-            </div>
-
-            {/* SECTION 4: SECURITY & ACCOUNT CONTROL */}
-            <div className="settings-section-group">
-              <h4 className="settings-section-title">Security & Account Control</h4>
-              <p className="settings-section-desc">Manage account actions and page status.</p>
-              
-              <div className="settings-action-stack">
-                <a 
-                  href="/staff/profile" 
-                  className="settings-btn-secondary"
-                  style={{ textDecoration: 'none' }}
-                >
-                  <span>Change password in Staff Profile</span>
-                  <i className="fa-solid fa-arrow-up-right-from-square"></i>
-                </a>
-
-                <button 
-                  type="button" 
-                  onClick={handleDeactivationRequest} 
-                  className="settings-btn-danger"
-                >
-                  <span>Request page deactivation or archiving</span>
-                  <i className="fa-solid fa-file-excel"></i>
-                </button>
-              </div>
-            </div>
-
-            {/* FOOTER ACTIONS */}
-            <div className="settings-footer-actions">
-              <button type="submit" disabled={loading} className="settings-save-btn">
-                {loading ? 'Saving...' : 'Save Preferences'}
-              </button>
-            </div>
-
-          </form>
-        </div>
-
-        {/* REQUEST MANAGER TRANSFER MODAL */}
-        {showTransferModal && (
-          <div style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.5)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 200,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem'
-          }}>
-            <div className="settings-container-card" style={{ maxWidth: '480px', width: '100%', padding: '1.5rem', position: 'relative' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--slate-900)' }}>
-                  Request Manager Transfer
-                </h3>
+              <div className="lp-btn-action-row">
                 <button
                   type="button"
-                  onClick={() => setShowTransferModal(false)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate-400)', fontSize: '1.1rem' }}
+                  className="lp-primary-btn"
+                  onClick={handleSaveSettings}
+                  disabled={loading}
                 >
+                  {loading ? 'Saving...' : 'Save Preferences'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: OWNERSHIP & MANAGEMENT (READ-ONLY) */}
+          {activeTab === 'ownership' && (
+            <div className="lp-content-block">
+              <div className="lp-block-header">
+                <h2>Page Access & Ownership</h2>
+                <p>Read-only details of the current page manager</p>
+              </div>
+
+              <div className="lp-identity-box">
+                <div className="lp-avatar-box">
+                  <i className="fa-solid fa-user-shield"></i>
+                </div>
+                <div className="lp-identity-info">
+                  <div className="lp-identity-title-row">
+                    <h3>{managerInfo.name}</h3>
+                    <span className="lp-badge-tag">Active Owner</span>
+                  </div>
+                  <p>{managerInfo.email}</p>
+                </div>
+              </div>
+
+              <div className="lp-details-grid">
+                <div className="lp-detail-cell">
+                  <span className="lp-cell-label">Assigned Permission Role</span>
+                  <span className="lp-cell-val">{managerInfo.role}</span>
+                </div>
+                <div className="lp-detail-cell">
+                  <span className="lp-cell-label">Owner Since</span>
+                  <span className="lp-cell-val">{managerInfo.assignedDate}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: ADVANCED / ARCHIVE */}
+          {activeTab === 'advanced' && (
+            <div className="lp-content-block">
+              <div className="lp-block-header">
+                <h2>Advanced Controls</h2>
+                <p>Direct staff security links and page status management</p>
+              </div>
+
+              <div className="lp-system-banner">
+                <span className="lp-banner-badge">Management Directive</span>
+                <h3>Department Page Operations</h3>
+                <p>
+                  Pages represent official units of Western Mindanao State University. Modifications to page titles
+                  and departmental records undergo institutional review.
+                </p>
+              </div>
+
+              <div className="lp-sub-section">
+                <h3>Credentials Management</h3>
+                <p className="lp-muted-desc">To change your personal account password, visit your primary profile settings.</p>
+                <a href="/staff/profile" className="lp-maroon-link">
+                  Open Staff Profile Security <i className="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+              </div>
+
+              <hr className="lp-separator" />
+
+              <div className="lp-sub-section">
+                <h3>Danger Zone</h3>
+                <p className="lp-muted-desc">
+                  Archiving or deactivating this page will hide all published bulletins and future event registrations from students.
+                </p>
+                <button
+                  type="button"
+                  className="lp-danger-btn"
+                  style={{ marginTop: '0.75rem' }}
+                  onClick={() => setShowDeactivateModal(true)}
+                >
+                  <i className="fa-solid fa-box-archive"></i>
+                  <span>Request Page Deactivation / Archiving</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* BOTTOM ACCOUNT ACTIONS CARD */}
+        <div className="card lp-bottom-card">
+          <div>
+            <h3>Page Operations & Status</h3>
+            <p>Page: {settings.name} • {settings.category}</p>
+          </div>
+          <div className="lp-actions-group">
+            <button
+              type="button"
+              onClick={() => setShowDeactivateModal(true)}
+              className="lp-danger-btn"
+            >
+              <i className="fa-solid fa-box-archive"></i>
+              <span>Deactivate Page</span>
+            </button>
+          </div>
+        </div>
+
+        {/* DEACTIVATION MODAL */}
+        {showDeactivateModal && (
+          <div className="lp-modal-backdrop">
+            <div className="lp-modal-sheet">
+              <div className="lp-modal-top">
+                <h3>Request Page Archiving</h3>
+                <button type="button" onClick={() => setShowDeactivateModal(false)}>
                   <i className="fa-solid fa-xmark"></i>
                 </button>
               </div>
-
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-600)', marginBottom: '1rem', lineHeight: 1.5 }}>
-                To transfer ownership of <strong>{settings.name}</strong> to another staff member, submit a formal request to your system administrator.
+              <p className="lp-modal-caution">
+                Institutional pages cannot be deleted immediately to preserve historical student activity and attendance logs. An administrative review is required.
               </p>
-
-              <div className="settings-form-group" style={{ marginBottom: '1rem' }}>
-                <label htmlFor="newManagerEmail">New Manager's University Email</label>
-                <input
-                  id="newManagerEmail"
-                  type="email"
-                  className="settings-select-input"
-                  placeholder="e.g. successor.staff@university.edu.ph"
-                />
-              </div>
-
-              <div className="settings-form-group" style={{ marginBottom: '1.25rem' }}>
-                <label htmlFor="transferReason">Reason for Succession / Transfer</label>
-                <textarea
-                  id="transferReason"
-                  rows={3}
-                  className="settings-select-input"
-                  placeholder="Provide details regarding the ownership change..."
-                  style={{ resize: 'vertical' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowTransferModal(false)}
-                  className="settings-btn-secondary"
-                  style={{ width: 'auto', padding: '0.5rem 1rem' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowTransferModal(false);
-                    setMessage('Succession request submitted to System Administrator.');
-                    setTimeout(() => setMessage(''), 3000);
-                  }}
-                  className="settings-save-btn"
-                  style={{ padding: '0.5rem 1rem' }}
-                >
-                  Submit Request
-                </button>
-              </div>
+              <form onSubmit={handleDeactivateSubmit} className="lp-form-layout">
+                <div className="lp-field-group">
+                  <label>Reason for Deactivation</label>
+                  <textarea
+                    rows={3}
+                    value={deactivationReason}
+                    onChange={(e) => setDeactivationReason(e.target.value)}
+                    placeholder="Specify why this page is being archived or deactivated..."
+                    required
+                  />
+                </div>
+                <div className="lp-modal-footer">
+                  <button
+                    type="button"
+                    className="lp-secondary-btn"
+                    onClick={() => setShowDeactivateModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="lp-danger-btn">
+                    Confirm Deactivation Request
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
