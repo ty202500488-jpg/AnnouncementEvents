@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import './styles/Auth.css';
+import '../pages/styles/Auth.css';
 
 const collegeDepartments = {
   'College of Law (LAW)': 1,
@@ -82,7 +82,6 @@ const collegeCourses = {
     { id: 42, name: 'BS Biology' },
     { id: 43, name: 'BS Chemistry' },
     { id: 44, name: 'BS Mathematics' },
-    { id: 'CSM-4', name: 'BS Statistics' },
     { id: 45, name: 'BS Statistics' },
     { id: 46, name: 'BS Physics' }
   ],
@@ -114,12 +113,11 @@ export default function Auth() {
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showRegConfirmPassword, setShowRegConfirmPassword] = useState(false);
 
-  // Custom Notification Modal State
   const [modalConfig, setModalConfig] = useState({
     isOpen: false,
     title: '',
     message: '',
-    type: 'error', // 'success' | 'error' | 'warning'
+    type: 'error',
     onConfirm: null
   });
 
@@ -188,19 +186,16 @@ export default function Auth() {
           3
         );
 
-        const handleRedirect = () => {
-          if (roleName === 'admin' || role === 1) {
-            navigate('/admin/dashboard');
-          } else if (roleName === 'staff' || role === 2) {
-            navigate('/staff/dashboard');
-          } else {
-            navigate('/student/dashboard');
-          }
-        };
-
-        showAlert('Welcome Back!', 'Signed in successfully.', 'success', handleRedirect);
+        // Direct navigation without confirmation modal
+        if (roleName === 'admin' || role === 1) {
+          navigate('/admin/dashboard');
+        } else if (roleName === 'staff' || role === 2) {
+          navigate('/staff/dashboard');
+        } else {
+          navigate('/student/dashboard');
+        }
       } else {
-        showAlert('Authentication Failed', data.message || 'Login failed. Please check your credentials.', 'error');
+        showAlert('Authentication Failed', data.message || 'Incorrect email or password. Please try again.', 'error');
       }
     } catch (err) {
       console.error('Backend connection error:', err);
@@ -261,19 +256,14 @@ export default function Auth() {
     }
 
     if (response.ok) {
-      showAlert(
-        'Account Created!', 
-        data.message || 'Student account created successfully. You may now sign in.', 
-        'success', 
-        () => setActiveTab('login')
-      );
+      setActiveTab('login');
     } else {
       showAlert('Registration Failed', data.message || 'Registration could not be completed.', 'error');
     }
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="auth-page-root">
       <div className="interactive-bg">
         <div className="bg-blob blob-left-deep float-anim-2"></div>
         <div className="bg-blob blob-scatter-left-mid float-anim-3"></div>
@@ -360,7 +350,7 @@ export default function Auth() {
                 </div>
               </div>
 
-              <button type="submit" className="btn-primary btn-block">Sign In</button>
+              <button type="submit" className="btn-auth-submit btn-block">Sign In</button>
             </form>
 
             {/* Register Form */}
@@ -395,7 +385,7 @@ export default function Auth() {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label whitespace-nowrap">
+                  <label className="form-label">
                     M.I. <span className="optional-tag">(Optional)</span>
                   </label>
                   <div className="input-container">
@@ -545,7 +535,7 @@ export default function Auth() {
                 </label>
               </div>
 
-              <button type="submit" className="btn-primary btn-block">Create Account</button>
+              <button type="submit" className="btn-auth-submit btn-block">Create Account</button>
             </form>
 
             <div className="login-footer">
@@ -555,14 +545,11 @@ export default function Auth() {
         </div>
       </main>
 
-      {/* Modern Notification Modal UI */}
+      {/* Modern Notification Modal UI: Only displays on errors or validation warnings */}
       {modalConfig.isOpen && (
         <div className="auth-modal-backdrop" onClick={closeModal}>
           <div className={`auth-modal-card ${modalConfig.type}`} onClick={(e) => e.stopPropagation()}>
             <div className="auth-modal-icon-badge">
-              {modalConfig.type === 'success' && (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-              )}
               {modalConfig.type === 'error' && (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
               )}
@@ -574,7 +561,7 @@ export default function Auth() {
             <h3 className="auth-modal-title">{modalConfig.title}</h3>
             <p className="auth-modal-message">{modalConfig.message}</p>
 
-            <button type="button" className="btn-primary modal-action-btn" onClick={closeModal}>
+            <button type="button" className="btn-auth-submit modal-action-btn" onClick={closeModal}>
               Continue
             </button>
           </div>

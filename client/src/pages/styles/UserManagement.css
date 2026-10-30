@@ -1,6 +1,7 @@
 /* ==========================================
 WMSU USER MANAGEMENT STYLESHEET
 Theme: Deep Maroon & Slate Admin Clean Palette
+Scoped strictly under .user-management-container & .um-*
 ========================================== */
 
 .user-management-container {
@@ -9,10 +10,17 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   gap: 1.25rem;
   width: 100%;
   color: #1e293b;
+  box-sizing: border-box;
+}
+
+.user-management-container *,
+.user-management-container *::before,
+.user-management-container *::after {
+  box-sizing: border-box;
 }
 
 /* Header */
-.um-header {
+.user-management-container .um-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -20,7 +28,7 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   flex-wrap: wrap;
 }
 
-.um-title {
+.user-management-container .um-title {
   font-size: 1.75rem;
   font-weight: 800;
   color: #7B0D1E;
@@ -28,20 +36,20 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   letter-spacing: -0.02em;
 }
 
-.um-subtitle {
+.user-management-container .um-subtitle {
   font-size: 0.875rem;
   color: #64748b;
   margin: 0;
 }
 
-.um-header-actions {
+.user-management-container .um-header-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
 /* Button Variants */
-.btn-um-primary {
+.user-management-container .btn-um-primary {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -57,12 +65,12 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   box-shadow: 0 2px 6px rgba(123, 13, 30, 0.2);
 }
 
-.btn-um-primary:hover:not(:disabled) {
+.user-management-container .btn-um-primary:hover:not(:disabled) {
   background-color: #5a0915;
   transform: translateY(-1px);
 }
 
-.btn-um-secondary {
+.user-management-container .btn-um-secondary {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -76,19 +84,19 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   cursor: pointer;
 }
 
-.btn-um-emerald { background-color: #059669; color: #ffffff; border: none; padding: 0.5rem 0.9rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
-.btn-um-emerald:hover { background-color: #047857; }
+.user-management-container .btn-um-emerald { background-color: #059669; color: #ffffff; border: none; padding: 0.5rem 0.9rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.user-management-container .btn-um-emerald:hover { background-color: #047857; }
 
-.btn-um-amber { background-color: #d97706; color: #ffffff; border: none; padding: 0.5rem 0.9rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
-.btn-um-amber:hover { background-color: #b45309; }
+.user-management-container .btn-um-amber { background-color: #d97706; color: #ffffff; border: none; padding: 0.5rem 0.9rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.user-management-container .btn-um-amber:hover { background-color: #b45309; }
 
-.btn-um-rose { background-color: #e11d48; color: #ffffff; border: none; padding: 0.5rem 0.9rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
-.btn-um-rose:hover { background-color: #be123c; }
+.user-management-container .btn-um-rose { background-color: #e11d48; color: #ffffff; border: none; padding: 0.5rem 0.9rem; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.user-management-container .btn-um-rose:hover { background-color: #be123c; }
 
-.btn-um-link { background: none; border: none; color: #7B0D1E; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+.user-management-container .btn-um-link { background: none; border: none; color: #7B0D1E; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
 
 /* Alert Banner */
-.um-alert-banner {
+.user-management-container .um-alert-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -98,13 +106,13 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   font-weight: 600;
 }
 
-.um-alert-banner.success { background-color: #d1fae5; color: #047857; border: 1px solid #a7f3d0; }
-.um-alert-banner.error { background-color: #fef2f2; color: #9f1239; border: 1px solid #fecdd3; }
+.user-management-container .um-alert-banner.success { background-color: #d1fae5; color: #047857; border: 1px solid #a7f3d0; }
+.user-management-container .um-alert-banner.error { background-color: #fef2f2; color: #9f1239; border: 1px solid #fecdd3; }
 
-.close-alert-btn { background: none; border: none; color: inherit; cursor: pointer; }
+.user-management-container .close-alert-btn { background: none; border: none; color: inherit; cursor: pointer; }
 
 /* Toolbar & Controls */
-.um-controls-card {
+.user-management-container .um-controls-card {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
@@ -115,7 +123,7 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   gap: 0.85rem;
 }
 
-.um-tabs-list {
+.user-management-container .um-tabs-list {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -123,7 +131,7 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   padding-bottom: 0.75rem;
 }
 
-.um-tab-btn {
+.user-management-container .um-tab-btn {
   padding: 0.45rem 1rem;
   border-radius: 9999px;
   background: none;
@@ -137,24 +145,24 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   gap: 0.4rem;
 }
 
-.um-tab-btn.active { background-color: #7B0D1E; color: #ffffff; }
+.user-management-container .um-tab-btn.active { background-color: #7B0D1E; color: #ffffff; }
 
-.um-toolbar {
+.user-management-container .um-toolbar {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-.um-search-box {
+.user-management-container .um-search-box {
   position: relative;
   flex: 1;
   min-width: 240px;
 }
 
-.search-icon { position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem; }
+.user-management-container .search-icon { position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem; }
 
-.um-search-input {
+.user-management-container .um-search-input {
   width: 100%;
   height: 38px;
   padding: 0 2rem 0 2.25rem;
@@ -164,7 +172,7 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   outline: none;
 }
 
-.um-select {
+.user-management-container .um-select {
   height: 38px;
   padding: 0 0.85rem;
   border-radius: 8px;
@@ -174,7 +182,7 @@ Theme: Deep Maroon & Slate Admin Clean Palette
 }
 
 /* Data Tables */
-.um-table-card {
+.user-management-container .um-table-card {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
@@ -182,21 +190,22 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   overflow: hidden;
 }
 
-.table-responsive { width: 100%; overflow-x: auto; }
+.user-management-container .table-responsive { width: 100%; overflow-x: auto; }
 
-.um-data-table {
+.user-management-container .um-data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
 }
 
-.um-data-table th, .um-data-table td {
+.user-management-container .um-data-table th, 
+.user-management-container .um-data-table td {
   padding: 0.85rem 1rem;
   text-align: left;
   border-bottom: 1px solid #f1f5f9;
 }
 
-.um-data-table th {
+.user-management-container .um-data-table th {
   color: #64748b;
   font-weight: 700;
   text-transform: uppercase;
@@ -205,11 +214,11 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   background-color: #f8fafc;
 }
 
-.user-name-cell { display: flex; flex-direction: column; }
-.user-full-name { font-weight: 700; color: #0f172a; }
-.user-email { font-size: 0.75rem; color: #64748b; }
+.user-management-container .user-name-cell { display: flex; flex-direction: column; }
+.user-management-container .user-full-name { font-weight: 700; color: #0f172a; }
+.user-management-container .user-email { font-size: 0.75rem; color: #64748b; }
 
-.role-badge {
+.user-management-container .role-badge {
   font-size: 0.68rem;
   font-weight: 700;
   padding: 0.15rem 0.5rem;
@@ -217,11 +226,11 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   text-transform: uppercase;
 }
 
-.role-student { background-color: #eff6ff; color: #1d4ed8; }
-.role-staff { background-color: #fef3c7; color: #b45309; }
-.role-admin { background-color: #fcf2f2; color: #7B0D1E; }
+.user-management-container .role-student { background-color: #eff6ff; color: #1d4ed8; }
+.user-management-container .role-staff { background-color: #fef3c7; color: #b45309; }
+.user-management-container .role-admin { background-color: #fcf2f2; color: #7B0D1E; }
 
-.status-pill {
+.user-management-container .status-pill {
   font-size: 0.7rem;
   font-weight: 700;
   padding: 0.2rem 0.55rem;
@@ -229,12 +238,12 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   text-transform: capitalize;
 }
 
-.status-verified { background-color: #d1fae5; color: #047857; }
-.status-pending { background-color: #fef3c7; color: #b45309; }
-.status-correction { background-color: #dbeafe; color: #1d4ed8; }
-.status-rejected { background-color: #ffe4e6; color: #9f1239; }
+.user-management-container .status-verified { background-color: #d1fae5; color: #047857; }
+.user-management-container .status-pending { background-color: #fef3c7; color: #b45309; }
+.user-management-container .status-correction { background-color: #dbeafe; color: #1d4ed8; }
+.user-management-container .status-rejected { background-color: #ffe4e6; color: #9f1239; }
 
-.btn-table-action {
+.user-management-container .btn-table-action {
   padding: 0.35rem 0.75rem;
   border-radius: 6px;
   border: 1px solid #cbd5e1;
@@ -244,8 +253,8 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   cursor: pointer;
 }
 
-.btn-table-action.primary { background-color: #7B0D1E; color: #ffffff; border: none; }
-.btn-table-action.danger { background-color: #fff1f2; color: #e11d48; border-color: #fecdd3; }
+.user-management-container .btn-table-action.primary { background-color: #7B0D1E; color: #ffffff; border: none; }
+.user-management-container .btn-table-action.danger { background-color: #fff1f2; color: #e11d48; border-color: #fecdd3; }
 
 /* Modals */
 .um-modal-backdrop {
@@ -275,7 +284,7 @@ Theme: Deep Maroon & Slate Admin Clean Palette
 .um-modal-card.large-modal { max-width: 780px; }
 .um-modal-card.small-modal { max-width: 420px; }
 
-.modal-header {
+.um-modal-card .modal-header {
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
@@ -283,20 +292,20 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   justify-content: space-between;
 }
 
-.modal-header h2 { font-size: 1.15rem; font-weight: 800; color: #7B0D1E; margin: 0; }
-.close-btn { background: none; border: none; color: #94a3b8; font-size: 1.1rem; cursor: pointer; }
+.um-modal-card .modal-header h2 { font-size: 1.15rem; font-weight: 800; color: #7B0D1E; margin: 0; }
+.um-modal-card .close-btn { background: none; border: none; color: #94a3b8; font-size: 1.1rem; cursor: pointer; }
 
-.modal-body { padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
-.modal-body.split-view { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.um-modal-card .modal-body { padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
+.um-modal-card .modal-body.split-view { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
 
 @media (max-width: 768px) {
-  .modal-body.split-view { grid-template-columns: 1fr; }
+  .um-modal-card .modal-body.split-view { grid-template-columns: 1fr; }
 }
 
-.sub-heading { font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-bottom: 0.75rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.35rem; }
-.info-grid { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8125rem; color: #334155; }
+.um-modal-card .sub-heading { font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-bottom: 0.75rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.35rem; }
+.um-modal-card .info-grid { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8125rem; color: #334155; }
 
-.doc-preview-box {
+.um-modal-card .doc-preview-box {
   background-color: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -307,11 +316,11 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   margin-bottom: 0.75rem;
 }
 
-.doc-header { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.8125rem; }
-.icon-pdf { color: #e11d48; }
-.icon-id { color: #2563eb; }
+.um-modal-card .doc-header { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.8125rem; }
+.um-modal-card .icon-pdf { color: #e11d48; }
+.um-modal-card .icon-id { color: #2563eb; }
 
-.btn-doc-view {
+.um-modal-card .btn-doc-view {
   display: inline-block;
   padding: 0.4rem 0.75rem;
   background-color: #ffffff;
@@ -324,7 +333,7 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   text-align: center;
 }
 
-.modal-footer {
+.um-modal-card .modal-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid #f1f5f9;
   display: flex;
@@ -333,10 +342,10 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   gap: 0.75rem;
 }
 
-.modal-footer.flex-between { justify-content: space-between; }
-.action-button-group { display: flex; align-items: center; gap: 0.5rem; }
+.um-modal-card .modal-footer.flex-between { justify-content: space-between; }
+.um-modal-card .action-button-group { display: flex; align-items: center; gap: 0.5rem; }
 
-.um-textarea {
+.um-modal-card .um-textarea {
   width: 100%;
   padding: 0.6rem;
   border-radius: 8px;
@@ -346,10 +355,10 @@ Theme: Deep Maroon & Slate Admin Clean Palette
   font-family: inherit;
 }
 
-.um-empty-state { padding: 3rem 1rem; text-align: center; }
-.empty-icon { font-size: 2.25rem; color: #cbd5e1; margin-bottom: 0.5rem; }
+.user-management-container .um-empty-state { padding: 3rem 1rem; text-align: center; }
+.user-management-container .empty-icon { font-size: 2.25rem; color: #cbd5e1; margin-bottom: 0.5rem; }
 
-.font-mono { font-family: monospace; }
-.font-semibold { font-weight: 600; }
-.margin-top-16 { margin-top: 1rem; }
-.margin-right-4 { margin-right: 0.25rem; }
+.user-management-container .font-mono { font-family: monospace; }
+.user-management-container .font-semibold { font-weight: 600; }
+.user-management-container .margin-top-16 { margin-top: 1rem; }
+.user-management-container .margin-right-4 { margin-right: 0.25rem; }

@@ -1,6 +1,7 @@
 /* ==========================================
 WMSU ADMIN CONTENT FEED STYLESHEET
 Theme: Deep Maroon & Slate Neutral Workspace
+Scoped strictly under .content-feed-container & .feed-*
 ========================================== */
 
 .content-feed-container {
@@ -9,10 +10,17 @@ Theme: Deep Maroon & Slate Neutral Workspace
   gap: 1.25rem;
   width: 100%;
   color: #1e293b;
+  box-sizing: border-box;
+}
+
+.content-feed-container *,
+.content-feed-container *::before,
+.content-feed-container *::after {
+  box-sizing: border-box;
 }
 
 /* Page Header Bar */
-.feed-header {
+.content-feed-container .feed-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -20,7 +28,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
   flex-wrap: wrap;
 }
 
-.feed-title {
+.content-feed-container .feed-title {
   font-size: 1.75rem;
   font-weight: 800;
   color: #7B0D1E;
@@ -28,20 +36,20 @@ Theme: Deep Maroon & Slate Neutral Workspace
   letter-spacing: -0.02em;
 }
 
-.feed-subtitle {
+.content-feed-container .feed-subtitle {
   font-size: 0.875rem;
   color: #64748b;
   margin: 0;
 }
 
-.feed-header-actions {
+.content-feed-container .feed-header-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
 /* Primary & Secondary Buttons */
-.btn-feed-primary {
+.content-feed-container .btn-feed-primary {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -57,20 +65,20 @@ Theme: Deep Maroon & Slate Neutral Workspace
   box-shadow: 0 2px 6px rgba(123, 13, 30, 0.2);
 }
 
-.btn-feed-primary:hover:not(:disabled) {
+.content-feed-container .btn-feed-primary:hover:not(:disabled) {
   background-color: #5a0915;
   transform: translateY(-1px);
 }
 
-.btn-feed-primary.danger-btn {
+.content-feed-container .btn-feed-primary.danger-btn {
   background-color: #9f1239;
 }
 
-.btn-feed-primary.danger-btn:hover {
+.content-feed-container .btn-feed-primary.danger-btn:hover {
   background-color: #710e28;
 }
 
-.btn-feed-secondary {
+.content-feed-container .btn-feed-secondary {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -85,12 +93,12 @@ Theme: Deep Maroon & Slate Neutral Workspace
   transition: all 0.2s ease;
 }
 
-.btn-feed-secondary:hover:not(:disabled) {
+.content-feed-container .btn-feed-secondary:hover:not(:disabled) {
   background-color: #f8fafc;
   color: #1e293b;
 }
 
-.btn-feed-link {
+.content-feed-container .btn-feed-link {
   background: none;
   border: none;
   color: #7B0D1E;
@@ -99,16 +107,16 @@ Theme: Deep Maroon & Slate Neutral Workspace
   cursor: pointer;
 }
 
-.btn-feed-link:hover {
+.content-feed-container .btn-feed-link:hover {
   text-decoration: underline;
 }
 
 /* Create Content Dropdown */
-.create-menu-wrapper {
+.content-feed-container .create-menu-wrapper {
   position: relative;
 }
 
-.create-dropdown-menu {
+.content-feed-container .create-dropdown-menu {
   position: absolute;
   top: calc(100% + 0.5rem);
   right: 0;
@@ -124,7 +132,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
   gap: 0.25rem;
 }
 
-.dropdown-menu-item {
+.content-feed-container .dropdown-menu-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -138,28 +146,28 @@ Theme: Deep Maroon & Slate Neutral Workspace
   transition: background-color 0.15s ease;
 }
 
-.dropdown-menu-item:hover {
+.content-feed-container .dropdown-menu-item:hover {
   background-color: #fff1f2;
 }
 
-.icon-maroon {
+.content-feed-container .icon-maroon {
   color: #7B0D1E;
   font-size: 1.1rem;
 }
 
-.menu-item-title {
+.content-feed-container .menu-item-title {
   font-size: 0.8125rem;
   font-weight: 700;
   color: #1e293b;
 }
 
-.menu-item-sub {
+.content-feed-container .menu-item-sub {
   font-size: 0.72rem;
   color: #64748b;
 }
 
 /* Alert Banner */
-.feed-alert-banner {
+.content-feed-container .feed-alert-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -169,25 +177,25 @@ Theme: Deep Maroon & Slate Neutral Workspace
   font-weight: 600;
 }
 
-.feed-alert-banner.success {
+.content-feed-container .feed-alert-banner.success {
   background-color: #d1fae5;
   color: #047857;
   border: 1px solid #a7f3d0;
 }
 
-.feed-alert-banner.error {
+.content-feed-container .feed-alert-banner.error {
   background-color: #fef2f2;
   color: #9f1239;
   border: 1px solid #fecdd3;
 }
 
-.alert-content {
+.content-feed-container .alert-content {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.close-alert-btn {
+.content-feed-container .close-alert-btn {
   background: none;
   border: none;
   color: inherit;
@@ -196,7 +204,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
 }
 
 /* Filter Controls Card */
-.feed-controls-card {
+.content-feed-container .feed-controls-card {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
@@ -207,7 +215,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
   gap: 0.85rem;
 }
 
-.feed-tabs-list {
+.content-feed-container .feed-tabs-list {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -216,7 +224,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
   padding-bottom: 0.75rem;
 }
 
-.feed-tab-btn {
+.content-feed-container .feed-tab-btn {
   padding: 0.4rem 0.85rem;
   border-radius: 9999px;
   background: none;
@@ -229,25 +237,25 @@ Theme: Deep Maroon & Slate Neutral Workspace
   transition: all 0.2s ease;
 }
 
-.feed-tab-btn:hover {
+.content-feed-container .feed-tab-btn:hover {
   color: #1e293b;
   background-color: #f8fafc;
 }
 
-.feed-tab-btn.active {
+.content-feed-container .feed-tab-btn.active {
   background-color: #7B0D1E;
   color: #ffffff;
 }
 
 /* Toolbar Controls */
-.feed-toolbar {
+.content-feed-container .feed-toolbar {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
 }
 
-.feed-search-box {
+.content-feed-container .feed-search-box {
   position: relative;
   flex: 1;
   min-width: 240px;
@@ -255,14 +263,14 @@ Theme: Deep Maroon & Slate Neutral Workspace
   align-items: center;
 }
 
-.search-icon {
+.content-feed-container .search-icon {
   position: absolute;
   left: 0.85rem;
   color: #94a3b8;
   font-size: 0.85rem;
 }
 
-.feed-search-input {
+.content-feed-container .feed-search-input {
   width: 100%;
   height: 38px;
   padding: 0 2rem 0 2.25rem;
@@ -273,11 +281,11 @@ Theme: Deep Maroon & Slate Neutral Workspace
   transition: border-color 0.2s ease;
 }
 
-.feed-search-input:focus {
+.content-feed-container .feed-search-input:focus {
   border-color: #7B0D1E;
 }
 
-.clear-search-btn {
+.content-feed-container .clear-search-btn {
   position: absolute;
   right: 0.75rem;
   background: none;
@@ -286,7 +294,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
   cursor: pointer;
 }
 
-.feed-select {
+.content-feed-container .feed-select {
   height: 38px;
   padding: 0 0.85rem;
   border-radius: 8px;
@@ -298,13 +306,13 @@ Theme: Deep Maroon & Slate Neutral Workspace
 }
 
 /* Cards Grid Layout */
-.feed-cards-grid {
+.content-feed-container .feed-cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
   gap: 1.25rem;
 }
 
-.feed-item-card {
+.content-feed-container .feed-item-card {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
@@ -317,24 +325,24 @@ Theme: Deep Maroon & Slate Neutral Workspace
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.feed-item-card:hover {
+.content-feed-container .feed-item-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(123, 13, 30, 0.08);
 }
 
-.card-top-bar {
+.content-feed-container .card-top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.card-type-group {
+.content-feed-container .card-type-group {
   display: flex;
   align-items: center;
   gap: 0.4rem;
 }
 
-.type-badge {
+.content-feed-container .type-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -345,16 +353,16 @@ Theme: Deep Maroon & Slate Neutral Workspace
   text-transform: uppercase;
 }
 
-.type-badge.announcement { background-color: #eff6ff; color: #1d4ed8; }
-.type-badge.event { background-color: #fcf2f2; color: #7B0D1E; }
+.content-feed-container .type-badge.announcement { background-color: #eff6ff; color: #1d4ed8; }
+.content-feed-container .type-badge.event { background-color: #fcf2f2; color: #7B0D1E; }
 
-.category-pill {
+.content-feed-container .category-pill {
   font-size: 0.72rem;
   color: #64748b;
   font-weight: 600;
 }
 
-.workflow-status-badge {
+.content-feed-container .workflow-status-badge {
   font-size: 0.68rem;
   font-weight: 700;
   padding: 0.15rem 0.5rem;
@@ -362,12 +370,12 @@ Theme: Deep Maroon & Slate Neutral Workspace
   text-transform: capitalize;
 }
 
-.status-published { background-color: #d1fae5; color: #047857; }
-.status-pending { background-color: #fef3c7; color: #b45309; }
-.status-archived { background-color: #f1f5f9; color: #475569; }
-.status-takedown { background-color: #ffe4e6; color: #9f1239; }
+.content-feed-container .status-published { background-color: #d1fae5; color: #047857; }
+.content-feed-container .status-pending { background-color: #fef3c7; color: #b45309; }
+.content-feed-container .status-archived { background-color: #f1f5f9; color: #475569; }
+.content-feed-container .status-takedown { background-color: #ffe4e6; color: #9f1239; }
 
-.card-item-title {
+.content-feed-container .card-item-title {
   font-size: 1.05rem;
   font-weight: 700;
   color: #0f172a;
@@ -375,14 +383,14 @@ Theme: Deep Maroon & Slate Neutral Workspace
   margin: 0;
 }
 
-.card-item-snippet {
+.content-feed-container .card-item-snippet {
   font-size: 0.8125rem;
   color: #475569;
   line-height: 1.4;
   margin: 0;
 }
 
-.event-meta-box {
+.content-feed-container .event-meta-box {
   background-color: #f8fafc;
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
@@ -391,7 +399,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
   gap: 0.3rem;
 }
 
-.meta-row {
+.content-feed-container .meta-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -399,12 +407,12 @@ Theme: Deep Maroon & Slate Neutral Workspace
   color: #334155;
 }
 
-.meta-icon {
+.content-feed-container .meta-icon {
   color: #7B0D1E;
   width: 14px;
 }
 
-.card-author-footer {
+.content-feed-container .card-author-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -413,29 +421,29 @@ Theme: Deep Maroon & Slate Neutral Workspace
   margin-top: auto;
 }
 
-.author-details {
+.content-feed-container .author-details {
   display: flex;
   flex-direction: column;
 }
 
-.author-name {
+.content-feed-container .author-name {
   font-weight: 700;
   font-size: 0.78rem;
   color: #1e293b;
 }
 
-.post-date {
+.content-feed-container .post-date {
   font-size: 0.7rem;
   color: #94a3b8;
 }
 
-.card-actions-row {
+.content-feed-container .card-actions-row {
   display: flex;
   align-items: center;
   gap: 0.3rem;
 }
 
-.card-icon-btn {
+.content-feed-container .card-icon-btn {
   width: 30px;
   height: 30px;
   border-radius: 6px;
@@ -450,17 +458,17 @@ Theme: Deep Maroon & Slate Neutral Workspace
   transition: all 0.15s ease;
 }
 
-.card-icon-btn:hover {
+.content-feed-container .card-icon-btn:hover {
   background-color: #f1f5f9;
   color: #0f172a;
 }
 
-.text-emerald { color: #059669; }
-.text-amber { color: #d97706; }
-.text-rose { color: #e11d48; }
+.content-feed-container .text-emerald { color: #059669; }
+.content-feed-container .text-amber { color: #d97706; }
+.content-feed-container .text-rose { color: #e11d48; }
 
 /* Pagination Bar */
-.feed-pagination-bar {
+.content-feed-container .feed-pagination-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -470,18 +478,18 @@ Theme: Deep Maroon & Slate Neutral Workspace
   border-radius: 12px;
 }
 
-.pagination-text {
+.content-feed-container .pagination-text {
   font-size: 0.78rem;
   color: #64748b;
 }
 
-.pagination-btn-group {
+.content-feed-container .pagination-btn-group {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.btn-pagination {
+.content-feed-container .btn-pagination {
   padding: 0.35rem 0.75rem;
   border-radius: 6px;
   border: 1px solid #cbd5e1;
@@ -491,13 +499,14 @@ Theme: Deep Maroon & Slate Neutral Workspace
   cursor: pointer;
 }
 
-.btn-pagination:disabled {
+.content-feed-container .btn-pagination:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Modals */
-.modal-backdrop {
+/* Scoped Modals */
+.feed-modal-backdrop,
+.content-feed-container .modal-backdrop {
   position: fixed;
   inset: 0;
   background-color: rgba(15, 23, 42, 0.5);
@@ -509,7 +518,8 @@ Theme: Deep Maroon & Slate Neutral Workspace
   padding: 1rem;
 }
 
-.modal-container-card {
+.feed-modal-card,
+.content-feed-container .modal-container-card {
   width: 100%;
   max-width: 580px;
   max-height: 90vh;
@@ -521,11 +531,12 @@ Theme: Deep Maroon & Slate Neutral Workspace
   overflow: hidden;
 }
 
-.modal-container-card.small-modal {
+.feed-modal-card.small-modal,
+.content-feed-container .modal-container-card.small-modal {
   max-width: 440px;
 }
 
-.modal-card-header {
+.content-feed-container .modal-card-header {
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
@@ -533,14 +544,14 @@ Theme: Deep Maroon & Slate Neutral Workspace
   justify-content: space-between;
 }
 
-.modal-card-title {
+.content-feed-container .modal-card-title {
   font-size: 1.15rem;
   font-weight: 800;
   color: #7B0D1E;
   margin: 0;
 }
 
-.close-modal-btn {
+.content-feed-container .close-modal-btn {
   background: none;
   border: none;
   color: #94a3b8;
@@ -548,7 +559,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
   cursor: pointer;
 }
 
-.modal-form-body {
+.content-feed-container .modal-form-body {
   padding: 1.5rem;
   overflow-y: auto;
   display: flex;
@@ -556,19 +567,21 @@ Theme: Deep Maroon & Slate Neutral Workspace
   gap: 1rem;
 }
 
-.form-group {
+.content-feed-container .form-group {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
 }
 
-.form-group label {
+.content-feed-container .form-group label {
   font-size: 0.78rem;
   font-weight: 700;
   color: #334155;
 }
 
-.modal-input, .modal-textarea, .modal-select {
+.content-feed-container .modal-input, 
+.content-feed-container .modal-textarea, 
+.content-feed-container .modal-select {
   width: 100%;
   padding: 0.6rem 0.85rem;
   border-radius: 8px;
@@ -578,21 +591,23 @@ Theme: Deep Maroon & Slate Neutral Workspace
   font-family: inherit;
 }
 
-.modal-input:focus, .modal-textarea:focus, .modal-select:focus {
+.content-feed-container .modal-input:focus, 
+.content-feed-container .modal-textarea:focus, 
+.content-feed-container .modal-select:focus {
   border-color: #7B0D1E;
 }
 
-.form-row {
+.content-feed-container .form-row {
   display: flex;
   gap: 1rem;
 }
 
-.field-hint {
+.content-feed-container .field-hint {
   font-size: 0.7rem;
   color: #94a3b8;
 }
 
-.modal-footer-actions {
+.content-feed-container .modal-footer-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -602,7 +617,7 @@ Theme: Deep Maroon & Slate Neutral Workspace
 }
 
 /* Empty State */
-.feed-empty-state {
+.content-feed-container .feed-empty-state {
   padding: 3rem 1rem;
   text-align: center;
   background-color: #ffffff;
@@ -610,20 +625,20 @@ Theme: Deep Maroon & Slate Neutral Workspace
   border-radius: 16px;
 }
 
-.empty-icon {
+.content-feed-container .empty-icon {
   font-size: 2.25rem;
   color: #cbd5e1;
   margin-bottom: 0.5rem;
 }
 
-.empty-title {
+.content-feed-container .empty-title {
   font-size: 1rem;
   font-weight: 700;
   color: #1e293b;
   margin-bottom: 0.25rem;
 }
 
-.empty-desc {
+.content-feed-container .empty-desc {
   font-size: 0.8125rem;
   color: #64748b;
   max-width: 400px;
