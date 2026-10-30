@@ -39,7 +39,7 @@ import UserManagement from './pages/Admin/UserManagement.jsx';
 import PageManagement from './pages/Admin/PageManagement.jsx';
 import PostApproval from './pages/Admin/PostApproval.jsx';
 import Archives from './pages/Admin/Archives.jsx';
-import ReportStatistics from './pages/Admin/ReportStatistics.jsx';
+import Reports from './pages/Admin/Reports.jsx';
 import AuditLogs from './pages/Admin/AuditLogs.jsx';
 import SystemSettings from './pages/Admin/SystemSettings.jsx';
 
@@ -119,7 +119,7 @@ function App() {
         <Route path="/admin/posts" element={<PostApproval />} />
         <Route path="/admin/post-approval" element={<PostApproval />} />
         <Route path="/admin/archives" element={<Archives />} />
-        <Route path="/admin/reports" element={<ReportStatistics />} />
+        <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/audit-logs" element={<AuditLogs />} />
         <Route path="/admin/settings" element={<SystemSettings />} />
         <Route path="/admin/*" element={<AdminDashboard />} />

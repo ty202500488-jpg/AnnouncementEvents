@@ -40,7 +40,7 @@ const PostApproval = () => {
   const fetchApprovalData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
 
     const queryParams = new URLSearchParams({
       tab: activeTab,
@@ -52,11 +52,11 @@ const PostApproval = () => {
     });
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/post-approval?${queryParams.toString()}`, {
+      const response = await fetch(`/api/admin/post-approval?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+          ...(token && { Authorization: `Bearer ${token}` })
         }
       });
 
@@ -103,14 +103,14 @@ const PostApproval = () => {
     }
 
     setSubmitting(true);
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/post-approval/${selectedItem.id}/decision`, {
+      const response = await fetch(`/api/admin/post-approval/${selectedItem.id}/decision`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
+          ...(token && { Authorization: `Bearer ${token}` })
         },
         body: JSON.stringify({
           type: selectedItem.type,
@@ -145,7 +145,7 @@ const PostApproval = () => {
         
         {/* ================= PAGE HEADER ================= */}
         <div className="pa-header">
-          <div>
+          <div className="pa-header-text">
             <h1 className="pa-title">Post Approval</h1>
             <p className="pa-subtitle">
               Review Staff-submitted announcements and events before they are published to the WMSU community.
@@ -159,7 +159,7 @@ const PostApproval = () => {
               onClick={fetchApprovalData}
               disabled={loading}
             >
-              <i className={`fa-solid fa-rotate-right ${loading ? 'spin-icon' : ''}`}></i>
+              <i className={`fa-solid fa-rotate-right ${loading ? 'pa-spin-icon' : ''}`}></i>
               <span>Refresh Queue</span>
             </button>
           </div>
@@ -167,12 +167,12 @@ const PostApproval = () => {
 
         {/* FEEDBACK ALERT BANNER */}
         {feedback && (
-          <div className={`pa-alert-banner ${feedback.type}`}>
-            <div className="alert-content">
+          <div className={`pa-alert-banner pa-alert-${feedback.type}`}>
+            <div className="pa-alert-content">
               <i className={`fa-solid ${feedback.type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`}></i>
               <span>{feedback.message}</span>
             </div>
-            <button type="button" className="close-alert-btn" onClick={() => setFeedback(null)}>
+            <button type="button" className="pa-close-alert-btn" onClick={() => setFeedback(null)}>
               <i className="fa-solid fa-xmark"></i>
             </button>
           </div>
@@ -181,40 +181,40 @@ const PostApproval = () => {
         {/* ================= SUMMARY METRIC CARDS ================= */}
         <div className="pa-summary-grid">
           
-          <div className="pa-summary-card pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('all'); }}>
-            <div className="card-body">
-              <div>
-                <span className="card-label">Total Pending Reviews</span>
-                <div className="card-value">{loading ? '...' : summaryCounts.totalPending}</div>
-                <span className="card-subtext status-amber-text">Requires administrative decision</span>
+          <div className="pa-summary-card pa-pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('all'); }}>
+            <div className="pa-card-body">
+              <div className="pa-card-info">
+                <span className="pa-card-label">Total Pending Reviews</span>
+                <div className="pa-card-value">{loading ? '...' : summaryCounts.totalPending}</div>
+                <span className="pa-card-subtext pa-status-amber-text">Requires administrative decision</span>
               </div>
-              <div className="card-icon-box amber-box">
+              <div className="pa-card-icon-box pa-amber-box">
                 <i className="fa-solid fa-file-circle-check"></i>
               </div>
             </div>
           </div>
 
-          <div className="pa-summary-card pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('announcement'); }}>
-            <div className="card-body">
-              <div>
-                <span className="card-label">Pending Announcements</span>
-                <div className="card-value">{loading ? '...' : summaryCounts.pendingAnnouncements}</div>
-                <span className="card-subtext">Campus updates & notices</span>
+          <div className="pa-summary-card pa-pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('announcement'); }}>
+            <div className="pa-card-body">
+              <div className="pa-card-info">
+                <span className="pa-card-label">Pending Announcements</span>
+                <div className="pa-card-value">{loading ? '...' : summaryCounts.pendingAnnouncements}</div>
+                <span className="pa-card-subtext">Campus updates & notices</span>
               </div>
-              <div className="card-icon-box maroon-box">
+              <div className="pa-card-icon-box pa-maroon-box">
                 <i className="fa-solid fa-bullhorn"></i>
               </div>
             </div>
           </div>
 
-          <div className="pa-summary-card pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('event'); }}>
-            <div className="card-body">
-              <div>
-                <span className="card-label">Pending Events</span>
-                <div className="card-value">{loading ? '...' : summaryCounts.pendingEvents}</div>
-                <span className="card-subtext">Activities & gatherings</span>
+          <div className="pa-summary-card pa-pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('event'); }}>
+            <div className="pa-card-body">
+              <div className="pa-card-info">
+                <span className="pa-card-label">Pending Events</span>
+                <div className="pa-card-value">{loading ? '...' : summaryCounts.pendingEvents}</div>
+                <span className="pa-card-subtext">Activities & gatherings</span>
               </div>
-              <div className="card-icon-box maroon-box">
+              <div className="pa-card-icon-box pa-maroon-box">
                 <i className="fa-solid fa-calendar-days"></i>
               </div>
             </div>
@@ -246,7 +246,7 @@ const PostApproval = () => {
           {/* Search and Filters */}
           <div className="pa-toolbar">
             <div className="pa-search-box">
-              <i className="fa-solid fa-magnifying-glass search-icon"></i>
+              <i className="fa-solid fa-magnifying-glass pa-search-icon"></i>
               <input 
                 type="text" 
                 placeholder="Search title, author, or page name..."
@@ -258,7 +258,7 @@ const PostApproval = () => {
                 className="pa-search-input"
               />
               {searchQuery && (
-                <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')}>
+                <button type="button" className="pa-clear-search-btn" onClick={() => setSearchQuery('')}>
                   <i className="fa-solid fa-xmark"></i>
                 </button>
               )}
@@ -310,26 +310,26 @@ const PostApproval = () => {
         {/* ================= DATA TABLE DISPLAY ================= */}
         <div className="pa-table-card">
           {loading ? (
-            <div className="table-skeleton-container">
-              <div className="skeleton-row"></div>
-              <div className="skeleton-row"></div>
-              <div className="skeleton-row"></div>
+            <div className="pa-table-skeleton-container">
+              <div className="pa-skeleton-row"></div>
+              <div className="pa-skeleton-row"></div>
+              <div className="pa-skeleton-row"></div>
             </div>
           ) : error ? (
             <div className="pa-empty-state">
-              <i className="fa-solid fa-triangle-exclamation empty-icon text-rose"></i>
+              <i className="fa-solid fa-triangle-exclamation pa-empty-icon pa-text-rose"></i>
               <h3>Failed to load review queue</h3>
               <p>{error}</p>
               <button type="button" className="btn-pa-primary" onClick={fetchApprovalData}>Retry</button>
             </div>
           ) : items.length === 0 ? (
             <div className="pa-empty-state">
-              <i className="fa-solid fa-circle-check empty-icon text-emerald"></i>
+              <i className="fa-solid fa-circle-check pa-empty-icon pa-text-emerald"></i>
               <h3>Review Queue Clear</h3>
               <p>No pending submissions require administrative review at this time.</p>
             </div>
           ) : (
-            <div className="table-responsive">
+            <div className="pa-table-responsive">
               <table className="pa-data-table">
                 <thead>
                   <tr>
@@ -339,41 +339,41 @@ const PostApproval = () => {
                     <th>Audience / Scope</th>
                     <th>Submission Date</th>
                     <th>Status</th>
-                    <th className="text-right">Action</th>
+                    <th className="pa-text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map(item => (
                     <tr key={`${item.type}-${item.id}`}>
                       <td>
-                        <div className="item-title-cell">
-                          <span className="item-title-text">{item.title}</span>
-                          {item.category && <span className="item-category-sub">{item.category}</span>}
+                        <div className="pa-item-title-cell">
+                          <span className="pa-item-title-text">{item.title}</span>
+                          {item.category && <span className="pa-item-category-sub">{item.category}</span>}
                         </div>
                       </td>
                       <td>
-                        <span className={`type-tag type-${item.type}`}>
-                          <i className={`fa-solid ${item.type === 'event' ? 'fa-calendar-days' : 'fa-bullhorn'} margin-right-4`}></i>
+                        <span className={`pa-type-tag pa-type-${item.type}`}>
+                          <i className={`fa-solid ${item.type === 'event' ? 'fa-calendar-days' : 'fa-bullhorn'} pa-mr-4`}></i>
                           {item.type}
                         </span>
                       </td>
                       <td>
-                        <div className="author-cell">
-                          <span className="author-name">{item.submitted_by || item.author_name || 'Staff User'}</span>
-                          <span className="page-sub">{item.page_name || 'Main Campus'}</span>
+                        <div className="pa-author-cell">
+                          <span className="pa-author-name">{item.submitted_by || item.author_name || 'Staff User'}</span>
+                          <span className="pa-page-sub">{item.page_name || 'Main Campus'}</span>
                         </div>
                       </td>
-                      <td><span className="audience-pill">{item.audience || 'All Students'}</span></td>
-                      <td className="text-slate-500">{new Date(item.created_at).toLocaleDateString()}</td>
+                      <td><span className="pa-audience-pill">{item.audience || 'All Students'}</span></td>
+                      <td className="pa-text-muted-cell">{new Date(item.created_at).toLocaleDateString()}</td>
                       <td>
-                        <span className={`status-pill status-${item.status}`}>
+                        <span className={`pa-status-badge pa-status-${String(item.status).toLowerCase().replace(/\s+/g, '_')}`}>
                           {item.status}
                         </span>
                       </td>
-                      <td className="text-right">
+                      <td className="pa-text-right">
                         <button 
                           type="button" 
-                          className="btn-table-action primary"
+                          className="btn-pa-table-action"
                           onClick={() => {
                             setSelectedItem(item);
                             setActiveModal('review');
@@ -393,13 +393,13 @@ const PostApproval = () => {
         {/* ================= PAGINATION BAR ================= */}
         {!loading && items.length > 0 && (
           <div className="pa-pagination-bar">
-            <span className="pagination-info">
+            <span className="pa-pagination-info">
               Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} records)
             </span>
-            <div className="pagination-actions">
+            <div className="pa-pagination-actions">
               <button 
                 type="button" 
-                className="btn-pagination"
+                className="btn-pa-pagination"
                 disabled={pagination.page <= 1}
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
               >
@@ -407,7 +407,7 @@ const PostApproval = () => {
               </button>
               <button 
                 type="button" 
-                className="btn-pagination"
+                className="btn-pa-pagination"
                 disabled={pagination.page >= pagination.totalPages}
                 onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
               >
@@ -422,25 +422,25 @@ const PostApproval = () => {
         {/* 1. DETAILED REVIEW MODAL */}
         {activeModal === 'review' && selectedItem && (
           <div className="pa-modal-backdrop">
-            <div className="pa-modal-card large-modal">
-              <div className="modal-header">
+            <div className="pa-modal-card pa-modal-large">
+              <div className="pa-modal-header">
                 <div>
-                  <span className={`type-tag type-${selectedItem.type}`}>
+                  <span className={`pa-type-tag pa-type-${selectedItem.type}`}>
                     {selectedItem.type}
                   </span>
-                  <h2 className="modal-title-text">{selectedItem.title}</h2>
+                  <h2 className="pa-modal-title-text">{selectedItem.title}</h2>
                 </div>
-                <button type="button" className="close-btn" onClick={() => setActiveModal(null)}>
+                <button type="button" className="pa-close-btn" onClick={() => setActiveModal(null)}>
                   <i className="fa-solid fa-xmark"></i>
                 </button>
               </div>
 
-              <div className="modal-body split-view">
+              <div className="pa-modal-body pa-split-view">
                 
                 {/* Left: Metadata Details */}
-                <div className="details-col">
-                  <h3 className="sub-heading">Submission Metadata</h3>
-                  <div className="info-grid">
+                <div className="pa-details-col">
+                  <h3 className="pa-sub-heading">Submission Metadata</h3>
+                  <div className="pa-info-grid">
                     <div><strong>Submitted By:</strong> {selectedItem.submitted_by || selectedItem.author_name || 'Staff Member'}</div>
                     <div><strong>Organization / Page:</strong> {selectedItem.page_name || 'University Office'}</div>
                     <div><strong>Category:</strong> {selectedItem.category || 'General'}</div>
@@ -453,8 +453,8 @@ const PostApproval = () => {
 
                   {/* Event Specific Metadata */}
                   {selectedItem.type === 'event' && (
-                    <div className="margin-top-12 event-meta-card">
-                      <h4 className="sub-heading">Event Schedule & Venue</h4>
+                    <div className="pa-mt-12 pa-event-meta-card">
+                      <h4 className="pa-sub-heading">Event Schedule & Venue</h4>
                       <div><strong>Start Time:</strong> {selectedItem.event_start ? new Date(selectedItem.event_start).toLocaleString() : 'TBD'}</div>
                       <div><strong>End Time:</strong> {selectedItem.event_end ? new Date(selectedItem.event_end).toLocaleString() : 'TBD'}</div>
                       <div><strong>Venue:</strong> {selectedItem.venue || 'Main Campus'}</div>
@@ -464,9 +464,9 @@ const PostApproval = () => {
                 </div>
 
                 {/* Right: Content Preview Box */}
-                <div className="content-col">
-                  <h3 className="sub-heading">Submitted Body Content</h3>
-                  <div className="body-preview-card">
+                <div className="pa-content-col">
+                  <h3 className="pa-sub-heading">Submitted Body Content</h3>
+                  <div className="pa-body-preview-card">
                     <p>{selectedItem.description || selectedItem.body || 'No text content submitted.'}</p>
                   </div>
                 </div>
@@ -474,13 +474,13 @@ const PostApproval = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="modal-footer flex-between">
+              <div className="pa-modal-footer pa-flex-between">
                 <button type="button" className="btn-pa-secondary" onClick={() => setActiveModal(null)}>
                   Close
                 </button>
 
                 {activeTab === 'pending' && (
-                  <div className="action-button-group">
+                  <div className="pa-action-button-group">
                     <button 
                       type="button" 
                       className="btn-pa-amber" 
@@ -521,22 +521,22 @@ const PostApproval = () => {
         {/* 2. DECISION REASON CONFIRMATION MODAL */}
         {activeModal === 'decision' && selectedItem && (
           <div className="pa-modal-backdrop">
-            <div className="pa-modal-card small-modal">
-              <div className="modal-header">
-                <h2>Confirm Decision: {decisionType.toUpperCase()}</h2>
-                <button type="button" className="close-btn" onClick={() => setActiveModal('review')}>
+            <div className="pa-modal-card pa-modal-small">
+              <div className="pa-modal-header">
+                <h2 className="pa-modal-title-text">Confirm Decision: {decisionType.toUpperCase()}</h2>
+                <button type="button" className="pa-close-btn" onClick={() => setActiveModal('review')}>
                   <i className="fa-solid fa-xmark"></i>
                 </button>
               </div>
 
-              <div className="modal-body">
+              <div className="pa-modal-body">
                 <p>
                   Are you sure you want to execute <strong>{decisionType}</strong> for "<strong>{selectedItem.title}</strong>"?
                 </p>
 
                 {(decisionType === 'reject' || decisionType === 'correction') && (
-                  <div className="form-group margin-top-12">
-                    <label htmlFor="decision-reason">Administrative Note / Instructions *</label>
+                  <div className="pa-form-group pa-mt-12">
+                    <label htmlFor="decision-reason" className="pa-form-label">Administrative Note / Instructions *</label>
                     <textarea 
                       id="decision-reason"
                       rows="3"
@@ -550,7 +550,7 @@ const PostApproval = () => {
                 )}
               </div>
 
-              <div className="modal-footer">
+              <div className="pa-modal-footer">
                 <button type="button" className="btn-pa-secondary" onClick={() => setActiveModal('review')}>
                   Back
                 </button>

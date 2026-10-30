@@ -87,9 +87,9 @@ const AdminLayout = ({ children }) => {
     {
       title: 'System Administration',
       items: [
-        { label: 'Reports & Statistics', path: '/admin/reports', icon: 'fa-solid fa-chart-line' },
+        { label: 'Reports', path: '/admin/reports', icon: 'fa-solid fa-chart-line' },
         { label: 'Audit Logs', path: '/admin/audit-logs', icon: 'fa-solid fa-clipboard-list' },
-        { label: 'System Settings', path: '/admin/settings', icon: 'fa-solid fa-sliders' },
+        { label: 'Settings', path: '/admin/settings', icon: 'fa-solid fa-sliders' },
       ],
     },
   ];
