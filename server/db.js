@@ -1,21 +1,20 @@
+const path = require('path');
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const pool = new Pool({
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_NAME || 'announcement_events',
-    password: process.env.DB_PASSWORD || '', // Falls back to empty if no password is set
+    password: String(process.env.DB_PASSWORD || ''),
     port: Number(process.env.DB_PORT || 5432),
     connectionTimeoutMillis: 5000
 });
 
-// Test the connection immediately on startup and print clear logs
 pool.query('SELECT NOW()', (err, res) => {
     if (err) {
-        console.error('❌ DATABASE CONNECTION FAILED:');
-        console.error(err.message);
-        console.error('💡 TIP: Check your .env file to make sure DB_USER, DB_PASSWORD, and DB_NAME are correct.');
+        console.error('❌ DATABASE CONNECTION FAILED:', err.message);
+        console.error('💡 TIP: Verify DB_USER, DB_PASSWORD, DB_NAME, and DB_PORT in server/.env');
     } else {
         console.log('✅ DATABASE CONNECTED SUCCESSFULLY at:', res.rows[0].now);
     }

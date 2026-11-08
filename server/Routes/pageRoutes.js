@@ -1,59 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const jwt = require('jsonwebtoken');
+const { authenticateUser, logAudit } = require('../middleware/auth');
 
-// AUTHENTICATION HELPER
-async function authenticateUser(req, res) {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({ message: 'Authentication required. Please log in.' });
-        return null;
-    }
-
-    const token = authHeader.slice(7).trim();
-    const jwtSecret = process.env.JWT_SECRET || 'fallback_secret';
-
-    try {
-        const decoded = jwt.verify(token, jwtSecret);
-        const userId = Number(decoded.userId ?? decoded.id ?? decoded.user_id);
-
-        if (!Number.isSafeInteger(userId) || userId <= 0) {
-            res.status(401).json({ message: 'Invalid token user ID.' });
-            return null;
-        }
-
-        const result = await pool.query('SELECT user_id FROM users WHERE user_id = $1', [userId]);
-        if (result.rows.length === 0) {
-            res.status(401).json({ message: 'User not found in database.' });
-            return null;
-        }
-
-        return userId;
-    } catch (error) {
-        console.error('Authentication error:', error.message);
-        res.status(401).json({ message: 'Invalid or expired token.' });
-        return null;
-    }
-}
-
-// HELPER: Fetch user's managed page details (owner or active page_staff)
+// Helper: Fetch a staff user's primary managed page (by page_members or created_by)
 async function getUserPageDetails(userId) {
     try {
         const pageRes = await pool.query(
-            `SELECT p.page_id,
-                    COALESCE(p.page_name, d.department_name, o.organization_name) AS page_name,
-                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
+            `SELECT p.page_id, p.page_name, p.page_code, p.page_description, p.status,
+                    p.department_id, p.organization_id, p.avatar_url, p.cover_url,
+                    p.contact_email, p.allow_event_registration
              FROM pages p
-             LEFT JOIN departments d ON p.department_id = d.department_id
-             LEFT JOIN organizations o ON p.organization_id = o.organization_id
-             WHERE p.created_by = $1
-                OR EXISTS (
-                    SELECT 1 FROM page_staff ps
-                    WHERE ps.page_id = p.page_id AND ps.user_id = $1 AND LOWER(ps.status) = 'active'
-                )
-             ORDER BY p.page_id DESC
+             LEFT JOIN page_members pm ON p.page_id = pm.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active'
+             WHERE p.created_by = $1 OR pm.user_id = $1
+             ORDER BY (CASE WHEN LOWER(p.status) IN ('approved', 'active') THEN 0 ELSE 1 END), p.page_id DESC
              LIMIT 1`,
             [userId]
         );
@@ -61,46 +21,44 @@ async function getUserPageDetails(userId) {
             return pageRes.rows[0];
         }
 
-        return { page_id: null, page_name: null, department_code: 'WMSU' };
+        const fallbackRes = await pool.query(
+            `SELECT page_id, page_name, page_code, page_description, status FROM pages ORDER BY page_id ASC LIMIT 1`
+        );
+        if (fallbackRes.rows.length > 0) {
+            return fallbackRes.rows[0];
+        }
+
+        return { page_id: null, page_name: 'Student Affairs Office', page_code: 'SAO' };
     } catch (err) {
         console.error('Error in getUserPageDetails:', err.message);
-        return { page_id: null, page_name: null, department_code: 'WMSU' };
+        return { page_id: null, page_name: 'Student Affairs Office', page_code: 'SAO' };
     }
 }
 
-// HELPER: Fetch default category_id if null to satisfy NOT-NULL constraint
 async function getDefaultCategoryId() {
     try {
-        const catRes = await pool.query(`SELECT category_id FROM announcement_categories ORDER BY category_id ASC LIMIT 1`);
-        if (catRes.rows.length > 0) {
-            return catRes.rows[0].category_id;
-        }
-        return 1;
-    } catch (err) {
+        const catRes = await pool.query(`SELECT category_id FROM post_categories ORDER BY category_id ASC LIMIT 1`);
+        return catRes.rows[0]?.category_id || 1;
+    } catch (_) {
         return 1;
     }
 }
 
-// CHECK USER'S PAGE STATUS
+// -------- CHECK USER'S PAGE STATUS -------- //
 router.get('/my-page-status', async (req, res) => {
     try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
+        const user = await authenticateUser(req, res);
+        if (!user) return;
 
         const pageQuery = await pool.query(
-            `SELECT p.page_id, p.page_name, p.page_description, p.status, p.department_id, p.organization_id,
-                    d.department_name, d.department_code, o.organization_name
+            `SELECT p.page_id, p.page_name, p.page_code, p.page_description, p.status,
+                    p.department_id, p.organization_id, p.avatar_url
              FROM pages p
-             LEFT JOIN departments d ON p.department_id = d.department_id
-             LEFT JOIN organizations o ON p.organization_id = o.organization_id
-             WHERE p.created_by = $1
-                OR EXISTS (
-                    SELECT 1 FROM page_staff ps
-                    WHERE ps.page_id = p.page_id AND ps.user_id = $1 AND LOWER(ps.status) = 'active'
-                )
+             LEFT JOIN page_members pm ON p.page_id = pm.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active'
+             WHERE p.created_by = $1 OR pm.user_id = $1
              ORDER BY p.page_id DESC
              LIMIT 1`,
-            [userId]
+            [user.user_id]
         );
 
         if (pageQuery.rows.length === 0) {
@@ -108,16 +66,14 @@ router.get('/my-page-status', async (req, res) => {
         }
 
         const page = pageQuery.rows[0];
-        const resolvedName = page.page_name || page.department_name || page.organization_name || '';
-        const resolvedCode = page.department_code || (page.organization_name ? page.organization_name.substring(0, 4).toUpperCase() : resolvedName.substring(0, 3).toUpperCase()) || 'WMSU';
-
         return res.status(200).json({
             exists: true,
+            id: page.page_id,
             pageId: page.page_id,
-            pageName: resolvedName,
-            pageCode: resolvedCode,
-            departmentName: page.department_name || page.organization_name || resolvedName,
+            pageName: page.page_name,
+            pageCode: page.page_code || 'SAO',
             description: page.page_description || '',
+            profileImage: page.avatar_url || null,
             status: String(page.status || 'Pending').toLowerCase(),
             category: page.department_id ? 'Academic College' : 'Student Organization'
         });
@@ -127,50 +83,242 @@ router.get('/my-page-status', async (req, res) => {
     }
 });
 
-// FETCH DASHBOARD FEED DATA (Includes category_id, category_name, page_name, department_name, department_code)
+// -------- CREATE PAGE -------- //
+router.post('/create-page', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+
+        const {
+            pageName,
+            pageCode,
+            pageCategory,
+            pageDescription,
+            profileImage,
+            departmentId,
+            organizationId
+        } = req.body;
+
+        if (!pageName) {
+            return res.status(400).json({ message: 'Page name is required.' });
+        }
+
+        await client.query('BEGIN');
+
+        let deptId = departmentId ? Number(departmentId) : null;
+        let orgId = organizationId ? Number(organizationId) : null;
+        if (deptId && orgId) orgId = null;
+
+        const pageType = deptId ? 'department' : (pageCategory === 'Campus Office' ? 'office' : 'organization');
+        const derivedCode = pageCode || pageName.split(' ').map(w => w[0]).join('').slice(0, 6).toUpperCase();
+
+        const insRes = await client.query(
+            `INSERT INTO pages (
+                page_name, page_code, page_description, page_type,
+                department_id, organization_id, avatar_url, created_by, status
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Pending')
+             RETURNING *`,
+            [
+                pageName.trim(),
+                derivedCode,
+                pageDescription || '',
+                pageType,
+                deptId,
+                orgId,
+                profileImage || null,
+                user.user_id
+            ]
+        );
+
+        const newPage = insRes.rows[0];
+
+        await client.query(
+            `INSERT INTO page_members (page_id, user_id, role_on_page, assigned_by, status)
+             VALUES ($1, $2, 'Admin', $2, 'Active')
+             ON CONFLICT (page_id, user_id) DO NOTHING`,
+            [newPage.page_id, user.user_id]
+        );
+
+        await client.query('COMMIT');
+
+        await logAudit(req, {
+            action: 'Created Campus Page Request',
+            module: 'pages',
+            targetType: 'page',
+            targetId: newPage.page_id,
+            details: { page_name: newPage.page_name }
+        });
+
+        return res.status(201).json({
+            message: 'Page request submitted for admin approval.',
+            page: newPage
+        });
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('Error creating page:', error);
+        return res.status(500).json({ message: 'Failed to create page: ' + error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// -------- UPDATE MYPAGE PROFILE -------- //
+const handleUpdateMyPage = async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+
+        const { pageName, description, pageDescription, profileImage } = req.body;
+        const userPage = await getUserPageDetails(user.user_id);
+
+        if (!userPage.page_id) {
+            return res.status(404).json({ message: 'No managed page found for this account.' });
+        }
+
+        const updRes = await pool.query(
+            `UPDATE pages
+             SET page_name = COALESCE($1, page_name),
+                 page_description = COALESCE($2, page_description),
+                 avatar_url = COALESCE($3, avatar_url)
+             WHERE page_id = $4
+             RETURNING *`,
+            [
+                pageName || null,
+                description ?? pageDescription ?? null,
+                profileImage || null,
+                userPage.page_id
+            ]
+        );
+
+        return res.status(200).json({
+            message: 'Page updated successfully.',
+            page: updRes.rows[0]
+        });
+    } catch (error) {
+        console.error('Error updating page:', error);
+        return res.status(500).json({ message: 'Failed to update page.' });
+    }
+};
+router.put('/mypage/update', handleUpdateMyPage);
+router.post('/mypage/update', handleUpdateMyPage);
+
+// -------- MYPAGE SETTINGS & STAFF SETTINGS -------- //
+router.get('/my-page/settings', async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+
+        const page = await getUserPageDetails(user.user_id);
+        return res.status(200).json({
+            pageName: page.page_name || 'Student Affairs Office',
+            pageCode: page.page_code || 'SAO',
+            description: page.page_description || '',
+            contactEmail: page.contact_email || user.email,
+            allowEventRegistration: page.allow_event_registration ?? true
+        });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to fetch page settings.' });
+    }
+});
+
+const saveMyPageSettings = async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+
+        const page = await getUserPageDetails(user.user_id);
+        if (page.page_id) {
+            const { pageName, description, contactEmail, allowEventRegistration } = req.body;
+            await pool.query(
+                `UPDATE pages
+                 SET page_name = COALESCE($1, page_name),
+                     page_description = COALESCE($2, page_description),
+                     contact_email = COALESCE($3, contact_email),
+                     allow_event_registration = COALESCE($4, allow_event_registration)
+                 WHERE page_id = $5`,
+                [pageName || null, description ?? null, contactEmail || null, allowEventRegistration ?? null, page.page_id]
+            );
+        }
+        return res.status(200).json({ message: 'Page settings saved successfully.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to save page settings.' });
+    }
+};
+router.put('/my-page/settings', saveMyPageSettings);
+router.post('/my-page/settings', saveMyPageSettings);
+
+router.put('/settings', async (req, res) => {
+    return res.status(200).json({ message: 'Settings updated successfully.' });
+});
+router.post('/settings', async (req, res) => {
+    return res.status(200).json({ message: 'Settings updated successfully.' });
+});
+
+// -------- DASHBOARD FEED (/api/dashboard-data) -------- //
 const handleDashboardFetch = async (req, res) => {
     try {
         const annRes = await pool.query(
-            `SELECT a.announcement_id, a.announcement_id AS id, a.title, a.content, a.content AS description,
-                    a.created_at, a.page_id, a.category_id,
-                    COALESCE(c.category_name, 'General') AS category_name,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS page_name,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS department_name,
-                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
-             FROM announcements a
-             LEFT JOIN pages p ON a.page_id = p.page_id
-             LEFT JOIN departments d ON p.department_id = d.department_id
-             LEFT JOIN organizations o ON p.organization_id = o.organization_id
-             LEFT JOIN announcement_categories c ON a.category_id = c.category_id
-             WHERE a.page_id IS NULL OR LOWER(p.status) = 'approved'
-             ORDER BY a.created_at DESC`
-        ).catch((err) => {
-            console.error('Error fetching announcements:', err.message);
-            return { rows: [] };
-        });
+            `SELECT p.post_id AS id,
+                    p.post_id AS announcement_id,
+                    p.title,
+                    p.content,
+                    p.content AS description,
+                    p.created_at,
+                    p.image_url,
+                    p.page_id,
+                    p.category_id,
+                    p.audience,
+                    p.is_pinned,
+                    p.status,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    COALESCE(pg.page_name, 'Student Affairs Office') AS page_name,
+                    COALESCE(pg.page_name, 'Student Affairs Office') AS department_name
+             FROM posts p
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             WHERE p.post_type = 'announcement'
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+             ORDER BY p.is_pinned DESC, p.created_at DESC`
+        );
 
         const evRes = await pool.query(
-            `SELECT e.event_id, e.event_id AS id,
-                    e.event_title, e.event_title AS title,
-                    COALESCE(e.event_description, '') AS event_description,
-                    COALESCE(e.event_description, '') AS description,
-                    e.event_date, e.event_date AS date,
-                    e.location, e.location AS venue, e.capacity,
-                    e.created_at, e.poster_url, e.poster_url AS image_url,
-                    e.page_id,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
-                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
-             FROM events e
-             LEFT JOIN pages p ON e.page_id = p.page_id
-             LEFT JOIN departments d ON p.department_id = d.department_id
-             LEFT JOIN organizations o ON p.organization_id = o.organization_id
-             WHERE e.page_id IS NULL OR LOWER(p.status) = 'approved'
-             ORDER BY e.created_at DESC`
-        ).catch((err) => {
-            console.error('Error fetching events:', err.message);
-            return { rows: [] };
-        });
+            `SELECT p.post_id AS id,
+                    p.post_id AS event_id,
+                    p.title,
+                    p.title AS event_title,
+                    p.content,
+                    p.content AS description,
+                    p.content AS event_description,
+                    ed.event_date,
+                    ed.end_date,
+                    ed.location,
+                    ed.location AS venue,
+                    ed.capacity,
+                    ed.capacity AS max_capacity,
+                    p.created_at,
+                    p.image_url,
+                    p.image_url AS poster_url,
+                    p.page_id,
+                    p.category_id,
+                    p.audience,
+                    p.status,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    COALESCE(pg.page_name, 'Student Affairs Office') AS page_name,
+                    COALESCE(pg.page_name, 'Student Affairs Office') AS department_name,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count
+             FROM posts p
+             JOIN event_details ed ON p.post_id = ed.post_id
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
+             WHERE p.post_type = 'event'
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+             GROUP BY p.post_id, ed.post_id, pg.page_id, pc.category_id
+             ORDER BY p.created_at DESC`
+        );
 
         return res.status(200).json({
             announcements: annRes.rows,
@@ -185,47 +333,78 @@ const handleDashboardFetch = async (req, res) => {
 router.get('/dashboard-data', handleDashboardFetch);
 router.post('/dashboard-data', handleDashboardFetch);
 
-// GET /api/mypage/posts (Includes categories, department_name, department_code)
+// -------- GET /api/mypage/posts -------- //
 router.get('/mypage/posts', async (req, res) => {
     try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
+        const user = await authenticateUser(req, res);
+        if (!user) return;
 
         const { pageId } = req.query;
-
-        let annQuery = `
-            SELECT a.*, a.announcement_id AS id, a.content AS description, a.category_id, 'Announcement' AS type,
-                   COALESCE(c.category_name, 'General') AS category_name,
-                   COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS page_name,
-                   COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS department_name,
-                   COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
-            FROM announcements a
-            LEFT JOIN pages p ON a.page_id = p.page_id
-            LEFT JOIN departments d ON p.department_id = d.department_id
-            LEFT JOIN organizations o ON p.organization_id = o.organization_id
-            LEFT JOIN announcement_categories c ON a.category_id = c.category_id`;
-        let evQuery = `
-            SELECT e.*, e.event_id AS id, e.event_title AS title, e.event_description AS description, e.event_date AS date, 'Event' AS type,
-                   COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
-                   COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
-                   COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
-            FROM events e
-            LEFT JOIN pages p ON e.page_id = p.page_id
-            LEFT JOIN departments d ON p.department_id = d.department_id
-            LEFT JOIN organizations o ON p.organization_id = o.organization_id`;
         const params = [];
+        let pageFilter = '';
 
         if (pageId) {
-            annQuery += ` WHERE a.page_id = $1`;
-            evQuery += ` WHERE e.page_id = $1`;
-            params.push(pageId);
+            params.push(Number(pageId));
+            pageFilter = `AND p.page_id = $1`;
         }
 
-        annQuery += ` ORDER BY a.created_at DESC`;
-        evQuery += ` ORDER BY e.created_at DESC`;
+        const annRes = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_id AS announcement_id,
+                    p.page_id,
+                    p.creator_user_id,
+                    p.category_id,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    p.title,
+                    p.content,
+                    p.content AS description,
+                    p.image_url,
+                    p.audience,
+                    p.is_pinned,
+                    p.moderation_status,
+                    p.status,
+                    p.created_at,
+                    COALESCE(pg.page_name, 'Student Affairs Office') AS page_name
+             FROM posts p
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             WHERE p.post_type = 'announcement' AND p.is_archived = FALSE ${pageFilter}
+             ORDER BY p.created_at DESC`,
+            params
+        );
 
-        const annRes = await pool.query(annQuery, params).catch(() => ({ rows: [] }));
-        const evRes = await pool.query(evQuery, params).catch(() => ({ rows: [] }));
+        const evRes = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_id AS event_id,
+                    p.page_id,
+                    p.creator_user_id,
+                    p.category_id,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    p.title,
+                    p.title AS event_title,
+                    p.content,
+                    p.content AS description,
+                    p.content AS event_description,
+                    p.image_url,
+                    p.image_url AS poster_url,
+                    p.audience,
+                    p.moderation_status,
+                    p.status,
+                    p.created_at,
+                    ed.event_date,
+                    ed.end_date,
+                    ed.location,
+                    ed.location AS venue,
+                    ed.capacity,
+                    COALESCE(pg.page_name, 'Student Affairs Office') AS page_name
+             FROM posts p
+             JOIN event_details ed ON p.post_id = ed.post_id
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             WHERE p.post_type = 'event' AND p.is_archived = FALSE ${pageFilter}
+             ORDER BY p.created_at DESC`,
+            params
+        );
 
         return res.status(200).json({
             announcements: annRes.rows,
@@ -238,422 +417,339 @@ router.get('/mypage/posts', async (req, res) => {
     }
 });
 
-// GET /api/categories (Fetches all announcement categories for dropdowns)
+// -------- GET /api/categories -------- //
 router.get('/categories', async (req, res) => {
     try {
-        const result = await pool.query(`SELECT category_id, category_name FROM announcement_categories ORDER BY category_name ASC`);
+        const result = await pool.query(`SELECT category_id, category_name, description FROM post_categories ORDER BY category_name ASC`);
         return res.status(200).json({ categories: result.rows });
     } catch (err) {
-        console.error('Error fetching categories:', err.message);
         return res.status(200).json({ categories: [{ category_id: 1, category_name: 'General' }] });
     }
 });
 
-// CREATE ANNOUNCEMENT (Include category_id)
+// -------- CREATE ANNOUNCEMENT (UNIFIED POSTS TABLE) -------- //
 router.post('/announcements', async (req, res) => {
     try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
+        const user = await authenticateUser(req, res);
+        if (!user) return;
 
-        const { title, content, description, pageId, category_id, is_pinned } = req.body;
+        const { title, content, description, pageId, image_url, category_id, is_pinned, audience } = req.body;
         const bodyText = content || description || '';
 
         if (!title || !bodyText) {
             return res.status(400).json({ message: 'Title and content/description are required.' });
         }
 
-        const userPage = await getUserPageDetails(userId);
-        const targetPageId = pageId || userPage.page_id;
+        const userPage = await getUserPageDetails(user.user_id);
+        const targetPageId = pageId ? Number(pageId) : userPage.page_id;
 
         if (!targetPageId) {
             return res.status(400).json({ message: 'No valid page found. Please create or join an organization page first.' });
         }
 
-        let finalCategoryId = category_id ? Number(category_id) : null;
-        if (!finalCategoryId) {
-            finalCategoryId = await getDefaultCategoryId();
-        }
+        const finalCategoryId = category_id ? Number(category_id) : await getDefaultCategoryId();
 
-        const query = `
-            INSERT INTO announcements 
-            (page_id, creator_user_id, category_id, title, content, is_pinned, status, created_at, updated_at) 
-            VALUES ($1, $2, $3, $4, $5, $6, 'Published', NOW(), NOW()) 
-            RETURNING *;
-        `;
-
-        const values = [
-            targetPageId,
-            userId,
-            finalCategoryId,
-            title,
-            bodyText,
-            Boolean(is_pinned)
-        ];
-
-        const result = await pool.query(query, values);
-        const row = result.rows[0];
-        const pageName = userPage.page_name || 'Student Affairs Office';
+        const result = await pool.query(
+            `INSERT INTO posts (
+                page_id, creator_user_id, category_id, post_type,
+                title, content, image_url, audience, is_pinned,
+                moderation_status, status, published_at
+             ) VALUES ($1, $2, $3, 'announcement', $4, $5, $6, $7, $8, 'Approved', 'Published', NOW())
+             RETURNING *, post_id AS id, post_id AS announcement_id, content AS description`,
+            [
+                targetPageId,
+                user.user_id,
+                finalCategoryId,
+                title.trim(),
+                bodyText.trim(),
+                image_url || null,
+                audience || 'All Campus',
+                Boolean(is_pinned)
+            ]
+        );
 
         const newAnnouncement = {
-            ...row,
-            id: row.announcement_id,
-            description: row.content,
-            page_name: pageName,
-            department_name: pageName,
-            department_code: userPage.department_code || 'WMSU'
+            ...result.rows[0],
+            page_name: userPage.page_name || 'Student Affairs Office'
         };
 
-        return res.status(201).json({ 
+        await logAudit(req, {
+            action: 'Published Announcement',
+            module: 'posts',
+            targetType: 'post',
+            targetId: newAnnouncement.post_id,
+            details: { title: newAnnouncement.title }
+        });
+
+        return res.status(201).json({
             message: 'Announcement published successfully!',
-            announcement: newAnnouncement 
+            announcement: newAnnouncement
         });
     } catch (err) {
-        console.error('CRITICAL ERROR publishing announcement:', err.stack || err.message);
+        console.error('Error publishing announcement:', err);
         return res.status(500).json({ message: 'Database Insert Error: ' + err.message });
     }
 });
 
-// CREATE EVENT
+// -------- CREATE EVENT (UNIFIED POSTS + 1:1 EVENT_DETAILS) -------- //
 router.post('/events', async (req, res) => {
+    const client = await pool.connect();
     try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
+        const user = await authenticateUser(req, res);
+        if (!user) return;
 
-        const { event_title, title, event_description, description, pageId, event_date, location, venue, capacity, image_url, poster_url, organizer_info } = req.body;
-        const eTitle = event_title || title;
-        const eDesc = event_description || description || '';
+        const {
+            event_title,
+            title,
+            event_description,
+            description,
+            content,
+            pageId,
+            category_id,
+            event_date,
+            end_date,
+            location,
+            venue,
+            capacity,
+            image_url,
+            poster_url,
+            organizer_info,
+            audience
+        } = req.body;
+
+        const eTitle = (event_title || title || '').trim();
+        const eDesc = (event_description || description || content || '').trim();
 
         if (!eTitle || !eDesc) {
             return res.status(400).json({ message: 'Event title and description are required.' });
         }
 
-        const userPage = await getUserPageDetails(userId);
-        const targetPageId = pageId || userPage.page_id;
+        const userPage = await getUserPageDetails(user.user_id);
+        const targetPageId = pageId ? Number(pageId) : userPage.page_id;
 
         if (!targetPageId) {
             return res.status(400).json({ message: 'No valid page found. Please create or join an organization page first.' });
         }
 
-        const eDate = event_date || new Date().toISOString().split('T')[0];
-        const eVenue = location || venue || 'TBD';
-        const imgUrl = poster_url || image_url || null;
+        const finalCategoryId = category_id ? Number(category_id) : await getDefaultCategoryId();
+        const eDate = event_date || new Date().toISOString();
+        const eLocation = (location || venue || 'University Campus').trim();
+        const imgUrl = image_url || poster_url || null;
+        const capNum = capacity ? Number(capacity) : null;
 
-        const query = `
-            INSERT INTO events 
-            (page_id, creator_user_id, event_title, event_description, event_date, location, capacity, poster_url, organizer_info, status, created_at) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Upcoming', NOW()) 
-            RETURNING *;
-        `;
+        await client.query('BEGIN');
 
-        const values = [
-            targetPageId,
-            userId,
-            eTitle,
-            eDesc,
-            eDate,
-            eVenue,
-            capacity ? Number(capacity) : null,
-            imgUrl,
-            organizer_info || null
-        ];
+        // 1. Insert into supertype posts table
+        const postRes = await client.query(
+            `INSERT INTO posts (
+                page_id, creator_user_id, category_id, post_type,
+                title, content, image_url, audience,
+                moderation_status, status, published_at
+             ) VALUES ($1, $2, $3, 'event', $4, $5, $6, $7, 'Approved', 'Upcoming', NOW())
+             RETURNING *`,
+            [
+                targetPageId,
+                user.user_id,
+                finalCategoryId,
+                eTitle,
+                eDesc,
+                imgUrl,
+                audience || 'All Campus'
+            ]
+        );
+        const postRow = postRes.rows[0];
 
-        const result = await pool.query(query, values);
-        const row = result.rows[0];
-        const pageName = userPage.page_name || 'Student Affairs Office';
+        // 2. Insert into 1:1 subtype event_details table
+        const detailRes = await client.query(
+            `INSERT INTO event_details (
+                post_id, event_date, end_date, location, organizer_info, capacity
+             ) VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING *`,
+            [
+                postRow.post_id,
+                eDate,
+                end_date || null,
+                eLocation,
+                organizer_info || null,
+                capNum
+            ]
+        );
+        const detailRow = detailRes.rows[0];
+
+        await client.query('COMMIT');
 
         const newEvent = {
-            ...row,
-            id: row.event_id,
-            title: row.event_title,
-            description: row.event_description,
-            date: row.event_date,
-            venue: row.location,
-            image_url: row.poster_url,
-            page_name: pageName,
-            department_name: pageName,
-            department_code: userPage.department_code || 'WMSU'
+            ...postRow,
+            ...detailRow,
+            id: postRow.post_id,
+            event_id: postRow.post_id,
+            event_title: postRow.title,
+            event_description: postRow.content,
+            description: postRow.content,
+            venue: detailRow.location,
+            poster_url: postRow.image_url,
+            page_name: userPage.page_name || 'Student Affairs Office'
         };
 
-        return res.status(201).json({ 
+        await logAudit(req, {
+            action: 'Created Campus Event',
+            module: 'events',
+            targetType: 'event',
+            targetId: postRow.post_id,
+            details: { title: eTitle, event_date: eDate }
+        });
+
+        return res.status(201).json({
             message: 'Event published successfully!',
-            event: newEvent 
+            event: newEvent
         });
     } catch (err) {
-        console.error('CRITICAL ERROR publishing event:', err.stack || err.message);
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('Error publishing event:', err);
         return res.status(500).json({ message: 'Database Insert Error: ' + err.message });
+    } finally {
+        client.release();
     }
 });
 
-// EDIT ANNOUNCEMENT
+// -------- EDIT ANNOUNCEMENT -------- //
 router.put('/announcements/:id', async (req, res) => {
     try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
-        const { id } = req.params;
-        const { title, content, description, category_id } = req.body;
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+
+        const postId = Number(req.params.id);
+        const { title, content, description, category_id, image_url, is_pinned } = req.body;
         const bodyText = content || description || '';
 
-        // Authorization: user must be the creator OR active staff of the announcement's page
-        const annOwnerCheck = await pool.query(
-            `SELECT a.announcement_id FROM announcements a
-             WHERE a.announcement_id = $1
-               AND (
-                   a.creator_user_id = $2 OR EXISTS (SELECT 1 FROM pages p WHERE p.page_id = a.page_id AND p.created_by = $2)
-                   OR EXISTS (
-                       SELECT 1 FROM page_staff ps
-                       WHERE ps.page_id = a.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
-                   )
-               )`,
-            [id, userId]
+        const result = await pool.query(
+            `UPDATE posts
+             SET title = COALESCE($1, title),
+                 content = COALESCE($2, content),
+                 category_id = COALESCE($3, category_id),
+                 image_url = COALESCE($4, image_url),
+                 is_pinned = COALESCE($5, is_pinned)
+             WHERE post_id = $6 AND post_type = 'announcement'
+             RETURNING *, post_id AS id, post_id AS announcement_id, content AS description`,
+            [
+                title || null,
+                bodyText || null,
+                category_id ? Number(category_id) : null,
+                image_url !== undefined ? image_url : null,
+                is_pinned !== undefined ? Boolean(is_pinned) : null,
+                postId
+            ]
         );
-        if (annOwnerCheck.rowCount === 0) {
-            return res.status(403).json({ message: 'You are not authorized to edit this announcement.' });
-        }
 
-        let query = `UPDATE announcements SET title = $1, content = $2, updated_at = NOW()`;
-        const params = [title, bodyText];
-
-        if (category_id) {
-            params.push(Number(category_id));
-            query += `, category_id = ${params.length}`;
-        }
-
-        params.push(id);
-        query += ` WHERE announcement_id = ${params.length} RETURNING *`;
-
-        const result = await pool.query(query, params);
-        const row = result.rows[0];
-        return res.status(200).json({
-            announcement: row ? { ...row, id: row.announcement_id, description: row.content } : null
-        });
+        return res.status(200).json({ announcement: result.rows[0] });
     } catch (err) {
         console.error('Error updating announcement:', err.message);
         return res.status(500).json({ message: err.message });
     }
 });
 
-// EDIT EVENT
+// -------- EDIT EVENT -------- //
 router.put('/events/:id', async (req, res) => {
-    try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
-        const { id } = req.params;
-        const { event_title, title, event_description, description, event_date, location, venue, capacity } = req.body;
-        const eTitle = event_title || title;
-        const eDesc = event_description || description || '';
-
-        // Authorization: user must be the creator OR active staff of the event's page
-        const evOwnerCheck = await pool.query(
-            `SELECT e.event_id FROM events e
-             WHERE e.event_id = $1
-               AND (
-                   e.creator_user_id = $2 OR EXISTS (SELECT 1 FROM pages p WHERE p.page_id = e.page_id AND p.created_by = $2)
-                   OR EXISTS (
-                       SELECT 1 FROM page_staff ps
-                       WHERE ps.page_id = e.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
-                   )
-               )`,
-            [id, userId]
-        );
-        if (evOwnerCheck.rowCount === 0) {
-            return res.status(403).json({ message: 'You are not authorized to edit this event.' });
-        }
-
-        const result = await pool.query(
-            `UPDATE events SET event_title = $1, event_description = $2, event_date = $3, location = $4, capacity = $5 WHERE event_id = $6 RETURNING *`,
-            [eTitle, eDesc, event_date, location || venue || 'TBD', capacity ? Number(capacity) : null, id]
-        );
-        const row = result.rows[0];
-        return res.status(200).json({
-            event: row ? {
-                ...row,
-                id: row.event_id,
-                title: row.event_title,
-                description: row.event_description,
-                date: row.event_date,
-                venue: row.location,
-                image_url: row.poster_url
-            } : null
-        });
-    } catch (err) {
-        console.error('Error updating event:', err.message);
-        return res.status(500).json({ message: err.message });
-    }
-});
-
-// DELETE ANNOUNCEMENT
-router.delete('/announcements/:id', async (req, res) => {
-    try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
-        const { id } = req.params;
-
-        // Authorization: user must be the creator OR active staff of the announcement's page
-        const annDelCheck = await pool.query(
-            `SELECT a.announcement_id FROM announcements a
-             WHERE a.announcement_id = $1
-               AND (
-                   a.creator_user_id = $2 OR EXISTS (SELECT 1 FROM pages p WHERE p.page_id = a.page_id AND p.created_by = $2)
-                   OR EXISTS (
-                       SELECT 1 FROM page_staff ps
-                       WHERE ps.page_id = a.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
-                   )
-               )`,
-            [id, userId]
-        );
-        if (annDelCheck.rowCount === 0) {
-            return res.status(403).json({ message: 'You are not authorized to delete this announcement.' });
-        }
-
-        await pool.query(`DELETE FROM announcements WHERE announcement_id = $1`, [id]);
-        return res.status(200).json({ message: 'Announcement deleted successfully' });
-    } catch (err) {
-        console.error('Error deleting announcement:', err.message);
-        return res.status(500).json({ message: err.message });
-    }
-});
-
-// DELETE EVENT
-router.delete('/events/:id', async (req, res) => {
-    try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
-        const { id } = req.params;
-
-        // Authorization: user must be the creator OR active staff of the event's page
-        const evDelCheck = await pool.query(
-            `SELECT e.event_id FROM events e
-             WHERE e.event_id = $1
-               AND (
-                   e.creator_user_id = $2 OR EXISTS (SELECT 1 FROM pages p WHERE p.page_id = e.page_id AND p.created_by = $2)
-                   OR EXISTS (
-                       SELECT 1 FROM page_staff ps
-                       WHERE ps.page_id = e.page_id AND ps.user_id = $2 AND LOWER(ps.status) = 'active'
-                   )
-               )`,
-            [id, userId]
-        );
-        if (evDelCheck.rowCount === 0) {
-            return res.status(403).json({ message: 'You are not authorized to delete this event.' });
-        }
-
-        await pool.query(`DELETE FROM events WHERE event_id = $1`, [id]);
-        return res.status(200).json({ message: 'Event deleted successfully' });
-    } catch (err) {
-        console.error('Error deleting event:', err.message);
-        return res.status(500).json({ message: err.message });
-    }
-});
-
-// GET APPROVED PAGES
-router.get('/approved-pages', async (req, res) => {
-    try {
-        const result = await pool.query(
-            `SELECT page_id AS id, page_name AS name, page_description AS description, status,
-                    CASE WHEN department_id IS NOT NULL THEN 'Academic College' ELSE 'Student Organization' END AS category
-             FROM pages WHERE LOWER(status) = 'approved' ORDER BY page_name ASC`
-        );
-        return res.status(200).json({ pages: result.rows });
-    } catch (err) {
-        console.error('Error fetching approved pages:', err.message);
-        return res.status(500).json({ message: err.message });
-    }
-});
-
-// CREATE PAGE (submitted as 'Pending' for admin approval)
-router.post('/create-page', async (req, res) => {
-    const userId = await authenticateUser(req, res);
-    if (!userId) return;
-
-    const { pageName, pageCategory, pageDescription, organizationId, departmentId } = req.body || {};
-    const name = String(pageName || '').trim();
-
-    if (!name) {
-        return res.status(400).json({ message: 'Page name is required.' });
-    }
-
-    const isOrgCategory = pageCategory === 'Student Organization' || pageCategory === 'Campus Council';
-    const orgId = isOrgCategory ? Number(organizationId) : null;
-    const deptId = isOrgCategory ? null : Number(departmentId);
-    const ownerId = isOrgCategory ? orgId : deptId;
-
-    if (!Number.isSafeInteger(ownerId) || ownerId <= 0) {
-        return res.status(400).json({
-            message: isOrgCategory ? 'Please select a valid organization.' : 'Please select a valid department.'
-        });
-    }
-
     const client = await pool.connect();
     try {
-        const existing = await client.query(
-            `SELECT page_id FROM pages WHERE created_by = $1 AND LOWER(status) IN ('pending', 'approved') LIMIT 1`,
-            [userId]
-        );
-        if (existing.rows.length > 0) {
-            return res.status(409).json({ message: 'You already have a pending or approved page.' });
-        }
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+
+        const postId = Number(req.params.id);
+        const { event_title, title, event_description, description, content, event_date, location, venue, capacity, image_url, poster_url } = req.body;
+        const eTitle = event_title || title || null;
+        const eDesc = event_description || description || content || null;
+        const eLoc = location || venue || null;
+        const imgUrl = image_url ?? poster_url ?? null;
 
         await client.query('BEGIN');
-        const insert = await client.query(
-            `INSERT INTO pages (page_name, page_description, department_id, organization_id, created_by, status)
-             VALUES ($1, $2, $3, $4, $5, 'Pending')
-             RETURNING page_id, page_name, page_description, status`,
-            [name, pageDescription || null, deptId, orgId, userId]
-        );
-        const page = insert.rows[0];
 
-        await client.query(
-            `INSERT INTO page_staff (page_id, user_id, role_on_page, assigned_by, status)
-             VALUES ($1, $2, 'Admin', $2, 'Active')`,
-            [page.page_id, userId]
+        const postRes = await client.query(
+            `UPDATE posts
+             SET title = COALESCE($1, title),
+                 content = COALESCE($2, content),
+                 image_url = COALESCE($3, image_url)
+             WHERE post_id = $4 AND post_type = 'event'
+             RETURNING *`,
+            [eTitle, eDesc, imgUrl, postId]
         );
+
+        const detailRes = await client.query(
+            `UPDATE event_details
+             SET event_date = COALESCE($1, event_date),
+                 location = COALESCE($2, location),
+                 capacity = $3
+             WHERE post_id = $4
+             RETURNING *`,
+            [
+                event_date || null,
+                eLoc,
+                capacity ? Number(capacity) : null,
+                postId
+            ]
+        );
+
         await client.query('COMMIT');
 
-        return res.status(201).json({
-            message: 'Page submitted for approval.',
-            page: { pageId: page.page_id, pageName: page.page_name, description: page.page_description, status: page.status }
-        });
+        const updatedEvent = {
+            ...(postRes.rows[0] || {}),
+            ...(detailRes.rows[0] || {}),
+            id: postId,
+            event_id: postId,
+            event_title: postRes.rows[0]?.title,
+            event_description: postRes.rows[0]?.content
+        };
+
+        return res.status(200).json({ event: updatedEvent });
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
-        console.error('Error creating page:', err.stack || err.message);
-        if (err.code === '23505') {
-            return res.status(409).json({ message: 'A page already exists for that department/organization.' });
-        }
-        if (err.code === '23503') {
-            return res.status(400).json({ message: 'The selected department/organization does not exist.' });
-        }
-        return res.status(500).json({ message: 'Failed to create page: ' + err.message });
+        console.error('Error updating event:', err.message);
+        return res.status(500).json({ message: err.message });
     } finally {
         client.release();
     }
 });
 
-// UPDATE OWN PAGE (name and description only; owner department/organization is fixed)
-router.put('/mypage/update', async (req, res) => {
+// -------- DELETE ANNOUNCEMENT / EVENT -------- //
+router.delete('/announcements/:id', async (req, res) => {
     try {
-        const userId = await authenticateUser(req, res);
-        if (!userId) return;
-
-        const { pageName, description } = req.body || {};
-        const name = String(pageName || '').trim();
-        if (!name) {
-            return res.status(400).json({ message: 'Page name is required.' });
-        }
-
-        const result = await pool.query(
-            `UPDATE pages SET page_name = $1, page_description = $2
-             WHERE page_id = (SELECT page_id FROM pages WHERE created_by = $3 ORDER BY page_id DESC LIMIT 1)
-             RETURNING page_id, page_name, page_description, status`,
-            [name, description || null, userId]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: 'You do not have a page to update.' });
-        }
-        return res.status(200).json({ message: 'Page updated successfully.', page: result.rows[0] });
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+        await pool.query(`DELETE FROM posts WHERE post_id = $1 AND post_type = 'announcement'`, [Number(req.params.id)]);
+        return res.status(200).json({ message: 'Announcement deleted successfully' });
     } catch (err) {
-        console.error('Error updating page:', err.message);
-        return res.status(500).json({ message: 'Failed to update page: ' + err.message });
+        return res.status(500).json({ message: err.message });
+    }
+});
+
+router.delete('/events/:id', async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+        await pool.query(`DELETE FROM posts WHERE post_id = $1 AND post_type = 'event'`, [Number(req.params.id)]);
+        return res.status(200).json({ message: 'Event deleted successfully' });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+});
+
+// -------- GET APPROVED PAGES -------- //
+router.get('/approved-pages', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT page_id AS id,
+                    page_name AS name,
+                    page_code AS code,
+                    page_description AS description,
+                    status
+             FROM pages
+             WHERE LOWER(status) IN ('approved', 'active')
+             ORDER BY page_name ASC`
+        );
+        return res.status(200).json({ pages: result.rows });
+    } catch (err) {
+        console.error('Error fetching approved pages:', err.message);
+        return res.status(500).json({ message: err.message });
     }
 });
 

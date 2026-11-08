@@ -6,8 +6,8 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
+const { authenticateUser, logAudit } = require('../middleware/auth');
 
-// Configure Nodemailer transporter
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -16,51 +16,59 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Rate limiters for security-sensitive endpoints
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 20,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => process.env.NODE_ENV === 'development',
     message: { message: 'Too many login attempts. Please try again after 15 minutes.' }
 });
 
 const registerLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 15,
+    max: 20,
     standardHeaders: true,
     legacyHeaders: false,
-    // Skip rate limiting during local development for local loopback IPs
-    skip: (req) => process.env.NODE_ENV === 'development' && (req.ip === '::1' || req.ip === '127.0.0.1' || req.ip === '::ffff:127.0.0.1'),
-    handler: (req, res) => {
-        return res.status(429).json({ 
-            message: 'Too many registration attempts. Please wait a few minutes before trying again.' 
-        });
+    skip: (req) => process.env.NODE_ENV === 'development',
+    message: { message: 'Too many registration attempts. Please wait a few minutes.' }
+});
+
+// Helper: extract user ID optionally from token or query/body
+async function resolveUserId(req) {
+    if (req.query?.student_id) return Number(req.query.student_id);
+    if (req.query?.staff_id) return Number(req.query.staff_id);
+    if (req.body?.student_id) return Number(req.body.student_id);
+    if (req.body?.staff_id) return Number(req.body.staff_id);
+    if (req.body?.user_id) return Number(req.body.user_id);
+
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const decoded = jwt.verify(authHeader.slice(7).trim(), process.env.JWT_SECRET || 'fallback_secret');
+            return Number(decoded.userId ?? decoded.id ?? decoded.user_id);
+        } catch (_) {
+            return null;
+        }
     }
-});
+    return null;
+}
 
-const resendLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { message: 'Too many verification email requests. Please wait a few minutes before trying again.' }
-});
-
-// -------- TEST ROUTE -------- //
+// -------- HEALTH / TEST -------- //
 router.get('/test', (req, res) => {
-    res.send('User routes are working securely with segregated pending registration!');
+    res.json({ message: 'User routes active on normalized 3NF PostgreSQL schema.' });
 });
 
-// -------- REGISTRATION ROUTE -------- //
+// -------- STUDENT REGISTRATION -------- //
 router.post('/', registerLimiter, async (req, res) => {
     let client;
-    let transactionStarted = false;
+    let tx = false;
     try {
         client = await pool.connect();
         const {
             student_id,
             first_name,
+            middle_initial,
             last_name,
             department_id,
             program_id,
@@ -88,127 +96,174 @@ router.post('/', registerLimiter, async (req, res) => {
             return res.status(400).json({ message: 'Passwords do not match.' });
         }
 
-        if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
-            return res.status(400).json({ message: 'Password must be at least 8 characters long and contain at least one uppercase letter and one number.' });
+        if (password.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
         }
 
         await client.query('BEGIN');
-        transactionStarted = true;
+        tx = true;
 
-        // Clean up expired pending records with explicit parentheses for correct SQL operator precedence
+        // Purge expired unverified accounts so student can re-register if token expired
         await client.query(
-            `DELETE FROM pending_registrations WHERE (email = $1 OR student_id = $2) AND expires_at < NOW()`,
+            `DELETE FROM users u
+             USING auth_tokens at
+             WHERE u.user_id = at.user_id
+               AND u.is_email_verified = FALSE
+               AND u.account_status = 'Pending'
+               AND at.token_type = 'email_verification'
+               AND at.expires_at < NOW()
+               AND (LOWER(u.email) = $1 OR EXISTS (
+                   SELECT 1 FROM student_profiles sp WHERE sp.user_id = u.user_id AND sp.student_number = $2
+               ))`,
             [normalizedEmail, student_id.trim()]
         );
 
-        // Check for duplicates in users and active pending tables
-        const existingUser = await client.query(
-            `SELECT email FROM users WHERE LOWER(email) = $1 OR student_id = $2
-             UNION
-             SELECT email FROM pending_registrations WHERE (LOWER(email) = $1 OR student_id = $2) AND expires_at >= NOW()`,
+        // Check duplicate email or student_number
+        const dupRes = await client.query(
+            `SELECT u.user_id
+             FROM users u
+             LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+             WHERE LOWER(u.email) = $1 OR sp.student_number = $2`,
             [normalizedEmail, student_id.trim()]
         );
 
-        if (existingUser.rowCount > 0) {
+        if (dupRes.rowCount > 0) {
             await client.query('ROLLBACK');
-            return res.status(409).json({ message: 'An account or active pending registration with this email or Student ID already exists.' });
+            tx = false;
+            return res.status(409).json({
+                message: 'An account with this email or Student ID already exists.'
+            });
         }
 
-        // Fetch STUDENT role ID
-        const roleResult = await client.query(`SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1`);
-        if (roleResult.rowCount === 0) {
-            await client.query('ROLLBACK');
-            return res.status(500).json({ message: 'Student role is not configured in the database.' });
-        }
-        const studentRoleId = roleResult.rows[0].role_id;
+        // Student Role ID
+        const roleRes = await client.query(`SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1`);
+        const studentRoleId = roleRes.rows[0]?.role_id || 3;
 
-        // Verify department exists
-        const deptResult = await client.query(`SELECT department_id FROM departments WHERE department_id = $1 AND LOWER(status) = 'active'`, [department_id]);
-        if (deptResult.rowCount === 0) {
+        // Validate Department & Program
+        const deptRes = await client.query(
+            `SELECT department_id FROM departments WHERE department_id = $1 AND LOWER(status) = 'active'`,
+            [Number(department_id)]
+        );
+        if (deptRes.rowCount === 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ message: 'Invalid or inactive department.' });
+            tx = false;
+            return res.status(400).json({ message: 'Selected college/department is invalid or inactive.' });
         }
 
         if (program_id) {
-            const progResult = await client.query(`SELECT program_id FROM programs WHERE program_id = $1 AND department_id = $2`, [program_id, department_id]);
-            if (progResult.rowCount === 0) {
+            const progRes = await client.query(
+                `SELECT program_id FROM programs WHERE program_id = $1 AND department_id = $2`,
+                [Number(program_id), Number(department_id)]
+            );
+            if (progRes.rowCount === 0) {
                 await client.query('ROLLBACK');
-                return res.status(400).json({ message: 'Selected program does not belong to this department.' });
+                tx = false;
+                return res.status(400).json({ message: 'Selected course does not belong to this department.' });
             }
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
+        const autoConfirmInDev = process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true';
 
+        // 1. Insert into users (Normalized Core Identity)
+        const userIns = await client.query(
+            `INSERT INTO users (
+                role_id, first_name, middle_initial, last_name, email, password_hash,
+                is_email_verified, account_status
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING user_id, first_name, last_name, email`,
+            [
+                studentRoleId,
+                first_name.trim(),
+                middle_initial ? middle_initial.trim() : null,
+                last_name.trim(),
+                normalizedEmail,
+                hashedPassword,
+                autoConfirmInDev,
+                autoConfirmInDev ? 'Active' : 'Pending'
+            ]
+        );
+        const newUserId = userIns.rows[0].user_id;
+
+        // 2. Insert into student_profiles (Normalized 1:1 Student Subtype)
+        await client.query(
+            `INSERT INTO student_profiles (
+                user_id, student_number, department_id, program_id, year_level, verification_status
+             ) VALUES ($1, $2, $3, $4, $5, 'Pending')`,
+            [
+                newUserId,
+                student_id.trim(),
+                Number(department_id),
+                program_id ? Number(program_id) : null,
+                year_level
+            ]
+        );
+
+        // 3. Insert into auth_tokens
         const rawToken = crypto.randomBytes(32).toString('hex');
         const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
         await client.query(
-            `INSERT INTO pending_registrations (
-                student_id, role_id, first_name, last_name, email,
-                password_hash, year_level, department_id, program_id,
-                token_hash, expires_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-             ON CONFLICT (student_id) 
-             DO UPDATE SET 
-                email = EXCLUDED.email,
-                password_hash = EXCLUDED.password_hash,
-                token_hash = EXCLUDED.token_hash,
-                expires_at = EXCLUDED.expires_at`,
-            [
-                student_id.trim(), studentRoleId, first_name.trim(), last_name.trim(),
-                normalizedEmail, hashedPassword, year_level, department_id,
-                program_id || null, tokenHash, expiresAt
-            ]
+            `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at)
+             VALUES ($1, 'email_verification', $2, $3)`,
+            [newUserId, tokenHash, expiresAt]
         );
 
         const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
 
         try {
-            await transporter.sendMail({
-                from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
-                to: normalizedEmail,
-                subject: 'CRIMSON - Confirm Your Email Address',
-                html: `
-                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
-                        <h2 style="color: #800000;">Welcome to CRIMSON, ${first_name}!</h2>
-                        <p>Please confirm your institutional email address by clicking the button below to activate your account:</p>
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
+            if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+                await transporter.sendMail({
+                    from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
+                    to: normalizedEmail,
+                    subject: 'CRIMSON - Confirm Your Email Address',
+                    html: `
+                        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
+                            <h2 style="color: #800000;">Welcome to CRIMSON, ${first_name}!</h2>
+                            <p>Please confirm your institutional email address by clicking the button below:</p>
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
+                            </div>
                         </div>
-                        <p style="font-size: 0.85rem; color: #777;">This verification link expires in 24 hours.</p>
-                    </div>
-                `
-            });
-        } catch (emailError) {
-            console.warn('\n⚠️ SMTP Email delivery failed.');
-            // Strict development-only fallback check: NEVER activate in production
-            if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true') {
-                console.log('====================================================');
-                console.log('🔗 [DEV FALLBACK] REGISTRATION CONFIRMATION LINK:');
-                console.log(confirmUrl);
-                console.log('====================================================\n');
+                    `
+                });
+            } else if (autoConfirmInDev) {
+                console.log('🔗 [DEV FALLBACK] CONFIRMATION LINK:', confirmUrl);
+            }
+        } catch (emailErr) {
+            if (autoConfirmInDev) {
+                console.log('🔗 [DEV FALLBACK] CONFIRMATION LINK:', confirmUrl);
             } else {
-                console.error('Email transmission failed and development fallback is disabled.');
                 await client.query('ROLLBACK');
-                return res.status(502).json({ message: 'Failed to send verification email. Please try again later.' });
+                tx = false;
+                return res.status(502).json({ message: 'Failed to send verification email.' });
             }
         }
 
         await client.query('COMMIT');
-        transactionStarted = false;
+        tx = false;
 
-        return res.status(201).json({
-            message: 'Registration submitted successfully! Please check your email for the confirmation link.'
+        await logAudit(req, {
+            action: 'Student Registration',
+            module: 'auth',
+            targetType: 'user',
+            targetId: newUserId,
+            actorUserId: newUserId,
+            actorRole: 'student',
+            details: { email: normalizedEmail, student_id: student_id.trim() }
         });
 
+        return res.status(201).json({
+            message: 'Registration submitted successfully! You can now sign in.'
+        });
     } catch (error) {
-        if (client && transactionStarted) {
-            try { await client.query('ROLLBACK'); } catch (rbErr) { console.error('Rollback error:', rbErr); }
+        if (client && tx) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
         }
         console.error('Registration error:', error);
         if (error.code === '23505') {
-            return res.status(409).json({ message: 'An account or pending registration with this Student ID or email already exists.' });
+            return res.status(409).json({ message: 'An account with this Student ID or email already exists.' });
         }
         return res.status(500).json({ message: 'Server error during registration.' });
     } finally {
@@ -216,10 +271,10 @@ router.post('/', registerLimiter, async (req, res) => {
     }
 });
 
-// -------- EMAIL CONFIRMATION ROUTE -------- //
+// -------- CONFIRM EMAIL -------- //
 router.get('/confirm-email', async (req, res) => {
     let client;
-    let transactionStarted = false;
+    let tx = false;
     try {
         const { token } = req.query;
         if (!token) {
@@ -229,63 +284,52 @@ router.get('/confirm-email', async (req, res) => {
         const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         client = await pool.connect();
         await client.query('BEGIN');
-        transactionStarted = true;
+        tx = true;
 
-        const pendingResult = await client.query(
-            `SELECT * FROM pending_registrations WHERE token_hash = $1 FOR UPDATE`,
+        const tokRes = await client.query(
+            `SELECT token_id, user_id, expires_at, used_at
+             FROM auth_tokens
+             WHERE token_hash = $1 AND token_type = 'email_verification'
+             FOR UPDATE`,
             [tokenHash]
         );
 
-        if (pendingResult.rowCount === 0) {
+        if (tokRes.rowCount === 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ message: 'Invalid, expired, or already-used verification token.' });
+            tx = false;
+            return res.status(400).json({ message: 'Invalid or already-used verification token.' });
         }
 
-        const pending = pendingResult.rows[0];
-
-        if (new Date() > new Date(pending.expires_at)) {
-            await client.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
-            await client.query('COMMIT');
-            return res.status(400).json({ message: 'Verification token has expired. Please register again.' });
+        const tok = tokRes.rows[0];
+        if (tok.used_at || new Date() > new Date(tok.expires_at)) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(400).json({ message: 'Verification token has expired or already been used.' });
         }
 
-        const duplicateCheck = await client.query(
-            `SELECT user_id FROM users WHERE LOWER(email) = $1 OR student_id = $2`,
-            [pending.email, pending.student_id]
+        const userUpd = await client.query(
+            `UPDATE users
+             SET is_email_verified = TRUE, account_status = 'Active'
+             WHERE user_id = $1
+             RETURNING user_id, first_name, last_name, email, account_status AS status`,
+            [tok.user_id]
         );
 
-        if (duplicateCheck.rowCount > 0) {
-            await client.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
-            await client.query('COMMIT');
-            return res.status(400).json({ message: 'An account with this email or student ID already exists.' });
-        }
-
-        const newUserResult = await client.query(
-            `INSERT INTO users (
-                student_id, role_id, first_name, last_name, email,
-                password_hash, year_level, department_id, program_id, status
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Active')
-            RETURNING user_id, student_id, first_name, last_name, email, status`,
-            [
-                pending.student_id, pending.role_id, pending.first_name,
-                pending.last_name, pending.email, pending.password_hash,
-                pending.year_level, pending.department_id, pending.program_id
-            ]
+        await client.query(
+            `UPDATE auth_tokens SET used_at = NOW() WHERE token_id = $1`,
+            [tok.token_id]
         );
-
-        await client.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
 
         await client.query('COMMIT');
-        transactionStarted = false;
+        tx = false;
 
         return res.status(200).json({
-            message: 'Email confirmed successfully! Your account has been created. You can now log in.',
-            user: newUserResult.rows[0]
+            message: 'Email confirmed successfully! Your account is now active.',
+            user: userUpd.rows[0]
         });
-
     } catch (error) {
-        if (client && transactionStarted) {
-            try { await client.query('ROLLBACK'); } catch (rbErr) { console.error('Rollback error:', rbErr); }
+        if (client && tx) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
         }
         console.error('Confirm email error:', error);
         return res.status(500).json({ message: 'Server error during email confirmation.' });
@@ -294,73 +338,7 @@ router.get('/confirm-email', async (req, res) => {
     }
 });
 
-// -------- RESEND VERIFICATION EMAIL -------- //
-router.post('/resend-verification', resendLimiter, async (req, res) => {
-    let client;
-    try {
-        const { email } = req.body;
-        if (!email) return res.status(400).json({ message: 'Email address is required.' });
-
-        const normalizedEmail = email.trim().toLowerCase();
-        client = await pool.connect();
-
-        const pendingResult = await client.query(
-            `SELECT * FROM pending_registrations WHERE LOWER(email) = $1 AND expires_at >= NOW()`,
-            [normalizedEmail]
-        );
-
-        if (pendingResult.rowCount === 0) {
-            return res.status(200).json({ message: 'If a pending registration exists for this email, a new verification link has been sent.' });
-        }
-
-        const pending = pendingResult.rows[0];
-
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-        await client.query(
-            `UPDATE pending_registrations SET token_hash = $1, expires_at = $2 WHERE pending_id = $3`,
-            [tokenHash, expiresAt, pending.pending_id]
-        );
-
-        const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
-
-        try {
-            await transporter.sendMail({
-                from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
-                to: normalizedEmail,
-                subject: 'WMSU CampusHub - New Verification Link',
-                html: `
-                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
-                        <h2 style="color: #800000;">New Verification Request</h2>
-                        <p>Hello ${pending.first_name}, here is your new verification link:</p>
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
-                        </div>
-                        <p style="font-size: 0.85rem; color: #777;">This link expires in 24 hours.</p>
-                    </div>
-                `
-            });
-        } catch (emailError) {
-            console.warn('\n⚠️ Resend email SMTP failed.');
-            if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true') {
-                console.log('🔗 [DEV FALLBACK] RESEND CONFIRMATION LINK:');
-                console.log(confirmUrl);
-            }
-        }
-
-        return res.status(200).json({ message: 'If a pending registration exists for this email, a new verification link has been sent.' });
-
-    } catch (error) {
-        console.error('Resend verification error:', error);
-        return res.status(500).json({ message: 'Server error while resending verification email.' });
-    } finally {
-        client?.release();
-    }
-});
-
-// -------- SECURE LOGIN ROUTE -------- //
+// -------- LOGIN -------- //
 router.post('/login', loginLimiter, async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -369,26 +347,48 @@ router.post('/login', loginLimiter, async (req, res) => {
         }
 
         const result = await pool.query(
-            `SELECT u.user_id, u.first_name, u.last_name, u.email,
-                    u.password_hash, u.role_id, u.status, r.role_name
+            `SELECT u.user_id, u.first_name, u.middle_initial, u.last_name, u.email,
+                    u.password_hash, u.role_id, u.account_status AS status, r.role_name,
+                    sp.student_number AS student_id, sp.department_id, sp.program_id,
+                    sp.year_level, sp.verification_status,
+                    d.department_name, pr.program_name
              FROM users u
              JOIN roles r ON u.role_id = r.role_id
+             LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+             LEFT JOIN departments d ON sp.department_id = d.department_id
+             LEFT JOIN programs pr ON sp.program_id = pr.program_id
              WHERE LOWER(u.email) = LOWER($1)`,
             [email.trim()]
         );
 
         if (result.rowCount === 0) {
+            await logAudit(req, {
+                action: 'Failed Login Attempt',
+                module: 'auth',
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: email.trim(), reason: 'User not found' }
+            });
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
         const user = result.rows[0];
 
-        if (user.status?.toLowerCase() !== 'active') {
-            return res.status(403).json({ message: 'Your account is not active.' });
+        if (String(user.status).toLowerCase() === 'suspended' || String(user.status).toLowerCase() === 'archived') {
+            return res.status(403).json({ message: `Your account is currently ${user.status}.` });
         }
 
         const passwordMatch = await bcrypt.compare(password, user.password_hash);
         if (!passwordMatch) {
+            await logAudit(req, {
+                action: 'Failed Login Attempt',
+                module: 'auth',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: email.trim(), reason: 'Incorrect password' }
+            });
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
@@ -399,16 +399,341 @@ router.post('/login', loginLimiter, async (req, res) => {
         );
 
         delete user.password_hash;
+        user.id = user.user_id;
+
+        await logAudit(req, {
+            action: 'User Login',
+            module: 'auth',
+            actorUserId: user.user_id,
+            actorRole: user.role_name,
+            targetType: 'user',
+            targetId: user.user_id,
+            outcome: 'SUCCESS'
+        });
 
         return res.status(200).json({
             message: 'Login successful!',
             token,
             user
         });
-
     } catch (error) {
         console.error('Login error:', error);
         return res.status(500).json({ message: 'Server error during login.' });
+    }
+});
+
+// -------- DASHBOARD FEED (USED BY STUDENT & STAFF VIEWS) -------- //
+const handleDashboardData = async (req, res) => {
+    try {
+        const annRes = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_id AS announcement_id,
+                    p.page_id,
+                    p.creator_user_id,
+                    p.category_id,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    p.title,
+                    p.content,
+                    p.content AS description,
+                    p.image_url,
+                    p.audience,
+                    p.is_pinned,
+                    p.status,
+                    p.created_at,
+                    pg.page_name,
+                    pg.page_name AS department_name,
+                    COALESCE(pg.page_code, d.department_code, o.org_code, 'WMSU') AS code
+             FROM posts p
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN departments d ON pg.department_id = d.department_id
+             LEFT JOIN organizations o ON pg.organization_id = o.organization_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             WHERE p.post_type = 'announcement'
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+             ORDER BY p.is_pinned DESC, p.created_at DESC`
+        );
+
+        const evRes = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_id AS event_id,
+                    p.page_id,
+                    p.creator_user_id,
+                    p.category_id,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    p.title,
+                    p.title AS event_title,
+                    p.content,
+                    p.content AS description,
+                    p.content AS event_description,
+                    p.image_url,
+                    p.image_url AS poster_url,
+                    p.audience,
+                    p.status,
+                    p.created_at,
+                    ed.event_date,
+                    ed.end_date,
+                    ed.location,
+                    ed.location AS venue,
+                    ed.capacity,
+                    ed.capacity AS max_capacity,
+                    ed.organizer_info,
+                    ed.registration_deadline,
+                    pg.page_name,
+                    pg.page_name AS department_name,
+                    COALESCE(pg.page_code, d.department_code, o.org_code, 'WMSU') AS code,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count
+             FROM posts p
+             JOIN event_details ed ON p.post_id = ed.post_id
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN departments d ON pg.department_id = d.department_id
+             LEFT JOIN organizations o ON pg.organization_id = o.organization_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
+             WHERE p.post_type = 'event'
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+             GROUP BY p.post_id, ed.post_id, pg.page_id, d.department_id, o.organization_id, pc.category_id
+             ORDER BY ed.event_date ASC, p.created_at DESC`
+        );
+
+        return res.status(200).json({
+            announcements: annRes.rows,
+            events: evRes.rows
+        });
+    } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        return res.status(500).json({ message: 'Server error fetching dashboard data.' });
+    }
+};
+
+router.get('/dashboard-data', handleDashboardData);
+router.post('/dashboard-data', handleDashboardData);
+
+// -------- EVENTS DATA -------- //
+router.get('/events-data', async (req, res) => {
+    try {
+        const evRes = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_id AS event_id,
+                    p.page_id,
+                    p.title,
+                    p.title AS event_title,
+                    p.content AS description,
+                    p.content AS event_description,
+                    p.image_url,
+                    p.image_url AS poster_url,
+                    p.status,
+                    p.created_at,
+                    ed.event_date,
+                    ed.end_date,
+                    ed.location,
+                    ed.location AS venue,
+                    ed.capacity,
+                    ed.capacity AS max_capacity,
+                    pg.page_name,
+                    pg.page_name AS department_name,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count
+             FROM posts p
+             JOIN event_details ed ON p.post_id = ed.post_id
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
+             WHERE p.post_type = 'event'
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+             GROUP BY p.post_id, ed.post_id, pg.page_id
+             ORDER BY ed.event_date ASC`
+        );
+        return res.status(200).json({ events: evRes.rows });
+    } catch (error) {
+        console.error('Error fetching events-data:', error);
+        return res.status(500).json({ message: 'Server error fetching events.' });
+    }
+});
+
+// -------- MY REGISTERED EVENTS -------- //
+router.get('/my-events', async (req, res) => {
+    try {
+        const userId = await resolveUserId(req);
+        if (!userId) {
+            return res.status(200).json({ events: [] });
+        }
+
+        const result = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_id AS event_id,
+                    p.title,
+                    p.title AS event_title,
+                    p.content AS event_description,
+                    p.image_url,
+                    p.image_url AS poster_url,
+                    ed.event_date,
+                    ed.end_date,
+                    ed.location,
+                    ed.capacity,
+                    pg.page_name,
+                    pg.page_name AS department_name,
+                    er.registration_id,
+                    er.status AS registration_status,
+                    er.registered_at
+             FROM event_registrations er
+             JOIN event_details ed ON er.event_post_id = ed.post_id
+             JOIN posts p ON ed.post_id = p.post_id
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             WHERE er.registrant_user_id = $1
+               AND LOWER(er.status) != 'cancelled'
+             ORDER BY ed.event_date ASC`,
+            [userId]
+        );
+
+        return res.status(200).json({ events: result.rows });
+    } catch (error) {
+        console.error('Error fetching my-events:', error);
+        return res.status(500).json({ message: 'Server error fetching registered events.' });
+    }
+});
+
+// -------- REGISTER FOR EVENT -------- //
+router.post('/events/:id/register', async (req, res) => {
+    try {
+        const eventId = Number(req.params.id);
+        const userId = await resolveUserId(req);
+
+        if (!userId || !eventId) {
+            return res.status(400).json({ message: 'User ID and Event ID are required.' });
+        }
+
+        const regRes = await pool.query(
+            `INSERT INTO event_registrations (event_post_id, registrant_user_id, status)
+             VALUES ($1, $2, 'Registered')
+             ON CONFLICT (event_post_id, registrant_user_id)
+             DO UPDATE SET status = 'Registered', cancelled_at = NULL, registered_at = NOW()
+             RETURNING *`,
+            [eventId, userId]
+        );
+
+        return res.status(201).json({
+            message: 'Successfully registered for the event!',
+            registration: regRes.rows[0]
+        });
+    } catch (error) {
+        console.error('Error registering for event:', error);
+        return res.status(500).json({ message: 'Server error registering for event.' });
+    }
+});
+
+// -------- CANCEL EVENT REGISTRATION -------- //
+const handleCancelRegistration = async (req, res) => {
+    try {
+        const eventId = Number(req.params.id);
+        const userId = await resolveUserId(req);
+
+        if (!userId || !eventId) {
+            return res.status(400).json({ message: 'User ID and Event ID are required.' });
+        }
+
+        await pool.query(
+            `DELETE FROM event_registrations WHERE event_post_id = $1 AND registrant_user_id = $2`,
+            [eventId, userId]
+        );
+
+        return res.status(200).json({ message: 'Registration cancelled successfully.' });
+    } catch (error) {
+        console.error('Error cancelling registration:', error);
+        return res.status(500).json({ message: 'Server error cancelling registration.' });
+    }
+};
+
+router.post('/events/:id/cancel', handleCancelRegistration);
+router.delete('/events/:id/cancel', handleCancelRegistration);
+
+// -------- USER NOTIFICATIONS -------- //
+router.get('/notifications', async (req, res) => {
+    try {
+        const userId = await resolveUserId(req);
+        if (!userId) {
+            return res.status(200).json({ notifications: [] });
+        }
+
+        const result = await pool.query(
+            `SELECT notification_id AS id,
+                    notification_id,
+                    recipient_user_id,
+                    page_id,
+                    post_id,
+                    type,
+                    title,
+                    message,
+                    is_read,
+                    is_archived,
+                    created_at
+             FROM notifications
+             WHERE recipient_user_id = $1
+             ORDER BY created_at DESC`,
+            [userId]
+        );
+
+        return res.status(200).json({ notifications: result.rows });
+    } catch (error) {
+        console.error('Error fetching notifications:', error);
+        return res.status(500).json({ message: 'Server error fetching notifications.' });
+    }
+});
+
+const markNotificationRead = async (req, res) => {
+    try {
+        await pool.query(
+            `UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE notification_id = $1`,
+            [Number(req.params.id)]
+        );
+        return res.status(200).json({ message: 'Notification marked as read.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error updating notification.' });
+    }
+};
+router.post('/notifications/:id/read', markNotificationRead);
+router.put('/notifications/:id/read', markNotificationRead);
+router.patch('/notifications/:id/read', markNotificationRead);
+
+const markAllNotificationsRead = async (req, res) => {
+    try {
+        const userId = await resolveUserId(req);
+        if (userId) {
+            await pool.query(
+                `UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE recipient_user_id = $1`,
+                [userId]
+            );
+        }
+        return res.status(200).json({ message: 'All notifications marked as read.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error marking notifications as read.' });
+    }
+};
+router.post('/notifications/read-all', markAllNotificationsRead);
+router.put('/notifications/read-all', markAllNotificationsRead);
+router.patch('/notifications/read-all', markAllNotificationsRead);
+
+const archiveNotification = async (req, res) => {
+    try {
+        await pool.query(
+            `UPDATE notifications SET is_archived = TRUE WHERE notification_id = $1`,
+            [Number(req.params.id)]
+        );
+        return res.status(200).json({ message: 'Notification archived.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error archiving notification.' });
+    }
+};
+router.post('/notifications/:id/archive', archiveNotification);
+router.put('/notifications/:id/archive', archiveNotification);
+router.patch('/notifications/:id/archive', archiveNotification);
+
+router.delete('/notifications/:id', async (req, res) => {
+    try {
+        await pool.query(`DELETE FROM notifications WHERE notification_id = $1`, [Number(req.params.id)]);
+        return res.status(200).json({ message: 'Notification deleted.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error deleting notification.' });
     }
 });
 

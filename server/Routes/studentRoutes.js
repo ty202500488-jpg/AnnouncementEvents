@@ -1,49 +1,58 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const jwt = require('jsonwebtoken');
 
-// -------- VIEW ANNOUNCEMENTS / DASHBOARD FEED -------- //
+async function resolveUserId(req) {
+    if (req.query?.student_id) return Number(req.query.student_id);
+    if (req.query?.staff_id) return Number(req.query.staff_id);
+    if (req.body?.student_id) return Number(req.body.student_id);
+
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const decoded = jwt.verify(authHeader.slice(7).trim(), process.env.JWT_SECRET || 'fallback_secret');
+            return Number(decoded.userId ?? decoded.id ?? decoded.user_id);
+        } catch (_) {
+            return null;
+        }
+    }
+    return null;
+}
+
+// -------- DASHBOARD FEED -------- //
 router.post('/dashboard-data', async (req, res) => {
     try {
-        const annRes = await pool.query(
-            `SELECT a.*, a.announcement_id AS id,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS page_name,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Notice') AS department_name,
-                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
-             FROM announcements a
-             LEFT JOIN pages p ON a.page_id = p.page_id
-             LEFT JOIN departments d ON p.department_id = d.department_id
-             LEFT JOIN organizations o ON p.organization_id = o.organization_id
-             WHERE p.page_id IS NULL OR LOWER(p.status) = 'approved'
-             ORDER BY a.created_at DESC`
+        const announcements = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_id AS announcement_id,
+                    p.page_id,
+                    p.creator_user_id,
+                    p.category_id,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    p.title,
+                    p.content,
+                    p.content AS description,
+                    p.image_url,
+                    p.audience,
+                    p.is_pinned,
+                    p.status,
+                    p.created_at,
+                    pg.page_name,
+                    pg.page_name AS department_name,
+                    CASE WHEN pg.department_id IS NOT NULL THEN 'Academic College' ELSE 'Student Organization' END AS department_code
+             FROM posts p
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             WHERE p.post_type = 'announcement'
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+             ORDER BY p.is_pinned DESC, p.created_at DESC`
         );
-
-        const evRes = await pool.query(
-            `SELECT e.event_id, e.event_id AS id,
-                    e.event_title AS title, e.event_title,
-                    COALESCE(e.event_description, '') AS content,
-                    COALESCE(e.event_description, '') AS description,
-                    e.event_date, e.event_date AS date,
-                    e.location, e.capacity, e.created_at,
-                    e.poster_url, e.page_id,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
-                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
-             FROM events e
-             LEFT JOIN pages p ON e.page_id = p.page_id
-             LEFT JOIN departments d ON p.department_id = d.department_id
-             LEFT JOIN organizations o ON p.organization_id = o.organization_id
-             WHERE e.page_id IS NULL OR LOWER(p.status) = 'approved'
-             ORDER BY e.created_at DESC`
-        );
-
-        res.status(200).json({
-            announcements: annRes.rows,
-            events: evRes.rows
-        });
+        return res.status(200).json({ announcements: announcements.rows });
     } catch (error) {
-        console.error('Error fetching dashboard data:', error.message);
-        res.status(500).json({ message: 'Server error fetching dashboard data.' });
+        console.error('Error fetching student dashboard data:', error.message);
+        return res.status(500).json({ message: 'Server error fetching dashboard data.' });
     }
 });
 
@@ -51,129 +60,107 @@ router.post('/dashboard-data', async (req, res) => {
 router.get('/events-data', async (req, res) => {
     try {
         const events = await pool.query(
-            `SELECT e.*, e.event_id AS id, e.event_title AS title, e.event_description AS description, e.event_date AS date,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS page_name,
-                    COALESCE(p.page_name, d.department_name, o.organization_name, 'University Office') AS department_name,
-                    COALESCE(d.department_code, UPPER(LEFT(o.organization_name, 4)), UPPER(LEFT(p.page_name, 4)), 'WMSU') AS department_code
-             FROM events e
-             LEFT JOIN pages p ON e.page_id = p.page_id
-             LEFT JOIN departments d ON p.department_id = d.department_id
-             LEFT JOIN organizations o ON p.organization_id = o.organization_id
-             WHERE p.page_id IS NULL OR LOWER(p.status) = 'approved'
-             ORDER BY e.event_date ASC`
+            `SELECT p.post_id AS id,
+                    p.post_id AS event_id,
+                    p.page_id,
+                    p.title,
+                    p.title AS event_title,
+                    p.content AS description,
+                    p.content AS event_description,
+                    p.image_url,
+                    p.image_url AS poster_url,
+                    p.status,
+                    p.created_at,
+                    ed.event_date,
+                    ed.end_date,
+                    ed.location,
+                    ed.location AS venue,
+                    ed.capacity,
+                    ed.capacity AS max_capacity,
+                    pg.page_name,
+                    pg.page_name AS department_name,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count
+             FROM posts p
+             JOIN event_details ed ON p.post_id = ed.post_id
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
+             WHERE p.post_type = 'event'
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+             GROUP BY p.post_id, ed.post_id, pg.page_id
+             ORDER BY ed.event_date ASC`
         );
-        res.status(200).json({ events: events.rows });
+        return res.status(200).json({ events: events.rows });
     } catch (error) {
-        console.error('Error fetching events:', error.message);
-        res.status(500).json({ message: 'Server error fetching events.' });
+        console.error('Error fetching student events:', error.message);
+        return res.status(500).json({ message: 'Server error fetching events.' });
     }
 });
 
-// -------- GET USER'S REGISTERED EVENTS (MY EVENTS) -------- //
-router.get('/my-events', async (req, res) => {
-    try {
-        const userId = req.query.student_id || req.query.staff_id;
-        
-        const events = await pool.query(
-            `SELECT e.*, p.page_name AS department_name, er.status AS registration_status 
-             FROM event_registrations er
-             JOIN events e ON er.event_id = e.event_id
-             LEFT JOIN pages p ON e.page_id = p.page_id
-             WHERE er.registrant_user_id = $1`,
-            [userId]
-        );
-        res.status(200).json({ events: events.rows });
-    } catch (error) {
-        console.error('Error fetching user events:', error.message);
-        res.status(500).json({ message: 'Server error fetching user events.' });
-    }
-});
-
-// -------- REGISTER TO AN EVENT -------- //
-router.post('/events/:id/register', async (req, res) => {
-    try {
-        const eventId = req.params.id;
-        const { student_id, staff_id } = req.body;
-        const userId = student_id || staff_id;
-
-        if (!userId || !eventId) {
-            return res.status(400).json({ message: 'User ID and Event ID are required.' });
-        }
-
-        const existingRegistration = await pool.query(
-            `SELECT * FROM event_registrations WHERE registrant_user_id = $1 AND event_id = $2`,
-            [userId, eventId]
-        );
-
-        if (existingRegistration.rows.length > 0) {
-            return res.status(400).json({ message: 'Already registered for this event.' });
-        }
-
-        const newRegistration = await pool.query(
-            `INSERT INTO event_registrations (registrant_user_id, event_id, status) VALUES ($1, $2, 'Registered') RETURNING *`,
-            [userId, eventId]
-        );
-
-        res.status(201).json({
-            message: 'Successfully registered for the event!',
-            registration: newRegistration.rows[0]
-        });
-    } catch (error) {
-        console.error('Error registering for event:', error.message);
-        res.status(500).json({ message: 'Server error registering for event.' });
-    }
-});
-
-// -------- CANCEL EVENT REGISTRATION -------- //
-router.post('/events/:id/cancel', async (req, res) => {
-    try {
-        const eventId = req.params.id;
-        const { student_id, staff_id } = req.body;
-        const userId = student_id || staff_id;
-
-        await pool.query(
-            `DELETE FROM event_registrations WHERE registrant_user_id = $1 AND event_id = $2`,
-            [userId, eventId]
-        );
-
-        res.status(200).json({ message: 'Registration cancelled successfully.' });
-    } catch (error) {
-        console.error('Error cancelling event registration:', error.message);
-        res.status(500).json({ message: 'Server error cancelling registration.' });
-    }
-});
-
-// -------- GET NOTIFICATIONS -------- //
+// -------- STUDENT NOTIFICATIONS -------- //
 router.get('/notifications', async (req, res) => {
     try {
-        const userId = req.query.student_id || req.query.staff_id;
-        
+        const userId = await resolveUserId(req);
+        if (!userId) {
+            return res.status(200).json({ notifications: [] });
+        }
+
         const notifications = await pool.query(
-            `SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC`,
+            `SELECT notification_id AS id,
+                    notification_id,
+                    recipient_user_id,
+                    page_id,
+                    post_id,
+                    type,
+                    title,
+                    message,
+                    is_read,
+                    is_archived,
+                    created_at
+             FROM notifications
+             WHERE recipient_user_id = $1 AND is_archived = FALSE
+             ORDER BY created_at DESC`,
             [userId]
-        ).catch(() => ({ rows: [] }));
+        );
 
-        res.status(200).json({ notifications: notifications.rows });
+        return res.status(200).json({ notifications: notifications.rows });
     } catch (error) {
-        console.error('Error fetching notifications:', error.message);
-        res.status(500).json({ message: 'Server error fetching notifications.' });
+        console.error('Error fetching student notifications:', error.message);
+        return res.status(500).json({ message: 'Server error fetching notifications.' });
     }
 });
 
-// -------- MARK NOTIFICATION AS READ -------- //
-router.post('/notifications/:id/read', async (req, res) => {
+const markNotifRead = async (req, res) => {
     try {
-        const notifId = req.params.id;
         await pool.query(
-            `UPDATE notifications SET is_read = TRUE WHERE id = $1`,
-            [notifId]
-        ).catch(() => {});
-
-        res.status(200).json({ message: 'Notification marked as read.' });
+            `UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE notification_id = $1`,
+            [Number(req.params.id)]
+        );
+        return res.status(200).json({ message: 'Notification marked as read.' });
     } catch (error) {
-        console.error('Error updating notification:', error.message);
-        res.status(500).json({ message: 'Server error updating notification.' });
+        return res.status(500).json({ message: 'Server error updating notification.' });
     }
-});
+};
+router.post('/notifications/:id/read', markNotifRead);
+router.put('/notifications/:id/read', markNotifRead);
+router.patch('/notifications/:id/read', markNotifRead);
+
+const markAllRead = async (req, res) => {
+    try {
+        const userId = await resolveUserId(req);
+        if (userId) {
+            await pool.query(
+                `UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE recipient_user_id = $1`,
+                [userId]
+            );
+        }
+        return res.status(200).json({ message: 'All notifications marked as read.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error marking notifications as read.' });
+    }
+};
+router.post('/notifications/read-all', markAllRead);
+router.put('/notifications/read-all', markAllRead);
+router.patch('/notifications/read-all', markAllRead);
 
 module.exports = router;
