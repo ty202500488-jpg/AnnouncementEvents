@@ -1,0 +1,179 @@
+/* ==========================================================================
+   1. SCOPED VARIABLES & RESETS
+   ========================================================================== */
+.my-page-container *, 
+.my-page-container *::before, 
+.my-page-container *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.my-page-container {
+    font-family: 'Inter', sans-serif;
+    
+    /* Base WMSU Theme Colors */
+    --color-accent: #7B0D1E;
+    --color-primary: #5c0916;
+    --color-light-cream: #fff1f2;
+    
+    /* Dependent & Brand Variables */
+    --brand-50: #fff1f2;
+    --brand-100: #ffe4e6;
+    --brand-200: #fecdd3;
+    --brand-500: var(--color-accent);
+    --brand-600: var(--color-primary);
+    --brand-700: #4c0519;
+    
+    --bg-main: #f3f5f9;
+    --slate-50: #f8fafc;
+    --slate-100: #f1f5f9;
+    --slate-200: #e2e8f0;
+    --slate-300: #cbd5e1;
+    --slate-400: #94a3b8;
+    --slate-500: #64748b;
+    --slate-600: #475569;
+    --slate-700: #334155;
+    --slate-800: #1e293b;
+    --slate-900: #0f172a;
+    
+    --emerald-50: #ecfdf5;
+    --emerald-100: #d1fae5;
+    --emerald-500: #10b981;
+    --emerald-600: #059669;
+    --emerald-700: #047857;
+    
+    --amber-50: #fffbeb;
+    --amber-100: #fef3c7;
+    --amber-500: #f59e0b;
+    --amber-700: #b45309;
+    --amber-800: #92400e;
+    
+    --rose-50: #fff1f2;
+    --rose-100: #ffe4e6;
+    --rose-500: #f43f5e;
+    --rose-600: #e11d48;
+    
+    --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.03);
+    --shadow-hover: 0 6px 24px rgba(123, 13, 30, 0.12);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+
+    --border-glow: rgba(123, 13, 30, 0.4);
+    --nav-gradient: linear-gradient(135deg, var(--color-accent) 0%, var(--color-primary) 100%);
+
+    color: var(--slate-800);
+    width: 100%;
+}
+
+.my-page-container *::selection {
+    background-color: var(--color-accent);
+    color: #ffffff;
+}
+
+/* ==========================================================================
+   2. HIDE SCROLLBARS (MAINTAIN FUNCTIONAL SCROLLING)
+   ========================================================================== */
+.my-page-container ::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+.my-page-container,
+.my-page-container * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+/* ==========================================================================
+   3. PAGE CREATOR & MODAL FORM STYLES
+   ========================================================================== */
+.my-page-container .creator-wrapper-single {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.my-page-container .creator-sidebar {
+    background-color: #ffffff;
+    border: 1px solid var(--slate-200);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: var(--shadow-card);
+}
+
+.my-page-container .creator-title {
+    font-size: 1.375rem;
+    font-weight: 800;
+    color: var(--slate-900);
+    margin-bottom: 0.25rem;
+}
+
+.my-page-container .creator-subtitle {
+    font-size: 0.875rem;
+    color: var(--slate-500);
+    margin-bottom: 1.5rem;
+    line-height: 1.4;
+}
+
+.my-page-container .form-group {
+    margin-bottom: 1.25rem;
+}
+
+.my-page-container .form-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--slate-700);
+    margin-bottom: 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.my-page-container .form-input, 
+.my-page-container .form-textarea, 
+.my-page-container .form-select {
+    width: 100%;
+    padding: 0.75rem 0.875rem;
+    font-size: 0.9375rem;
+    font-family: inherit;
+    border-radius: 0.5rem;
+    border: 1px solid var(--slate-300);
+    background-color: var(--slate-50);
+    color: var(--slate-800);
+    transition: all 0.2s ease;
+}
+
+.my-page-container .form-textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.my-page-container .form-input:focus, 
+.my-page-container .form-textarea:focus, 
+.my-page-container .form-select:focus {
+    outline: none;
+    background-color: #ffffff;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(123, 13, 30, 0.12);
+}
+
+.my-page-container .btn-submit {
+    width: 100%;
+    padding: 0.875rem;
+    border-radius: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    border: none;
+    background: var(--nav-gradient);
+    color: var(--color-light-cream);
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    transition: all 0.2s ease;
+}
+
+.my-page-container .btn-submit:hover {
+    opacity: 0.95;
+    transform: translateY(-1px);
+}

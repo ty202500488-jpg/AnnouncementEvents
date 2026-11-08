@@ -1,0 +1,250 @@
+import { useState, useEffect } from 'react';
+import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
+import '../../styles/MyPageDashboard.css';
+
+export default function MyPageAnnouncements() {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem('token');
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        };
+
+        const statusRes = await fetch('http://localhost:5000/api/my-page-status', { headers });
+        if (!statusRes.ok) {
+          setError('Could not load page status.');
+          return;
+        }
+        const statusData = await statusRes.json();
+        if (!statusData.exists || !statusData.pageId) {
+          setAnnouncements([]);
+          return;
+        }
+
+        const res = await fetch(
+          `http://localhost:5000/api/mypage/posts?pageId=${statusData.pageId}`,
+          { headers }
+        );
+        if (!res.ok) {
+          setError('Failed to load announcements.');
+          return;
+        }
+        const data = await res.json();
+        setAnnouncements(data.announcements || []);
+      } catch (err) {
+        console.error('Failed to fetch page announcements:', err);
+        setError('Unable to reach the server.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnnouncements();
+  }, []);
+
+  const filteredAnnouncements = announcements.filter(item => {
+    if (filter === 'university') return item.is_university;
+    if (filter === 'department') return !item.is_university;
+    return true;
+  });
+
+  return (
+    <MyPageDashboardLayout activeTab="announcements">
+      <main 
+        className="lg-col-6 hide-scrollbar" 
+        style={{ 
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          paddingBottom: '2rem'
+        }}
+      >
+        <style>{`
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+
+        {/* Header */}
+        <div 
+          className="flex items-center justify-between" 
+          style={{ 
+            marginBottom: '1.25rem', 
+            paddingBottom: '0.625rem', 
+            borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
+          }}
+        >
+          <div>
+            <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.0625rem', margin: 0 }}>Campus Announcements</h3>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Review department updates and campus announcements.</p>
+          </div>
+          
+          <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
+            {['all', 'university'].map((type) => {
+              const isActive = filter === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setFilter(type)}
+                  style={{
+                    padding: '0.3rem 0.625rem',
+                    borderRadius: '0.375rem',
+                    backgroundColor: isActive ? '#8c1030' : 'transparent',
+                    color: isActive ? '#ffffff' : 'var(--slate-600)',
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {type}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>
+            <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#8c1030' }}></i>
+            <p style={{ fontSize: '0.875rem' }}>Loading announcements...</p>
+          </div>
+        ) : error ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem', color: '#991b1b', background: '#fef2f2', borderRadius: '0.625rem', border: '1px solid #fecdd3' }}>
+            {error}
+          </div>
+        ) : filteredAnnouncements.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)', backgroundColor: '#ffffff', borderRadius: '0.625rem', border: '1px solid var(--slate-200)' }}>
+            <i className="fa-solid fa-bullhorn" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
+            <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No announcements available for this filter.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {filteredAnnouncements.map((item, index) => {
+              const deptName = item.page_name || item.department_name || 'My Page';
+              const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+              const postDate = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+              const postImage = item.image_url || item.image || null;
+
+              return (
+                <article 
+                  key={item.announcement_id || item.id || index} 
+                  className="card card-interactive" 
+                  style={{ 
+                    padding: '1rem 0', 
+                    borderRadius: '1.25rem',
+                    border: '1px solid var(--slate-200, #e2e8f0)',
+                    backgroundColor: '#ffffff',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Post Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem 0.875rem 1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                      <div 
+                        style={{ 
+                          width: '2.5rem', 
+                          height: '2.5rem', 
+                          borderRadius: '50%', 
+                          backgroundColor: '#fbe4e8', 
+                          color: '#8c1030', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          fontWeight: 800, 
+                          fontSize: '0.8rem',
+                          flexShrink: 0
+                        }}
+                      >
+                        {avatarText}
+                      </div>
+
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {deptName}
+                        </h4>
+                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                      <button 
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#16162b',
+                          cursor: 'pointer',
+                          padding: '0.25rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="More options"
+                      >
+                        <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Body Content */}
+                  {postImage ? (
+                    <div style={{ 
+                      backgroundColor: '#0f172a', 
+                      width: '100%',
+                      maxHeight: '450px',
+                      overflow: 'hidden',
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      alignItems: 'center',
+                      position: 'relative'
+                    }}>
+                      <img 
+                        src={postImage} 
+                        alt={item.title} 
+                        style={{ width: '100%', height: 'auto', objectFit: 'cover' }} 
+                      />
+                    </div>
+                  ) : (
+                    <div style={{ padding: '0.5rem 1rem 1rem 1rem' }}>
+                      <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
+                        {item.title}
+                      </h3>
+                      <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '0.75rem', lineHeight: 1.6, margin: '0.75rem 0 0 0' }}>
+                        {item.content || item.description}
+                      </p>
+                    </div>
+                  )}
+
+                  {postImage && (
+                    <div style={{ padding: '0.875rem 1rem 0.5rem 1rem' }}>
+                      <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
+                        {item.title}
+                      </h3>
+                      <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: 1.5, margin: '0.4rem 0 0 0' }}>
+                        {item.content || item.description}
+                      </p>
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </MyPageDashboardLayout>
+  );
+}
