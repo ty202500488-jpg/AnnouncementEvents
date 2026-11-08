@@ -53,7 +53,7 @@ html {
 .lp-tabs-bar {
   display: flex !important;
   align-items: center !important;
-  background-color: #f1f4f9 !important;
+  background-color: #ebeef3a1 !important;
   padding: 0.35rem !important;
   border-radius: 8px !important;
   gap: 0.35rem !important;
