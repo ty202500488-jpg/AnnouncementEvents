@@ -318,7 +318,7 @@ export default function Auth() {
                 <div className="input-container">
                   <input 
                     type="text" 
-                    placeholder="e.g. admin.io or user@wmsu.edu.ph" 
+                    placeholder="username@wmsu.edu.ph" 
                     value={loginData.email}
                     onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                     required 
