@@ -391,6 +391,7 @@ CREATE INDEX IF NOT EXISTS idx_qr_tokens_lookup ON event_qr_tokens(token_hash, e
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_user_id, is_read, is_archived);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_filters ON audit_logs(module, outcome, is_security_event);
+CREATE INDEX IF NOT EXISTS idx_page_follows_follower ON page_follows(follower_user_id);
 
 -- ============================================================================
 -- SEED DATA: ROLES, 17 WMSU COLLEGES, 58 COURSES, CATEGORIES & DEFAULTS

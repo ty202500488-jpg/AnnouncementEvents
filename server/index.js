@@ -24,6 +24,7 @@ app.use('/api/users', userRoutes);
 app.use('/users', userRoutes);
 
 app.use('/api/student', studentRoutes);
+app.use('/student', studentRoutes);
 app.use('/api/mypage/attendance', mypageAttendanceRoutes);
 app.use('/api/mypage', mypageRegistrationRoutes);
 app.use('/api/admin', adminRoutes);

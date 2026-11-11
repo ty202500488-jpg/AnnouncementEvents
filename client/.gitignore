@@ -24,4 +24,7 @@ dist-ssr
 *.sw?
 
 .env
+.agent
+.agent/
 .agents
+.agents/

@@ -1,7 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const jwt = require('jsonwebtoken');
 const { authenticateUser, logAudit } = require('../middleware/auth');
+
+async function resolveUserId(req) {
+    if (req.query?.student_id) return Number(req.query.student_id);
+    if (req.query?.staff_id) return Number(req.query.staff_id);
+    if (req.query?.user_id) return Number(req.query.user_id);
+    if (req.body?.student_id) return Number(req.body.student_id);
+    if (req.body?.staff_id) return Number(req.body.staff_id);
+    if (req.body?.user_id) return Number(req.body.user_id);
+
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+            const decoded = jwt.verify(authHeader.slice(7).trim(), process.env.JWT_SECRET || 'fallback_secret');
+            return Number(decoded.userId ?? decoded.id ?? decoded.user_id);
+        } catch (_) {
+            return null;
+        }
+    }
+    return null;
+}
 
 // Helper: Fetch a staff user's primary managed page (by page_members or created_by)
 async function getUserPageDetails(userId) {
@@ -752,5 +773,214 @@ router.get('/approved-pages', async (req, res) => {
         return res.status(500).json({ message: err.message });
     }
 });
+
+// ============================================================================
+// PUBLIC & STUDENT PAGE VIEW + FOLLOW ENDPOINTS
+// ============================================================================
+
+// Helper: Handle Page Details Fetch
+async function handleGetPageDetails(req, res) {
+    try {
+        const pageId = Number(req.params.pageId);
+        if (!pageId || isNaN(pageId)) {
+            return res.status(400).json({ message: 'Invalid page ID' });
+        }
+
+        const userId = await resolveUserId(req);
+
+        const pageRes = await pool.query(
+            `SELECT p.page_id, p.page_name, p.page_code, p.page_description, p.status,
+                    p.page_type, p.department_id, p.organization_id, p.avatar_url, p.cover_url,
+                    p.contact_email, p.allow_event_registration, p.created_at,
+                    d.department_name, d.department_code,
+                    o.organization_name AS org_name, o.org_code,
+                    COALESCE((SELECT COUNT(*)::int FROM page_follows pf WHERE pf.page_id = p.page_id), 0) AS followers_count,
+                    COALESCE((SELECT COUNT(*)::int FROM posts po WHERE po.page_id = p.page_id AND po.is_archived = FALSE AND LOWER(po.moderation_status) = 'approved'), 0) AS posts_count,
+                    COALESCE((SELECT COUNT(*)::int FROM posts po WHERE po.page_id = p.page_id AND po.post_type = 'event' AND po.is_archived = FALSE AND LOWER(po.moderation_status) = 'approved'), 0) AS events_count,
+                    COALESCE((SELECT COUNT(*)::int FROM posts po WHERE po.page_id = p.page_id AND po.post_type = 'announcement' AND po.is_archived = FALSE AND LOWER(po.moderation_status) = 'approved'), 0) AS announcements_count,
+                    CASE WHEN $2::int IS NOT NULL AND EXISTS(
+                        SELECT 1 FROM page_follows WHERE page_id = p.page_id AND follower_user_id = $2
+                    ) THEN TRUE ELSE FALSE END AS is_followed
+             FROM pages p
+             LEFT JOIN departments d ON p.department_id = d.department_id
+             LEFT JOIN organizations o ON p.organization_id = o.organization_id
+             WHERE p.page_id = $1
+               AND (LOWER(p.status) IN ('approved', 'active') OR ($2::int IS NOT NULL AND p.created_by = $2))`,
+            [pageId, userId]
+        );
+
+        if (pageRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Page not found' });
+        }
+
+        return res.status(200).json({ page: pageRes.rows[0] });
+    } catch (err) {
+        console.error('Error fetching page details:', err);
+        return res.status(500).json({ message: err.message });
+    }
+}
+
+// Helper: Handle Page Posts Fetch (Announcements & Events published by this page)
+async function handleGetPagePosts(req, res) {
+    try {
+        const pageId = Number(req.params.pageId);
+        if (!pageId || isNaN(pageId)) {
+            return res.status(400).json({ message: 'Invalid page ID' });
+        }
+
+        const userId = await resolveUserId(req);
+
+        const postsRes = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_id,
+                    p.page_id,
+                    p.post_type,
+                    p.title,
+                    p.content,
+                    p.content AS description,
+                    p.image_url,
+                    p.audience,
+                    p.is_pinned,
+                    p.status,
+                    p.moderation_status,
+                    p.created_at,
+                    pg.page_name,
+                    pg.page_code,
+                    pg.avatar_url AS page_avatar_url,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    ed.event_date,
+                    ed.end_date,
+                    ed.location,
+                    ed.location AS venue,
+                    ed.capacity,
+                    ed.capacity AS max_capacity,
+                    ed.organizer_info,
+                    ed.registration_deadline,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count,
+                    CASE WHEN $2::int IS NOT NULL AND EXISTS(
+                        SELECT 1 FROM event_registrations er2
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $2 AND LOWER(er2.status) != 'cancelled'
+                    ) THEN TRUE ELSE FALSE END AS is_registered
+             FROM posts p
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             LEFT JOIN event_details ed ON p.post_id = ed.post_id
+             LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
+             WHERE p.page_id = $1
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+             GROUP BY p.post_id, pg.page_id, pc.category_id, ed.post_id
+             ORDER BY p.is_pinned DESC, p.created_at DESC`,
+            [pageId, userId]
+        );
+
+        return res.status(200).json({ posts: postsRes.rows });
+    } catch (err) {
+        console.error('Error fetching page posts:', err);
+        return res.status(500).json({ message: err.message });
+    }
+}
+
+// Helper: Handle Follow
+async function handleFollowPage(req, res) {
+    try {
+        const pageId = Number(req.params.pageId);
+        if (!pageId || isNaN(pageId)) {
+            return res.status(400).json({ message: 'Invalid page ID' });
+        }
+
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+        const userId = user.user_id;
+
+        // Verify page exists
+        const pageCheck = await pool.query(`SELECT page_id, page_name FROM pages WHERE page_id = $1`, [pageId]);
+        if (pageCheck.rows.length === 0) {
+            return res.status(404).json({ message: 'Page not found.' });
+        }
+
+        await pool.query(
+            `INSERT INTO page_follows (page_id, follower_user_id)
+             VALUES ($1, $2)
+             ON CONFLICT (page_id, follower_user_id) DO NOTHING`,
+            [pageId, userId]
+        );
+
+        const countRes = await pool.query(
+            `SELECT COUNT(*)::int AS count FROM page_follows WHERE page_id = $1`,
+            [pageId]
+        );
+
+        return res.status(200).json({
+            success: true,
+            is_followed: true,
+            followers_count: countRes.rows[0].count,
+            message: `You are now following ${pageCheck.rows[0].page_name}.`
+        });
+    } catch (err) {
+        console.error('Error following page:', err);
+        return res.status(500).json({ message: err.message });
+    }
+}
+
+// Helper: Handle Unfollow
+async function handleUnfollowPage(req, res) {
+    try {
+        const pageId = Number(req.params.pageId);
+        if (!pageId || isNaN(pageId)) {
+            return res.status(400).json({ message: 'Invalid page ID' });
+        }
+
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+        const userId = user.user_id;
+
+        await pool.query(
+            `DELETE FROM page_follows WHERE page_id = $1 AND follower_user_id = $2`,
+            [pageId, userId]
+        );
+
+        const countRes = await pool.query(
+            `SELECT COUNT(*)::int AS count FROM page_follows WHERE page_id = $1`,
+            [pageId]
+        );
+
+        return res.status(200).json({
+            success: true,
+            is_followed: false,
+            followers_count: countRes.rows[0].count,
+            message: 'You have unfollowed this page.'
+        });
+    } catch (err) {
+        console.error('Error unfollowing page:', err);
+        return res.status(500).json({ message: err.message });
+    }
+}
+
+// Helper: List followed page IDs for the user
+async function handleGetFollowedPages(req, res) {
+    try {
+        const userId = await resolveUserId(req);
+        if (!userId) {
+            return res.status(200).json({ followed_page_ids: [] });
+        }
+        const r = await pool.query(
+            `SELECT page_id FROM page_follows WHERE follower_user_id = $1`,
+            [userId]
+        );
+        return res.status(200).json({ followed_page_ids: r.rows.map(x => x.page_id) });
+    } catch (err) {
+        return res.status(500).json({ message: err.message });
+    }
+}
+
+// Bind routes with /pages prefix
+router.get('/pages/followed/list', handleGetFollowedPages);
+router.get('/pages/:pageId', handleGetPageDetails);
+router.get('/pages/:pageId/posts', handleGetPagePosts);
+router.post('/pages/:pageId/follow', handleFollowPage);
+router.delete('/pages/:pageId/follow', handleUnfollowPage);
+router.delete('/pages/:pageId/unfollow', handleUnfollowPage);
+router.post('/pages/:pageId/unfollow', handleUnfollowPage);
 
 module.exports = router;

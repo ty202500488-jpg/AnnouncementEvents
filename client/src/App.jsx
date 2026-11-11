@@ -42,6 +42,7 @@ import Archives from './pages/Admin/Archives.jsx';
 import Reports from './pages/Admin/Reports.jsx';
 import AuditLogs from './pages/Admin/AuditLogs.jsx';
 import SystemSettings from './pages/Admin/SystemSettings.jsx';
+import PageView from './pages/Common/PageView';
 
 function App() {
   return (
@@ -51,9 +52,11 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/confirm-email" element={<ConfirmEmail />} />
+        <Route path="/page/:pageId" element={<PageView role="guest" />} />
 
         {/* Student Routes */}
         <Route path="/student/dashboard" element={<StudentDashboard />} />
+        <Route path="/student/page/:pageId" element={<PageView role="student" />} />
         <Route path="/student/announcements" element={<StudentAnnouncements />} />
         <Route path="/student/events" element={<StudentEvents />} />
         <Route path="/student/profile" element={<StudentProfile />} />
@@ -65,6 +68,7 @@ function App() {
 
         {/* Staff Routes */}
         <Route path="/staff/dashboard" element={<StaffDashboard />} />
+        <Route path="/staff/page/:pageId" element={<PageView role="staff" />} />
         <Route path="/staff/announcements" element={<StaffAnnouncements />} />
         <Route path="/staff/events" element={<StaffEvents />} />
         <Route path="/staff/mypage" element={<StaffMyPage />} />
