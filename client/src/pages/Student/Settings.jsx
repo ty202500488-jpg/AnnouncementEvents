@@ -42,14 +42,40 @@ export default function Settings() {
   const [notifications, setNotifications] = useState({
     universityAnnouncements: true,
     collegeAnnouncements: true,
-    departmentAnnouncements: false,
+    departmentAnnouncements: true,
     followedPages: true,
     upcomingEvents: true,
     eventReminders: true,
     eventUpdates: true,
     registrationUpdates: true
   });
+  const [loadingPreferences, setLoadingPreferences] = useState(true);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoadingPreferences(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch('/api/users/notifications/preferences', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!cancelled && res.ok && data.preferences) {
+          setNotifications(prev => ({ ...prev, ...data.preferences }));
+        }
+      })
+      .catch((err) => console.warn('Failed to fetch notification preferences:', err))
+      .finally(() => {
+        if (!cancelled) setLoadingPreferences(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   // Security Form State
   const [passwordForm, setPasswordForm] = useState({
@@ -84,12 +110,35 @@ export default function Settings() {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSaveNotifications = () => {
+  const handleSaveNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('', 'Please sign in again to save notification preferences.');
+      return;
+    }
     setIsSavingNotifications(true);
-    setTimeout(() => {
-      setIsSavingNotifications(false);
+    try {
+      const res = await fetch('/api/users/notifications/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ preferences: notifications })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to save notification preferences.');
+      }
+      if (data.preferences) {
+        setNotifications(prev => ({ ...prev, ...data.preferences }));
+      }
       showToast('Notification preferences saved successfully!');
-    }, 450);
+    } catch (err) {
+      showToast('', err.message || 'Unable to save notification preferences.');
+    } finally {
+      setIsSavingNotifications(false);
+    }
   };
 
   const handlePasswordSubmit = (e) => {
@@ -296,9 +345,9 @@ export default function Settings() {
                   type="button"
                   className="lp-primary-btn"
                   onClick={handleSaveNotifications}
-                  disabled={isSavingNotifications}
+                  disabled={isSavingNotifications || loadingPreferences}
                 >
-                  {isSavingNotifications ? 'Saving...' : 'Save Preferences'}
+                  {isSavingNotifications ? 'Saving...' : (loadingPreferences ? 'Loading...' : 'Save Preferences')}
                 </button>
               </div>
             </div>

@@ -24,6 +24,10 @@ async function authenticateUser(req, res) {
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.purpose) {
+            res.status(401).json({ message: 'Invalid token scope.' });
+            return null;
+        }
         const userId = Number(decoded.userId ?? decoded.id ?? decoded.user_id);
 
         if (!Number.isSafeInteger(userId) || userId <= 0) {

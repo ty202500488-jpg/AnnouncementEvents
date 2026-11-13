@@ -1,124 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import { getNotificationMeta, useNotificationCenter } from '../../utils/notificationUtils';
 import '../styles/StaffDashboard.css';
 import '../styles/Notification.css';
 
 export default function StaffNotifications() {
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-
-  const token = localStorage.getItem('token');
-
-  const fetchNotifications = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/users/notifications', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await response.json();
-      if (response.ok && data.notifications) {
-        setNotifications(data.notifications);
-      }
-    } catch (err) {
-      console.error('Failed to fetch notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
-
-  const handleMarkAsRead = async (notifId) => {
-    try {
-      const response = await fetch(`http://localhost:5000/users/notifications/${notifId}/read`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        setNotifications(prev =>
-          prev.map(n => n.id === notifId ? { ...n, is_read: true } : n)
-        );
-      }
-    } catch (err) {
-      console.error('Failed to mark notification as read:', err);
-    }
-  };
-
-  const handleMarkAllAsRead = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/users/notifications/read-all', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-      }
-    } catch (err) {
-      console.error('Failed to mark all as read:', err);
-    }
-  };
-
-  const handleToggleArchive = async (notifId, currentArchived) => {
-    try {
-      const response = await fetch(`http://localhost:5000/users/notifications/${notifId}/archive`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ is_archived: !currentArchived })
-      });
-      if (response.ok) {
-        setNotifications(prev =>
-          prev.map(n => n.id === notifId ? { ...n, is_archived: !currentArchived } : n)
-        );
-      }
-    } catch (err) {
-      console.error('Failed to update archive state:', err);
-    }
-  };
-
-  const handleDelete = async (notifId) => {
-    try {
-      const response = await fetch(`http://localhost:5000/users/notifications/${notifId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        setNotifications(prev => prev.filter(n => n.id !== notifId));
-      }
-    } catch (err) {
-      console.error('Failed to delete notification:', err);
-    }
-  };
-
-  const unreadCount = notifications.filter(n => !n.is_read && !n.is_archived).length;
-
-  const filteredNotifications = notifications.filter(n => {
-    if (filter === 'unread') return !n.is_read && !n.is_archived;
-    if (filter === 'archived') return n.is_archived;
-    return !n.is_archived;
-  });
+  const navigate = useNavigate();
+  const {
+    loading,
+    filter,
+    setFilter,
+    unreadCount,
+    filteredNotifications,
+    handleMarkAsRead,
+    handleMarkAllAsRead,
+    handleToggleArchive,
+    handleDelete,
+    handleNotificationClick
+  } = useNotificationCenter('/api/staff/notifications');
 
   return (
     <StaffDashboardLayout activePage="notifications">
-      <main 
-        className="lg-col-6 hide-scrollbar" 
-        style={{ 
+      <main
+        className="lg-col-6 hide-scrollbar"
+        style={{
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
           paddingBottom: '2rem'
@@ -131,17 +36,19 @@ export default function StaffNotifications() {
         `}</style>
 
         {/* Compact Header */}
-        <div 
-          className="flex items-center justify-between" 
-          style={{ 
-            marginBottom: '1.25rem', 
-            paddingBottom: '0.625rem', 
-            borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
+        <div
+          className="flex items-center justify-between"
+          style={{
+            marginBottom: '1.25rem',
+            paddingBottom: '0.625rem',
+            borderBottom: '1px solid var(--slate-200, #e2e8f0)'
           }}
         >
           <div>
             <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.0625rem', margin: 0 }}>Notifications</h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Stay updated with announcements and events from pages you follow.</p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>
+              Stay updated with campus announcements, event registrations, reminders, and moderation updates.
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -166,11 +73,12 @@ export default function StaffNotifications() {
 
             {/* Filter Pills */}
             <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
-              {['all', 'unread'].map((type) => {
+              {['all', 'unread', 'archived'].map((type) => {
                 const isActive = filter === type;
                 return (
                   <button
                     key={type}
+                    type="button"
                     onClick={() => setFilter(type)}
                     style={{
                       padding: '0.3rem 0.625rem',
@@ -190,13 +98,13 @@ export default function StaffNotifications() {
                   >
                     <span>{type}</span>
                     {type === 'unread' && unreadCount > 0 && (
-                      <span style={{ 
-                        backgroundColor: isActive ? '#ffffff' : 'var(--brand-600, #2563eb)', 
-                        color: isActive ? 'var(--brand-600, #2563eb)' : '#ffffff', 
-                        fontSize: '9px', 
-                        fontWeight: 700, 
-                        padding: '1px 5px', 
-                        borderRadius: '9999px' 
+                      <span style={{
+                        backgroundColor: isActive ? '#ffffff' : 'var(--brand-600, #2563eb)',
+                        color: isActive ? 'var(--brand-600, #2563eb)' : '#ffffff',
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: '9999px'
                       }}>
                         {unreadCount}
                       </span>
@@ -216,70 +124,83 @@ export default function StaffNotifications() {
         ) : filteredNotifications.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)', backgroundColor: '#ffffff', borderRadius: '0.625rem', border: '1px solid var(--slate-200)' }}>
             <i className="fa-regular fa-bell-slash" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
-            <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No new notifications available.</p>
+            <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+              {filter === 'archived' ? 'No archived notifications.' : filter === 'unread' ? 'You are all caught up!' : 'No new notifications available.'}
+            </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {filteredNotifications.map((notif) => (
-              <div 
-                key={notif.id} 
-                className={`notif-item-card ${notif.is_read ? 'read' : 'unread'}`}
-                style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  padding: '1.125rem',
-                  borderRadius: '0.625rem',
-                  border: '1px solid var(--slate-200, #e2e8f0)',
-                  backgroundColor: '#ffffff',
-                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)'
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`notif-icon-box ${notif.type === 'event' ? 'event' : 'announcement'}`}>
-                    <i className={notif.type === 'event' ? 'fa-regular fa-calendar-days' : 'fa-solid fa-bullhorn'}></i>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="notif-page-name">{notif.page_name || 'System Notice'}</span>
-                      <span className="notif-type-tag">{notif.type || 'announcement'}</span>
+            {filteredNotifications.map((notif) => {
+              const meta = getNotificationMeta(notif.type);
+              return (
+                <div
+                  key={notif.id}
+                  className={`notif-item-card ${notif.is_read ? 'read' : 'unread'}`}
+                  onClick={() => handleNotificationClick(notif, navigate)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '1.125rem',
+                    borderRadius: '0.625rem',
+                    border: '1px solid var(--slate-200, #e2e8f0)',
+                    backgroundColor: !notif.is_read ? '#fff5f6' : '#ffffff',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
+                    cursor: notif.url ? 'pointer' : 'default'
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`notif-icon-box ${meta.boxClass}`}>
+                      <i className={meta.iconClass}></i>
                     </div>
-                    <p className="notif-message-text" style={{ marginTop: '0.25rem', color: 'var(--slate-700)', fontSize: '0.875rem' }}>{notif.message}</p>
-                    <span className="notif-time-stamp" style={{ fontSize: '0.75rem', color: 'var(--slate-400)', marginTop: '0.25rem', display: 'inline-block' }}>
-                      {notif.created_at ? new Date(notif.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'}
-                    </span>
+                    <div>
+                      <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+                        <span className="notif-page-name">{notif.page_name || 'System Notice'}</span>
+                        <span className="notif-type-tag">{notif.type || 'announcement'}</span>
+                      </div>
+                      {notif.title && (
+                        <div style={{ fontWeight: 700, color: 'var(--slate-900, #0f172a)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                          {notif.title}
+                        </div>
+                      )}
+                      <p className="notif-message-text" style={{ marginTop: '0.2rem', color: 'var(--slate-700)', fontSize: '0.875rem' }}>{notif.message}</p>
+                      <span className="notif-time-stamp" style={{ fontSize: '0.75rem', color: 'var(--slate-400)', marginTop: '0.25rem', display: 'inline-block' }}>
+                        {notif.created_at ? new Date(notif.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent'}
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                  {!notif.is_read && (
-                    <button 
-                      onClick={() => handleMarkAsRead(notif.id)} 
-                      title="Mark as read"
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', flexShrink: 0 }}>
+                    {!notif.is_read && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleMarkAsRead(notif.id, e)}
+                        title="Mark as read"
+                        style={{ background: 'transparent', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', padding: '0.25rem' }}
+                      >
+                        <i className="fa-regular fa-circle-check"></i>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleArchive(notif.id, notif.is_archived, e)}
+                      title={notif.is_archived ? 'Unarchive' : 'Archive'}
                       style={{ background: 'transparent', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', padding: '0.25rem' }}
                     >
-                      <i className="fa-regular fa-circle-check"></i>
+                      <i className={`fa-solid ${notif.is_archived ? 'fa-box-open' : 'fa-box-archive'}`}></i>
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleArchive(notif.id, notif.is_archived)}
-                    title={notif.is_archived ? 'Unarchive' : 'Archive'}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', padding: '0.25rem' }}
-                  >
-                    <i className={`fa-solid ${notif.is_archived ? 'fa-box-open' : 'fa-box-archive'}`}></i>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(notif.id)}
-                    title="Delete"
-                    style={{ background: 'transparent', border: 'none', color: 'var(--rose-600, #e11d48)', cursor: 'pointer', padding: '0.25rem' }}
-                  >
-                    <i className="fa-regular fa-trash-can"></i>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDelete(notif.id, e)}
+                      title="Delete"
+                      style={{ background: 'transparent', border: 'none', color: 'var(--rose-600, #e11d48)', cursor: 'pointer', padding: '0.25rem' }}
+                    >
+                      <i className="fa-regular fa-trash-can"></i>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

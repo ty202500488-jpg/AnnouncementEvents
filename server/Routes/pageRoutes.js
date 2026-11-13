@@ -3,6 +3,73 @@ const router = express.Router();
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
 const { authenticateUser, logAudit } = require('../middleware/auth');
+const {
+    parseSpotlightOptions,
+    ensureUniversityWideColumn,
+    notifyAdminsOfSpotlightRequest
+} = require('../utils/universityWideHelper');
+const {
+    ensureNotificationSchema,
+    normalizePagePrefs,
+    getUserNotificationPreferences,
+    updateUserNotificationPreferences,
+    notifyAdminsPendingContent,
+    notifyPublishedPost,
+    notifyEventUpdated
+} = require('../utils/notificationService');
+
+ensureUniversityWideColumn(pool).catch((err) => {
+    console.error('Warning: failed to ensure posts.is_university_wide column:', err.message);
+});
+ensureNotificationSchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure notification schema:', err.message);
+});
+
+function parseBase64Image(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return null;
+    const match = dataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp|gif));base64,([A-Za-z0-9+/=\s]+)$/i);
+    if (!match) return null;
+    const mimeType = match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase();
+    const buffer = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
+    if (!buffer.length || buffer.length > 10 * 1024 * 1024) return null;
+    return { mimeType, buffer };
+}
+
+function formatPostImageRow(row) {
+    if (!row) return row;
+    if (row.post_image && row.post_image_mime) {
+        const buf = Buffer.isBuffer(row.post_image) ? row.post_image : Buffer.from(row.post_image);
+        row.image_url = `data:${row.post_image_mime};base64,${buf.toString('base64')}`;
+    }
+    if (row.post_type === 'event') {
+        row.poster_url = row.image_url || null;
+    }
+    delete row.post_image;
+    return row;
+}
+
+// -------- STREAM BINARY POST IMAGE FROM POSTGRESQL -------- //
+router.get('/posts/:id/image', async (req, res) => {
+    try {
+        const postId = Number(req.params.id);
+        if (!postId || isNaN(postId)) {
+            return res.status(400).json({ message: 'Invalid post ID.' });
+        }
+        const result = await pool.query(
+            `SELECT post_image, post_image_mime FROM posts WHERE post_id = $1 LIMIT 1`,
+            [postId]
+        );
+        if (result.rowCount === 0 || !result.rows[0].post_image) {
+            return res.status(404).json({ message: 'Post image not found.' });
+        }
+        res.setHeader('Content-Type', result.rows[0].post_image_mime || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return res.send(result.rows[0].post_image);
+    } catch (err) {
+        console.error('Error streaming post image:', err.message);
+        return res.status(500).json({ message: 'Failed to load post image.' });
+    }
+});
 
 async function resolveUserId(req) {
     if (req.query?.student_id) return Number(req.query.student_id);
@@ -28,9 +95,9 @@ async function resolveUserId(req) {
 async function getUserPageDetails(userId) {
     try {
         const pageRes = await pool.query(
-            `SELECT p.page_id, p.page_name, p.page_code, p.page_description, p.status,
+            `SELECT p.page_id, p.page_name, p.page_code, p.page_description, p.page_type, p.status,
                     p.department_id, p.organization_id, p.avatar_url, p.cover_url,
-                    p.contact_email, p.allow_event_registration
+                    p.contact_email, p.allow_event_registration, p.notification_settings
              FROM pages p
              LEFT JOIN page_members pm ON p.page_id = pm.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active'
              WHERE p.created_by = $1 OR pm.user_id = $1
@@ -43,7 +110,9 @@ async function getUserPageDetails(userId) {
         }
 
         const fallbackRes = await pool.query(
-            `SELECT page_id, page_name, page_code, page_description, status FROM pages ORDER BY page_id ASC LIMIT 1`
+            `SELECT page_id, page_name, page_code, page_description, page_type, status,
+                    contact_email, allow_event_registration, notification_settings
+             FROM pages ORDER BY page_id ASC LIMIT 1`
         );
         if (fallbackRes.rows.length > 0) {
             return fallbackRes.rows[0];
@@ -176,6 +245,13 @@ router.post('/create-page', async (req, res) => {
 
         await client.query('COMMIT');
 
+        await notifyAdminsPendingContent(pool, {
+            actorUserId: user.user_id,
+            pageId: newPage.page_id,
+            targetType: 'page',
+            title: newPage.page_name
+        });
+
         await logAudit(req, {
             action: 'Created Campus Page Request',
             module: 'pages',
@@ -238,18 +314,34 @@ router.put('/mypage/update', handleUpdateMyPage);
 router.post('/mypage/update', handleUpdateMyPage);
 
 // -------- MYPAGE SETTINGS & STAFF SETTINGS -------- //
+const PAGE_TYPE_TO_CATEGORY = {
+    department: 'Academic Department',
+    organization: 'Student Organization',
+    office: 'Administrative Office'
+};
+
 router.get('/my-page/settings', async (req, res) => {
     try {
+        await ensureNotificationSchema(pool);
         const user = await authenticateUser(req, res);
         if (!user) return;
 
         const page = await getUserPageDetails(user.user_id);
+        const notifPrefs = normalizePagePrefs(page.notification_settings);
+        const category = PAGE_TYPE_TO_CATEGORY[String(page.page_type || '').toLowerCase()] || 'Academic College';
+
         return res.status(200).json({
             pageName: page.page_name || 'Student Affairs Office',
             pageCode: page.page_code || 'SAO',
             description: page.page_description || '',
             contactEmail: page.contact_email || user.email,
-            allowEventRegistration: page.allow_event_registration ?? true
+            allowEventRegistration: page.allow_event_registration ?? true,
+            settings: {
+                name: page.page_name || 'Student Affairs Office',
+                category,
+                description: page.page_description || '',
+                ...notifPrefs
+            }
         });
     } catch (error) {
         return res.status(500).json({ message: 'Failed to fetch page settings.' });
@@ -258,21 +350,51 @@ router.get('/my-page/settings', async (req, res) => {
 
 const saveMyPageSettings = async (req, res) => {
     try {
+        await ensureNotificationSchema(pool);
         const user = await authenticateUser(req, res);
         if (!user) return;
 
         const page = await getUserPageDetails(user.user_id);
         if (page.page_id) {
-            const { pageName, description, contactEmail, allowEventRegistration } = req.body;
+            const payload = req.body?.settings && typeof req.body.settings === 'object'
+                ? req.body.settings
+                : (req.body || {});
+            const pageName = payload.name ?? payload.pageName ?? null;
+            const description = payload.description ?? null;
+            const contactEmail = payload.contactEmail ?? null;
+            const allowEventRegistration = payload.allowEventRegistration ?? null;
+
+            const currentPrefs = normalizePagePrefs(page.notification_settings);
+            const mergedPrefs = normalizePagePrefs({
+                ...currentPrefs,
+                eventRegistrationAlerts: payload.eventRegistrationAlerts ?? currentPrefs.eventRegistrationAlerts,
+                publicationStatusUpdates: payload.publicationStatusUpdates ?? currentPrefs.publicationStatusUpdates,
+                emailNotifications: payload.emailNotifications ?? currentPrefs.emailNotifications,
+                publicFollowersVisible: payload.publicFollowersVisible ?? currentPrefs.publicFollowersVisible,
+                allowStudentComments: payload.allowStudentComments ?? currentPrefs.allowStudentComments
+            });
+
             await pool.query(
                 `UPDATE pages
                  SET page_name = COALESCE($1, page_name),
                      page_description = COALESCE($2, page_description),
                      contact_email = COALESCE($3, contact_email),
-                     allow_event_registration = COALESCE($4, allow_event_registration)
-                 WHERE page_id = $5`,
-                [pageName || null, description ?? null, contactEmail || null, allowEventRegistration ?? null, page.page_id]
+                     allow_event_registration = COALESCE($4, allow_event_registration),
+                     notification_settings = $5::jsonb
+                 WHERE page_id = $6`,
+                [
+                    pageName ? String(pageName).trim() : null,
+                    description,
+                    contactEmail || null,
+                    allowEventRegistration,
+                    JSON.stringify(mergedPrefs),
+                    page.page_id
+                ]
             );
+            return res.status(200).json({
+                message: 'Page settings saved successfully.',
+                settings: mergedPrefs
+            });
         }
         return res.status(200).json({ message: 'Page settings saved successfully.' });
     } catch (error) {
@@ -282,16 +404,99 @@ const saveMyPageSettings = async (req, res) => {
 router.put('/my-page/settings', saveMyPageSettings);
 router.post('/my-page/settings', saveMyPageSettings);
 
-router.put('/settings', async (req, res) => {
-    return res.status(200).json({ message: 'Settings updated successfully.' });
+router.get('/settings', async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+        const preferences = await getUserNotificationPreferences(pool, user.user_id, user.role_name);
+        return res.status(200).json({ preferences, settings: preferences });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to load settings.' });
+    }
 });
-router.post('/settings', async (req, res) => {
-    return res.status(200).json({ message: 'Settings updated successfully.' });
+
+const handleSaveUserSettings = async (req, res) => {
+    try {
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+        const incoming = req.body?.preferences || req.body?.settings || req.body || {};
+        const preferences = await updateUserNotificationPreferences(pool, user.user_id, user.role_name, incoming);
+        return res.status(200).json({ message: 'Settings updated successfully.', preferences, settings: preferences });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to save settings.' });
+    }
+};
+router.put('/settings', handleSaveUserSettings);
+router.post('/settings', handleSaveUserSettings);
+
+// -------- UNIVERSITY-WIDE SPOTLIGHT CAROUSEL (/api/spotlight) -------- //
+router.get('/spotlight', async (req, res) => {
+    try {
+        await ensureUniversityWideColumn(pool);
+        const userId = await resolveUserId(req);
+
+        const spotlightRes = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.post_type,
+                    p.title,
+                    p.content,
+                    p.content AS description,
+                    p.post_image,
+                    p.post_image_mime,
+                    CASE WHEN p.image_url LIKE 'blob:%' THEN NULL ELSE p.image_url END AS image_url,
+                    p.page_id,
+                    p.category_id,
+                    p.audience,
+                    p.is_university_wide,
+                    p.published_at,
+                    p.expires_at,
+                    p.created_at,
+                    COALESCE(pc.category_name, 'General') AS category_name,
+                    COALESCE(pg.page_name, 'Student Affairs Office') AS page_name,
+                    COALESCE(pg.page_code, d.department_code, o.org_code, 'WMSU') AS code,
+                    ed.event_date,
+                    ed.end_date,
+                    ed.location,
+                    ed.location AS venue,
+                    ed.organizer_info,
+                    ed.capacity,
+                    (SELECT COUNT(*)::int FROM event_registrations er WHERE er.event_post_id = p.post_id AND LOWER(er.status) != 'cancelled') AS registered_count,
+                    CASE WHEN $1::int IS NOT NULL AND EXISTS(
+                        SELECT 1 FROM event_registrations er2
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
+                    ) THEN TRUE ELSE FALSE END AS is_registered
+             FROM posts p
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN departments d ON pg.department_id = d.department_id
+             LEFT JOIN organizations o ON pg.organization_id = o.organization_id
+             LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+             LEFT JOIN event_details ed ON p.post_id = ed.post_id
+             WHERE p.is_university_wide = TRUE
+               AND p.is_archived = FALSE
+               AND LOWER(p.moderation_status) = 'approved'
+               AND (p.expires_at IS NULL OR p.expires_at > NOW())
+             ORDER BY COALESCE(p.published_at, p.created_at) DESC, p.post_id DESC
+             LIMIT 20`,
+            [userId || null]
+        );
+
+        const items = spotlightRes.rows.map((row) => {
+            const formatted = formatPostImageRow({ ...row });
+            delete formatted.post_image_mime;
+            return formatted;
+        });
+
+        return res.status(200).json({ items });
+    } catch (error) {
+        console.error('Error fetching university-wide spotlight:', error);
+        return res.status(500).json({ message: 'Failed to fetch university-wide spotlight items.' });
+    }
 });
 
 // -------- DASHBOARD FEED (/api/dashboard-data) -------- //
 const handleDashboardFetch = async (req, res) => {
     try {
+        await ensureUniversityWideColumn(pool);
         const annRes = await pool.query(
             `SELECT p.post_id AS id,
                     p.post_id AS announcement_id,
@@ -299,10 +504,17 @@ const handleDashboardFetch = async (req, res) => {
                     p.content,
                     p.content AS description,
                     p.created_at,
-                    p.image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
                     p.page_id,
                     p.category_id,
                     p.audience,
+                    p.is_university_wide,
+                    p.is_university_wide AS is_university,
+                    p.expires_at,
                     p.is_pinned,
                     p.status,
                     COALESCE(pc.category_name, 'General') AS category_name,
@@ -332,11 +544,22 @@ const handleDashboardFetch = async (req, res) => {
                     ed.capacity,
                     ed.capacity AS max_capacity,
                     p.created_at,
-                    p.image_url,
-                    p.image_url AS poster_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS poster_url,
                     p.page_id,
                     p.category_id,
                     p.audience,
+                    p.is_university_wide,
+                    p.is_university_wide AS is_university,
+                    p.expires_at,
                     p.status,
                     COALESCE(pc.category_name, 'General') AS category_name,
                     COALESCE(pg.page_name, 'Student Affairs Office') AS page_name,
@@ -373,6 +596,7 @@ router.get('/mypage/posts', async (req, res) => {
         const user = await authenticateUser(req, res);
         if (!user) return;
 
+        await ensureUniversityWideColumn(pool);
         const { pageId } = req.query;
         const params = [];
         let pageFilter = '';
@@ -392,8 +616,15 @@ router.get('/mypage/posts', async (req, res) => {
                     p.title,
                     p.content,
                     p.content AS description,
-                    p.image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
                     p.audience,
+                    p.is_university_wide,
+                    p.is_university_wide AS is_university,
+                    p.expires_at,
                     p.is_pinned,
                     p.moderation_status,
                     p.status,
@@ -419,9 +650,20 @@ router.get('/mypage/posts', async (req, res) => {
                     p.content,
                     p.content AS description,
                     p.content AS event_description,
-                    p.image_url,
-                    p.image_url AS poster_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS poster_url,
                     p.audience,
+                    p.is_university_wide,
+                    p.is_university_wide AS is_university,
+                    p.expires_at,
                     p.moderation_status,
                     p.status,
                     p.created_at,
@@ -467,11 +709,25 @@ router.post('/announcements', async (req, res) => {
         const user = await authenticateUser(req, res);
         if (!user) return;
 
-        const { title, content, description, pageId, image_url, category_id, is_pinned, audience } = req.body;
+        const { title, content, description, pageId, image_data, image_url, category_id, is_pinned, audience } = req.body;
         const bodyText = content || description || '';
 
         if (!title || !bodyText) {
             return res.status(400).json({ message: 'Title and content/description are required.' });
+        }
+
+        const rawImage = image_data || image_url || null;
+        let parsedImg = null;
+        let fallbackUrl = null;
+        if (rawImage && typeof rawImage === 'string') {
+            if (rawImage.startsWith('data:')) {
+                parsedImg = parseBase64Image(rawImage);
+                if (!parsedImg) {
+                    return res.status(400).json({ message: 'Invalid image format or image exceeds 10MB.' });
+                }
+            } else if (!rawImage.startsWith('blob:')) {
+                fallbackUrl = rawImage;
+            }
         }
 
         const userPage = await getUserPageDetails(user.user_id);
@@ -483,16 +739,27 @@ router.post('/announcements', async (req, res) => {
 
         const finalCategoryId = category_id ? Number(category_id) : await getDefaultCategoryId();
         const activeAyId = await getActiveAcademicYearId();
-        const needsModeration = Boolean(req.body.require_approval || String(req.body.moderation_status || '').toLowerCase() === 'pending');
+        await ensureUniversityWideColumn(pool);
+        const spotlight = parseSpotlightOptions(req.body);
+        if (!spotlight.valid) {
+            return res.status(400).json({ message: spotlight.error });
+        }
+
+        const needsModeration = Boolean(
+            spotlight.isUniversityWide ||
+            req.body.require_approval ||
+            String(req.body.moderation_status || '').toLowerCase() === 'pending'
+        );
         const initModStatus = needsModeration ? 'Pending' : 'Approved';
         const initPostStatus = needsModeration ? 'Pending' : 'Published';
+        const initPublishedAt = needsModeration ? null : new Date();
 
         const result = await pool.query(
             `INSERT INTO posts (
                 page_id, creator_user_id, category_id, academic_year_id, post_type,
-                title, content, image_url, audience, is_pinned,
-                moderation_status, status, published_at
-             ) VALUES ($1, $2, $3, $4, 'announcement', $5, $6, $7, $8, $9, $10, $11, NOW())
+                title, content, image_url, post_image, post_image_mime, audience, is_pinned,
+                is_university_wide, expires_at, moderation_status, status, published_at
+             ) VALUES ($1, $2, $3, $4, 'announcement', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
              RETURNING *, post_id AS id, post_id AS announcement_id, content AS description`,
             [
                 targetPageId,
@@ -501,29 +768,63 @@ router.post('/announcements', async (req, res) => {
                 activeAyId,
                 title.trim(),
                 bodyText.trim(),
-                image_url || null,
+                fallbackUrl,
+                parsedImg ? parsedImg.buffer : null,
+                parsedImg ? parsedImg.mimeType : null,
                 audience || 'All Campus',
                 Boolean(is_pinned),
+                spotlight.isUniversityWide,
+                spotlight.expiresAt,
                 initModStatus,
-                initPostStatus
+                initPostStatus,
+                initPublishedAt
             ]
         );
 
+        const formattedRow = formatPostImageRow(result.rows[0]);
         const newAnnouncement = {
-            ...result.rows[0],
+            ...formattedRow,
+            is_university: Boolean(formattedRow.is_university_wide),
             page_name: userPage.page_name || 'Student Affairs Office'
         };
 
+        if (spotlight.isUniversityWide) {
+            await notifyAdminsOfSpotlightRequest(pool, {
+                actorUserId: user.user_id,
+                pageId: targetPageId,
+                postId: newAnnouncement.post_id,
+                postType: 'announcement',
+                title: newAnnouncement.title,
+                expiresAt: spotlight.expiresAt
+            });
+        } else if (needsModeration) {
+            await notifyAdminsPendingContent(pool, {
+                actorUserId: user.user_id,
+                pageId: targetPageId,
+                postId: newAnnouncement.post_id,
+                targetType: 'announcement',
+                title: newAnnouncement.title,
+                pageName: userPage.page_name
+            });
+        } else {
+            await notifyPublishedPost(pool, {
+                post: formattedRow,
+                actorUserId: user.user_id
+            });
+        }
+
         await logAudit(req, {
-            action: 'Published Announcement',
+            action: spotlight.isUniversityWide ? 'Requested University-Wide Announcement' : 'Published Announcement',
             module: 'posts',
             targetType: 'post',
             targetId: newAnnouncement.post_id,
-            details: { title: newAnnouncement.title }
+            details: { title: newAnnouncement.title, is_university_wide: spotlight.isUniversityWide }
         });
 
         return res.status(201).json({
-            message: 'Announcement published successfully!',
+            message: spotlight.isUniversityWide
+                ? 'University-Wide Spotlight request submitted for Admin approval!'
+                : 'Announcement published successfully!',
             announcement: newAnnouncement
         });
     } catch (err) {
@@ -552,6 +853,7 @@ router.post('/events', async (req, res) => {
             location,
             venue,
             capacity,
+            image_data,
             image_url,
             poster_url,
             organizer_info,
@@ -565,6 +867,20 @@ router.post('/events', async (req, res) => {
             return res.status(400).json({ message: 'Event title and description are required.' });
         }
 
+        const rawImage = image_data || image_url || poster_url || null;
+        let parsedImg = null;
+        let fallbackUrl = null;
+        if (rawImage && typeof rawImage === 'string') {
+            if (rawImage.startsWith('data:')) {
+                parsedImg = parseBase64Image(rawImage);
+                if (!parsedImg) {
+                    return res.status(400).json({ message: 'Invalid event image format or image exceeds 10MB.' });
+                }
+            } else if (!rawImage.startsWith('blob:')) {
+                fallbackUrl = rawImage;
+            }
+        }
+
         const userPage = await getUserPageDetails(user.user_id);
         const targetPageId = pageId ? Number(pageId) : userPage.page_id;
 
@@ -574,13 +890,23 @@ router.post('/events', async (req, res) => {
 
         const finalCategoryId = category_id ? Number(category_id) : await getDefaultCategoryId();
         const activeAyId = await getActiveAcademicYearId(client);
+        await ensureUniversityWideColumn(pool);
+        const spotlight = parseSpotlightOptions(req.body);
+        if (!spotlight.valid) {
+            return res.status(400).json({ message: spotlight.error });
+        }
+
         const eDate = event_date || new Date().toISOString();
         const eLocation = (location || venue || 'University Campus').trim();
-        const imgUrl = image_url || poster_url || null;
         const capNum = capacity ? Number(capacity) : null;
-        const needsModeration = Boolean(req.body.require_approval || String(req.body.moderation_status || '').toLowerCase() === 'pending');
+        const needsModeration = Boolean(
+            spotlight.isUniversityWide ||
+            req.body.require_approval ||
+            String(req.body.moderation_status || '').toLowerCase() === 'pending'
+        );
         const initModStatus = needsModeration ? 'Pending' : 'Approved';
         const initPostStatus = needsModeration ? 'Pending' : 'Upcoming';
+        const initPublishedAt = needsModeration ? null : new Date();
 
         await client.query('BEGIN');
 
@@ -588,9 +914,9 @@ router.post('/events', async (req, res) => {
         const postRes = await client.query(
             `INSERT INTO posts (
                 page_id, creator_user_id, category_id, academic_year_id, post_type,
-                title, content, image_url, audience,
-                moderation_status, status, published_at
-             ) VALUES ($1, $2, $3, $4, 'event', $5, $6, $7, $8, $9, $10, NOW())
+                title, content, image_url, post_image, post_image_mime, audience,
+                is_university_wide, expires_at, moderation_status, status, published_at
+             ) VALUES ($1, $2, $3, $4, 'event', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
              RETURNING *`,
             [
                 targetPageId,
@@ -599,13 +925,18 @@ router.post('/events', async (req, res) => {
                 activeAyId,
                 eTitle,
                 eDesc,
-                imgUrl,
+                fallbackUrl,
+                parsedImg ? parsedImg.buffer : null,
+                parsedImg ? parsedImg.mimeType : null,
                 audience || 'All Campus',
+                spotlight.isUniversityWide,
+                spotlight.expiresAt,
                 initModStatus,
-                initPostStatus
+                initPostStatus,
+                initPublishedAt
             ]
         );
-        const postRow = postRes.rows[0];
+        const postRow = formatPostImageRow(postRes.rows[0]);
 
         // 2. Insert into 1:1 subtype event_details table
         const detailRes = await client.query(
@@ -626,6 +957,31 @@ router.post('/events', async (req, res) => {
 
         await client.query('COMMIT');
 
+        if (spotlight.isUniversityWide) {
+            await notifyAdminsOfSpotlightRequest(pool, {
+                actorUserId: user.user_id,
+                pageId: targetPageId,
+                postId: postRow.post_id,
+                postType: 'event',
+                title: eTitle,
+                expiresAt: spotlight.expiresAt
+            });
+        } else if (needsModeration) {
+            await notifyAdminsPendingContent(pool, {
+                actorUserId: user.user_id,
+                pageId: targetPageId,
+                postId: postRow.post_id,
+                targetType: 'event',
+                title: eTitle,
+                pageName: userPage.page_name
+            });
+        } else {
+            await notifyPublishedPost(pool, {
+                post: postRow,
+                actorUserId: user.user_id
+            });
+        }
+
         const newEvent = {
             ...postRow,
             ...detailRow,
@@ -636,19 +992,22 @@ router.post('/events', async (req, res) => {
             description: postRow.content,
             venue: detailRow.location,
             poster_url: postRow.image_url,
+            is_university: Boolean(postRow.is_university_wide),
             page_name: userPage.page_name || 'Student Affairs Office'
         };
 
         await logAudit(req, {
-            action: 'Created Campus Event',
+            action: spotlight.isUniversityWide ? 'Requested University-Wide Event' : 'Created Campus Event',
             module: 'events',
             targetType: 'event',
             targetId: postRow.post_id,
-            details: { title: eTitle, event_date: eDate }
+            details: { title: eTitle, event_date: eDate, is_university_wide: spotlight.isUniversityWide }
         });
 
         return res.status(201).json({
-            message: 'Event published successfully!',
+            message: spotlight.isUniversityWide
+                ? 'University-Wide Spotlight event request submitted for Admin approval!'
+                : 'Event published successfully!',
             event: newEvent
         });
     } catch (err) {
@@ -666,30 +1025,79 @@ router.put('/announcements/:id', async (req, res) => {
         const user = await authenticateUser(req, res);
         if (!user) return;
 
+        await ensureUniversityWideColumn(pool);
         const postId = Number(req.params.id);
-        const { title, content, description, category_id, image_url, is_pinned } = req.body;
+        const { title, content, description, category_id, image_data, image_url, is_pinned, audience, remove_image } = req.body;
         const bodyText = content || description || '';
+
+        const hasSpotlightToggle = req.body.is_university_wide !== undefined || req.body.isUniversityWide !== undefined;
+        let spotlight = { valid: true, isUniversityWide: false, expiresAt: null };
+        if (hasSpotlightToggle) {
+            spotlight = parseSpotlightOptions(req.body);
+            if (!spotlight.valid) {
+                return res.status(400).json({ message: spotlight.error });
+            }
+        }
+
+        const rawImage = image_data ?? image_url;
+        const shouldClearImage = remove_image === true || rawImage === '';
+        let parsedImg = null;
+        if (!shouldClearImage && typeof rawImage === 'string' && rawImage.startsWith('data:')) {
+            parsedImg = parseBase64Image(rawImage);
+            if (!parsedImg) {
+                return res.status(400).json({ message: 'Invalid image format or image exceeds 10MB.' });
+            }
+        }
 
         const result = await pool.query(
             `UPDATE posts
              SET title = COALESCE($1, title),
                  content = COALESCE($2, content),
                  category_id = COALESCE($3, category_id),
-                 image_url = COALESCE($4, image_url),
-                 is_pinned = COALESCE($5, is_pinned)
-             WHERE post_id = $6 AND post_type = 'announcement'
+                 audience = COALESCE($4, audience),
+                 is_pinned = COALESCE($5, is_pinned),
+                 post_image = CASE WHEN $6::boolean THEN NULL ELSE COALESCE($7, post_image) END,
+                 post_image_mime = CASE WHEN $6::boolean THEN NULL ELSE COALESCE($8, post_image_mime) END,
+                 image_url = CASE WHEN $6::boolean OR $7 IS NOT NULL THEN NULL ELSE image_url END,
+                 is_university_wide = CASE WHEN $10::boolean THEN $11::boolean ELSE is_university_wide END,
+                 expires_at = CASE WHEN $10::boolean THEN $12::timestamptz ELSE expires_at END,
+                 moderation_status = CASE WHEN $10::boolean AND $11::boolean THEN 'Pending' ELSE moderation_status END,
+                 status = CASE WHEN $10::boolean AND $11::boolean THEN 'Pending' ELSE status END,
+                 published_at = CASE WHEN $10::boolean AND $11::boolean THEN NULL ELSE published_at END
+             WHERE post_id = $9 AND post_type = 'announcement'
              RETURNING *, post_id AS id, post_id AS announcement_id, content AS description`,
             [
                 title || null,
                 bodyText || null,
                 category_id ? Number(category_id) : null,
-                image_url !== undefined ? image_url : null,
+                audience || null,
                 is_pinned !== undefined ? Boolean(is_pinned) : null,
-                postId
+                shouldClearImage,
+                parsedImg ? parsedImg.buffer : null,
+                parsedImg ? parsedImg.mimeType : null,
+                postId,
+                hasSpotlightToggle,
+                spotlight.isUniversityWide,
+                spotlight.expiresAt
             ]
         );
 
-        return res.status(200).json({ announcement: result.rows[0] });
+        if (result.rowCount > 0 && hasSpotlightToggle && spotlight.isUniversityWide) {
+            await notifyAdminsOfSpotlightRequest(pool, {
+                actorUserId: user.user_id,
+                pageId: result.rows[0].page_id,
+                postId,
+                postType: 'announcement',
+                title: result.rows[0].title,
+                expiresAt: spotlight.expiresAt
+            });
+        }
+
+        const formattedRow = formatPostImageRow(result.rows[0]);
+        if (formattedRow) {
+            formattedRow.is_university = Boolean(formattedRow.is_university_wide);
+        }
+        return res.status(200).json({ announcement: formattedRow });
     } catch (err) {
         console.error('Error updating announcement:', err.message);
         return res.status(500).json({ message: err.message });
@@ -703,12 +1111,31 @@ router.put('/events/:id', async (req, res) => {
         const user = await authenticateUser(req, res);
         if (!user) return;
 
+        await ensureUniversityWideColumn(pool);
         const postId = Number(req.params.id);
-        const { event_title, title, event_description, description, content, event_date, location, venue, capacity, image_url, poster_url } = req.body;
+        const { event_title, title, event_description, description, content, event_date, location, venue, capacity, audience, image_data, image_url, poster_url, remove_image } = req.body;
         const eTitle = event_title || title || null;
         const eDesc = event_description || description || content || null;
         const eLoc = location || venue || null;
-        const imgUrl = image_url ?? poster_url ?? null;
+
+        const hasSpotlightToggle = req.body.is_university_wide !== undefined || req.body.isUniversityWide !== undefined;
+        let spotlight = { valid: true, isUniversityWide: false, expiresAt: null };
+        if (hasSpotlightToggle) {
+            spotlight = parseSpotlightOptions(req.body);
+            if (!spotlight.valid) {
+                return res.status(400).json({ message: spotlight.error });
+            }
+        }
+
+        const rawImage = image_data ?? image_url ?? poster_url;
+        const shouldClearImage = remove_image === true || rawImage === '';
+        let parsedImg = null;
+        if (!shouldClearImage && typeof rawImage === 'string' && rawImage.startsWith('data:')) {
+            parsedImg = parseBase64Image(rawImage);
+            if (!parsedImg) {
+                return res.status(400).json({ message: 'Invalid event image format or image exceeds 10MB.' });
+            }
+        }
 
         await client.query('BEGIN');
 
@@ -716,10 +1143,29 @@ router.put('/events/:id', async (req, res) => {
             `UPDATE posts
              SET title = COALESCE($1, title),
                  content = COALESCE($2, content),
-                 image_url = COALESCE($3, image_url)
-             WHERE post_id = $4 AND post_type = 'event'
+                 audience = COALESCE($3, audience),
+                 post_image = CASE WHEN $4::boolean THEN NULL ELSE COALESCE($5, post_image) END,
+                 post_image_mime = CASE WHEN $4::boolean THEN NULL ELSE COALESCE($6, post_image_mime) END,
+                 image_url = CASE WHEN $4::boolean OR $5 IS NOT NULL THEN NULL ELSE image_url END,
+                 is_university_wide = CASE WHEN $8::boolean THEN $9::boolean ELSE is_university_wide END,
+                 expires_at = CASE WHEN $8::boolean THEN $10::timestamptz ELSE expires_at END,
+                 moderation_status = CASE WHEN $8::boolean AND $9::boolean THEN 'Pending' ELSE moderation_status END,
+                 status = CASE WHEN $8::boolean AND $9::boolean THEN 'Pending' ELSE status END,
+                 published_at = CASE WHEN $8::boolean AND $9::boolean THEN NULL ELSE published_at END
+             WHERE post_id = $7 AND post_type = 'event'
              RETURNING *`,
-            [eTitle, eDesc, imgUrl, postId]
+            [
+                eTitle,
+                eDesc,
+                audience || null,
+                shouldClearImage,
+                parsedImg ? parsedImg.buffer : null,
+                parsedImg ? parsedImg.mimeType : null,
+                postId,
+                hasSpotlightToggle,
+                spotlight.isUniversityWide,
+                spotlight.expiresAt
+            ]
         );
 
         const detailRes = await client.query(
@@ -739,13 +1185,38 @@ router.put('/events/:id', async (req, res) => {
 
         await client.query('COMMIT');
 
+        if (postRes.rowCount > 0 && hasSpotlightToggle && spotlight.isUniversityWide) {
+            await notifyAdminsOfSpotlightRequest(pool, {
+                actorUserId: user.user_id,
+                pageId: postRes.rows[0].page_id,
+                postId,
+                postType: 'event',
+                title: postRes.rows[0].title,
+                expiresAt: spotlight.expiresAt
+            });
+        } else if (
+            postRes.rowCount > 0 &&
+            String(postRes.rows[0].moderation_status || '').toLowerCase() === 'approved' &&
+            !postRes.rows[0].is_archived
+        ) {
+            await notifyEventUpdated(pool, {
+                postId,
+                title: postRes.rows[0].title,
+                pageId: postRes.rows[0].page_id,
+                actorUserId: user.user_id
+            });
+        }
+
+        const formattedPost = formatPostImageRow(postRes.rows[0] || {});
         const updatedEvent = {
-            ...(postRes.rows[0] || {}),
+            ...formattedPost,
             ...(detailRes.rows[0] || {}),
             id: postId,
             event_id: postId,
-            event_title: postRes.rows[0]?.title,
-            event_description: postRes.rows[0]?.content
+            event_title: formattedPost.title,
+            event_description: formattedPost.content,
+            is_university: Boolean(formattedPost.is_university_wide),
+            poster_url: formattedPost.image_url || null
         };
 
         return res.status(200).json({ event: updatedEvent });
@@ -865,7 +1336,11 @@ async function handleGetPagePosts(req, res) {
                     p.title,
                     p.content,
                     p.content AS description,
-                    p.image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
                     p.audience,
                     p.is_pinned,
                     p.status,

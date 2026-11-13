@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS users (
     is_email_verified BOOLEAN DEFAULT FALSE NOT NULL,
     account_status VARCHAR(30) DEFAULT 'Active' NOT NULL
         CHECK (account_status IN ('Pending', 'Active', 'Suspended', 'Archived')),
+    notification_preferences JSONB DEFAULT '{}'::jsonb NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -160,6 +161,7 @@ CREATE TABLE IF NOT EXISTS pages (
     cover_url TEXT,
     contact_email VARCHAR(255),
     allow_event_registration BOOLEAN DEFAULT TRUE NOT NULL,
+    notification_settings JSONB DEFAULT '{}'::jsonb NOT NULL,
     created_by INTEGER NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
     status VARCHAR(30) DEFAULT 'Pending' NOT NULL
         CHECK (status IN ('Pending', 'Approved', 'Active', 'Rejected', 'Suspended', 'Archived')),
@@ -225,7 +227,10 @@ CREATE TABLE IF NOT EXISTS posts (
     title VARCHAR(200) NOT NULL,
     content TEXT NOT NULL,
     image_url TEXT,
+    post_image BYTEA,
+    post_image_mime VARCHAR(50),
     audience VARCHAR(100) DEFAULT 'All Campus' NOT NULL,
+    is_university_wide BOOLEAN DEFAULT FALSE NOT NULL,
     is_pinned BOOLEAN DEFAULT FALSE NOT NULL,
     is_urgent BOOLEAN DEFAULT FALSE NOT NULL,
     moderation_status VARCHAR(30) DEFAULT 'Approved' NOT NULL
@@ -425,6 +430,8 @@ CREATE INDEX IF NOT EXISTS idx_event_reg_event ON event_registrations(event_post
 CREATE INDEX IF NOT EXISTS idx_event_reg_user ON event_registrations(registrant_user_id);
 CREATE INDEX IF NOT EXISTS idx_qr_tokens_lookup ON event_qr_tokens(token_hash, expires_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_user_id, is_read, is_archived);
+CREATE INDEX IF NOT EXISTS idx_notifications_scope_recipient ON notifications(recipient_user_id, notification_scope, is_archived, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_post_type ON notifications(recipient_user_id, post_id, type);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_filters ON audit_logs(module, outcome, is_security_event);
 CREATE INDEX IF NOT EXISTS idx_page_follows_follower ON page_follows(follower_user_id);
@@ -611,6 +618,10 @@ WHERE start_date IS NULL OR end_date IS NULL OR (is_active = FALSE AND status = 
 -- 2. Enhance posts with academic_year_id and previous_status for non-destructive archiving
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS academic_year_id INTEGER REFERENCES academic_years(academic_year_id) ON DELETE SET NULL;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS previous_status VARCHAR(30);
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_image BYTEA;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_image_mime VARCHAR(50);
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_university_wide BOOLEAN DEFAULT FALSE NOT NULL;
+UPDATE posts SET image_url = NULL WHERE image_url LIKE 'blob:%';
 
 -- Backfill existing posts without academic_year_id to the currently active academic year (or latest)
 UPDATE posts
@@ -621,5 +632,6 @@ SET academic_year_id = COALESCE(
 WHERE academic_year_id IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_posts_academic_year ON posts(academic_year_id, post_type, status, is_archived);
+CREATE INDEX IF NOT EXISTS idx_posts_university_spotlight ON posts(is_university_wide, moderation_status, is_archived, expires_at DESC);
 
 COMMIT;

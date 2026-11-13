@@ -23,6 +23,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [capacity, setCapacity] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [removeExistingImage, setRemoveExistingImage] = useState(false);
+  const [isUniversityWide, setIsUniversityWide] = useState(false);
+  const [spotlightExpiresAt, setSpotlightExpiresAt] = useState('');
   const fileInputRef = useRef(null);
 
   const [editingPost, setEditingPost] = useState(null);
@@ -104,18 +107,77 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     }));
   };
 
-  const handleImageSelect = (e) => {
+  const readFileAsScaledDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read image file.'));
+    reader.onload = () => {
+      const rawDataUrl = reader.result;
+      if (file.type === 'image/gif') {
+        resolve(rawDataUrl);
+        return;
+      }
+      const img = new Image();
+      img.onerror = () => resolve(rawDataUrl);
+      img.onload = () => {
+        const maxDim = 1600;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(rawDataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const handleImageSelect = async (e) => {
     const file = e.target.files[0];
-    if (file) {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Selected image exceeds 10MB limit.');
+      return;
+    }
+    try {
+      const dataUrl = await readFileAsScaledDataUrl(file);
       setSelectedImage(file);
-      setImagePreview(URL.createObjectURL(file));
+      setImagePreview(dataUrl);
+      setRemoveExistingImage(false);
+    } catch (err) {
+      console.error('Failed to read image:', err);
+      alert('Could not load the selected image.');
     }
   };
 
   const handleRemoveImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
+    setRemoveExistingImage(true);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const getLocalDateTimeValue = (hoursAhead = 0) => {
+    const d = new Date(Date.now() + hoursAhead * 60 * 60 * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const handleToggleUniversityWide = (checked) => {
+    setIsUniversityWide(checked);
+    if (checked && !spotlightExpiresAt) {
+      setSpotlightExpiresAt(getLocalDateTimeValue(24 * 7));
+    }
   };
 
   const resetForm = () => {
@@ -127,6 +189,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     setCategoryId('');
     setSelectedImage(null);
     setImagePreview(null);
+    setRemoveExistingImage(false);
+    setIsUniversityWide(false);
+    setSpotlightExpiresAt('');
     setEditingPost(null);
     setIsModalOpen(false);
   };
@@ -134,6 +199,20 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const handlePublishPost = async (e) => {
     e.preventDefault();
     if (!quickTitle.trim() || !quickBody.trim()) return;
+
+    if (isUniversityWide) {
+      const expMs = spotlightExpiresAt ? new Date(spotlightExpiresAt).getTime() : NaN;
+      if (!spotlightExpiresAt || Number.isNaN(expMs) || expMs <= Date.now()) {
+        alert('Please choose a valid future "Active Until" date and time for University-Wide Spotlight.');
+        return;
+      }
+    }
+
+    const spotlightPayload = {
+      is_university_wide: isUniversityWide,
+      expires_at: isUniversityWide && spotlightExpiresAt ? new Date(spotlightExpiresAt).toISOString() : null,
+      require_approval: isUniversityWide
+    };
 
     try {
       const token = localStorage.getItem('token');
@@ -153,12 +232,21 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           event_description: quickBody,
           event_date: eventDate || new Date().toISOString().split('T')[0],
           location: location || 'TBD',
-          capacity: capacity ? parseInt(capacity) : null
+          capacity: capacity ? parseInt(capacity) : null,
+          category_id: categoryId ? parseInt(categoryId) : null,
+          audience,
+          image_data: imagePreview || null,
+          remove_image: removeExistingImage,
+          ...spotlightPayload
         } : {
           title: quickTitle,
           content: quickBody,
           description: quickBody,
-          category_id: categoryId ? parseInt(categoryId) : null
+          category_id: categoryId ? parseInt(categoryId) : null,
+          audience,
+          image_data: imagePreview || null,
+          remove_image: removeExistingImage,
+          ...spotlightPayload
         };
 
         const response = await fetch(endpoint, {
@@ -166,9 +254,15 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           headers,
           body: JSON.stringify(bodyData)
         });
-
-        if (response.ok) {
-          fetchPageAndFeedData();
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(data.message || 'Failed to save changes.');
+          return;
+        }
+        fetchPageAndFeedData();
+        window.dispatchEvent(new Event('spotlight:refresh'));
+        if (isUniversityWide) {
+          alert('Changes saved and sent for Admin University-Wide Spotlight approval.');
         }
       } else {
         if (postType === 'announcement') {
@@ -179,7 +273,10 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
               title: quickTitle,
               content: quickBody,
               description: quickBody,
-              category_id: categoryId ? parseInt(categoryId) : null
+              category_id: categoryId ? parseInt(categoryId) : null,
+              audience,
+              image_data: imagePreview || null,
+              ...spotlightPayload
             })
           });
           const data = await response.json();
@@ -188,6 +285,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             return;
           }
           fetchPageAndFeedData();
+          if (isUniversityWide) {
+            alert(data.message || 'University-Wide Spotlight request submitted for Admin approval.');
+          }
         } else {
           const response = await fetch('http://localhost:5000/api/events', {
             method: 'POST',
@@ -197,7 +297,11 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
               event_description: quickBody,
               event_date: eventDate || new Date().toISOString().split('T')[0],
               location: location || 'TBD',
-              capacity: capacity ? parseInt(capacity) : null
+              capacity: capacity ? parseInt(capacity) : null,
+              category_id: categoryId ? parseInt(categoryId) : null,
+              audience,
+              image_data: imagePreview || null,
+              ...spotlightPayload
             })
           });
           const data = await response.json();
@@ -206,6 +310,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             return;
           }
           fetchPageAndFeedData();
+          if (isUniversityWide) {
+            alert(data.message || 'University-Wide Spotlight event request submitted for Admin approval.');
+          }
         }
       }
 
@@ -448,11 +555,89 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   </div>
                 </div>
 
+                {/* University-Wide Spotlight Request Section */}
+                <div style={{ background: isUniversityWide ? '#fff1f2' : '#f8fafc', border: `1px solid ${isUniversityWide ? '#fecdd3' : '#e2e8f0'}`, borderRadius: '0.625rem', padding: '0.75rem 0.9rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                  <label htmlFor="request-university-wide" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', margin: 0 }}>
+                    <input
+                      id="request-university-wide"
+                      type="checkbox"
+                      checked={isUniversityWide}
+                      onChange={(e) => handleToggleUniversityWide(e.target.checked)}
+                      style={{ marginTop: '0.15rem', accentColor: '#881337', width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                      <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>
+                        Request University-Wide Spotlight (Admin Approval)
+                      </span>
+                      <span style={{ fontSize: '0.74rem', color: '#64748b', lineHeight: 1.35 }}>
+                        Once approved by Admin, this post rotates in the Student &amp; Staff Spotlight. Posts without an image display the WMSU logo.
+                      </span>
+                    </div>
+                  </label>
+
+                  {isUniversityWide && (
+                    <div style={{ paddingTop: '0.45rem', borderTop: '1px solid #fecdd3', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        <label htmlFor="spotlight-expires-at" style={{ fontSize: '0.72rem', fontWeight: 700, color: '#881337', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                          Active Until (Required) *
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                          {[
+                            { label: '24h', hours: 24 },
+                            { label: '3 Days', hours: 72 },
+                            { label: '7 Days', hours: 168 },
+                            { label: '14 Days', hours: 336 },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => setSpotlightExpiresAt(getLocalDateTimeValue(preset.hours))}
+                              style={{
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '9999px',
+                                border: '1px solid #fda4af',
+                                background: '#ffffff',
+                                color: '#881337',
+                                fontSize: '0.7rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <input
+                        id="spotlight-expires-at"
+                        type="datetime-local"
+                        value={spotlightExpiresAt}
+                        min={getLocalDateTimeValue(0)}
+                        onChange={(e) => setSpotlightExpiresAt(e.target.value)}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '0.45rem 0.65rem',
+                          borderRadius: '0.4rem',
+                          border: '1px solid #fda4af',
+                          backgroundColor: '#ffffff',
+                          color: '#0f172a',
+                          fontSize: '0.8125rem',
+                          fontWeight: 600,
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <button 
                   type="submit" 
                   style={{ width: '100%', padding: '0.625rem', borderRadius: '0.5rem', backgroundColor: '#881337', color: '#ffffff', fontWeight: 700, fontSize: '0.875rem', border: 'none', cursor: 'pointer' }}
                 >
-                  {editingPost ? 'Save Changes' : 'Post'}
+                  {editingPost
+                    ? (isUniversityWide ? 'Save & Submit for Spotlight Approval' : 'Save Changes')
+                    : (isUniversityWide ? 'Submit University-Wide Spotlight Request' : 'Post')}
                 </button>
               </form>
             </div>

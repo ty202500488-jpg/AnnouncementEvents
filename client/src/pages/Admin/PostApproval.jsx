@@ -414,7 +414,14 @@ const PostApproval = () => {
                       <td>
                         <div className="pa-item-title-cell">
                           <span className="pa-item-title-text">{item.title}</span>
-                          {item.category && <span className="pa-item-category-sub">{item.category}</span>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                            {item.category && <span className="pa-item-category-sub">{item.category}</span>}
+                            {item.is_university_wide && (
+                              <span className="pa-spotlight-badge">
+                                <i className="fa-solid fa-bullhorn"></i> University-Wide Spotlight
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td>
@@ -429,7 +436,16 @@ const PostApproval = () => {
                           <span className="pa-page-sub">{item.page_name || 'Main Campus'}</span>
                         </div>
                       </td>
-                      <td><span className="pa-audience-pill">{item.audience || 'All Students'}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
+                          <span className="pa-audience-pill">{item.audience || 'All Students'}</span>
+                          {item.is_university_wide && item.expires_at && (
+                            <span className="pa-spotlight-expiry">
+                              Until {new Date(item.expires_at).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="pa-text-muted-cell">{new Date(item.created_at).toLocaleDateString()}</td>
                       <td>
                         <span className={`pa-status-badge pa-status-${String(item.status).toLowerCase().replace(/\s+/g, '_')}`}>
@@ -528,6 +544,20 @@ const PostApproval = () => {
                     <div><strong>Organization / Page:</strong> {selectedItem.page_name || 'University Office'}</div>
                     <div><strong>Category:</strong> {selectedItem.category || 'General'}</div>
                     <div><strong>Audience / Scope:</strong> {selectedItem.audience || 'All Students'}</div>
+                    {selectedItem.is_university_wide && (
+                      <>
+                        <div>
+                          <strong>Spotlight Request:</strong>{' '}
+                          <span className="pa-spotlight-badge">University-Wide Spotlight</span>
+                        </div>
+                        <div>
+                          <strong>Active Until:</strong>{' '}
+                          {selectedItem.expires_at
+                            ? new Date(selectedItem.expires_at).toLocaleString()
+                            : 'No expiry specified'}
+                        </div>
+                      </>
+                    )}
                     <div><strong>Submitted Date:</strong> {new Date(selectedItem.created_at).toLocaleString()}</div>
                     {selectedItem.scheduled_at && (
                       <div><strong>Scheduled Publication:</strong> {new Date(selectedItem.scheduled_at).toLocaleString()}</div>
@@ -549,6 +579,16 @@ const PostApproval = () => {
                 {/* Right: Content Preview Box */}
                 <div className="pa-content-col">
                   <h3 className="pa-sub-heading">Submitted Body Content</h3>
+                  {selectedItem.image_url ? (
+                    <div className="pa-spotlight-image-preview">
+                      <img src={selectedItem.image_url} alt={selectedItem.title} />
+                    </div>
+                  ) : selectedItem.is_university_wide ? (
+                    <div className="pa-spotlight-logo-note">
+                      <i className="fa-regular fa-image"></i>
+                      <span>No image attached — WMSU logo will display in the Spotlight.</span>
+                    </div>
+                  ) : null}
                   <div className="pa-body-preview-card">
                     <p>{selectedItem.description || selectedItem.body || 'No text content submitted.'}</p>
                   </div>

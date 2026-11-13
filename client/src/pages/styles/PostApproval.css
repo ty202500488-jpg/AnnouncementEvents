@@ -749,3 +749,56 @@
     width: 100%;
   }
 }
+
+/* University-Wide Spotlight Indicators in Post Approval */
+.pa-spotlight-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #881337;
+  background-color: #ffe4e6;
+  border: 1px solid #fecdd3;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.pa-spotlight-expiry {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.pa-spotlight-image-preview {
+  margin-bottom: 0.75rem;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #0f172a;
+  max-height: 210px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pa-spotlight-image-preview img {
+  width: 100%;
+  max-height: 210px;
+  object-fit: cover;
+  display: block;
+}
+
+.pa-spotlight-logo-note {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  background-color: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #881337;
+  font-size: 0.785rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}

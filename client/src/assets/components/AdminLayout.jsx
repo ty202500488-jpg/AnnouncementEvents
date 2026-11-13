@@ -23,10 +23,35 @@ const AdminLayout = ({ children }) => {
 
   // Notification State & Dropdown
   const [notifications, setNotifications] = useState([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(true);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const notifDropdownRef = useRef(null);
 
-  const unreadNotifCount = notifications.filter(n => !n.is_read).length;
+  const unreadNotifCount = notifications.filter(n => !n.is_read && !n.is_archived).length;
+
+  const fetchAdminNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoadingNotifs(false);
+      return;
+    }
+    try {
+      const response = await fetch('/api/admin/notifications', {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (response.ok && Array.isArray(data.notifications)) {
+        setNotifications(data.notifications);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch admin notifications:', err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
 
   useEffect(() => {
     // Load User Data from localStorage if present
@@ -44,6 +69,12 @@ const AdminLayout = ({ children }) => {
       }
     }
 
+    fetchAdminNotifications();
+    const pollId = setInterval(fetchAdminNotifications, 30000);
+    const onNotificationsUpdated = () => fetchAdminNotifications();
+    window.addEventListener('notifications-updated', onNotificationsUpdated);
+    window.addEventListener('focus', onNotificationsUpdated);
+
     // Click outside listener for dropdowns
     const handleClickOutside = (e) => {
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
@@ -56,9 +87,57 @@ const AdminLayout = ({ children }) => {
     document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
+      clearInterval(pollId);
+      window.removeEventListener('notifications-updated', onNotificationsUpdated);
+      window.removeEventListener('focus', onNotificationsUpdated);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  const handleMarkAllAdminRead = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const response = await fetch('/api/admin/notifications/read-all', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+        window.dispatchEvent(new CustomEvent('notifications-updated'));
+      }
+    } catch (err) {
+      console.warn('Failed to mark admin notifications as read:', err);
+    }
+  };
+
+  const handleAdminNotifClick = async (notif) => {
+    if (!notif.is_read) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const response = await fetch(`/api/admin/notifications/${notif.id}/read`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            }
+          });
+          if (response.ok) {
+            setNotifications(prev => prev.map(n => (n.id === notif.id ? { ...n, is_read: true } : n)));
+            window.dispatchEvent(new CustomEvent('notifications-updated'));
+          }
+        } catch (err) {
+          console.warn('Failed to mark admin notification as read:', err);
+        }
+      }
+    }
+    setShowNotifDropdown(false);
+    navigate(notif.url || '/admin/post-approval?tab=pending');
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -118,12 +197,33 @@ const AdminLayout = ({ children }) => {
               <button 
                 type="button"
                 className="bell-btn icon-btn" 
-                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                onClick={() => {
+                  const next = !showNotifDropdown;
+                  setShowNotifDropdown(next);
+                  if (next) fetchAdminNotifications();
+                }}
                 aria-label="Notifications"
                 style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none' }}
               >
                 <i className="fa-regular fa-bell" style={{ fontSize: '1.25rem' }}></i>
-                {unreadNotifCount > 0 && <span className="badge-dot"></span>}
+                {unreadNotifCount > 0 && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '-2px',
+                      right: '-4px',
+                      backgroundColor: '#881337',
+                      color: '#ffffff',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      padding: '1px 5px',
+                      borderRadius: '9999px',
+                      lineHeight: 1.3
+                    }}
+                  >
+                    {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+                  </span>
+                )}
               </button>
 
               {showNotifDropdown && (
@@ -132,20 +232,70 @@ const AdminLayout = ({ children }) => {
                     position: 'absolute',
                     top: 'calc(100% + 0.5rem)',
                     right: 0,
-                    width: '280px',
+                    width: '320px',
                     backgroundColor: '#ffffff',
                     borderRadius: '0.75rem',
                     border: '1px solid var(--admin-slate-200, #e2e8f0)',
                     boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
                     zIndex: 100,
-                    padding: '0.75rem'
+                    padding: '0.75rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: '0.875rem', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
-                    Admin Notifications
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>
+                      Admin Notifications
+                    </span>
+                    {unreadNotifCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllAdminRead}
+                        style={{ background: 'none', border: 'none', color: '#881337', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Mark all as read
+                      </button>
+                    )}
                   </div>
-                  <div style={{ padding: '1rem', fontSize: '0.8125rem', color: '#94a3b8', textAlign: 'center' }}>
-                    No pending notifications
+                  <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+                    {loadingNotifs ? (
+                      <div style={{ padding: '1rem', fontSize: '0.8125rem', color: '#94a3b8', textAlign: 'center' }}>
+                        Loading notifications...
+                      </div>
+                    ) : notifications.filter(n => !n.is_archived).length === 0 ? (
+                      <div style={{ padding: '1rem', fontSize: '0.8125rem', color: '#94a3b8', textAlign: 'center' }}>
+                        No pending notifications
+                      </div>
+                    ) : (
+                      notifications.filter(n => !n.is_archived).map(notif => (
+                        <div
+                          key={notif.id}
+                          onClick={() => handleAdminNotifClick(notif)}
+                          style={{
+                            padding: '0.625rem 0.75rem',
+                            borderRadius: '0.5rem',
+                            backgroundColor: !notif.is_read ? '#fff5f6' : 'transparent',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.2rem'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                            <span style={{ fontWeight: !notif.is_read ? 700 : 600, fontSize: '0.8125rem', color: '#1e293b', lineHeight: 1.25 }}>
+                              {notif.title || 'Admin Alert'}
+                            </span>
+                            <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
+                              {notif.created_at ? new Date(notif.created_at).toLocaleDateString() : 'Recent'}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.75rem', color: '#475569', margin: 0, lineHeight: 1.35 }}>
+                            {notif.message}
+                          </p>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}

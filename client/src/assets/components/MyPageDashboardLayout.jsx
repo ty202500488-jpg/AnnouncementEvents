@@ -72,7 +72,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/mypage/notifications', {
+      const response = await fetch('/api/mypage/notifications', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -153,16 +153,22 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('notifications-updated', fetchNotifications);
+    window.addEventListener('focus', fetchNotifications);
+    const notifInterval = setInterval(fetchNotifications, 30000);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('notifications-updated', fetchNotifications);
+      window.removeEventListener('focus', fetchNotifications);
+      clearInterval(notifInterval);
     };
   }, []);
 
   const handleMarkAllAsRead = async () => {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch('http://localhost:5000/api/mypage/notifications/read-all', {
+      const response = await fetch('/api/mypage/notifications/read-all', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -171,6 +177,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
       });
       if (response.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+        window.dispatchEvent(new CustomEvent('notifications-updated'));
       }
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
@@ -181,7 +188,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     if (!notif.is_read) {
       const token = localStorage.getItem('token');
       try {
-        const response = await fetch(`http://localhost:5000/api/mypage/notifications/${notif.id}/read`, {
+        const response = await fetch(`/api/mypage/notifications/${notif.id}/read`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -192,6 +199,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
           setNotifications(prev =>
             prev.map(n => (n.id === notif.id ? { ...n, is_read: true } : n))
           );
+          window.dispatchEvent(new CustomEvent('notifications-updated'));
         }
       } catch (err) {
         console.error('Failed to mark notification as read:', err);

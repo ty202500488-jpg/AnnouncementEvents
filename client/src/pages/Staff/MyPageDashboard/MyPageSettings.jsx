@@ -40,6 +40,7 @@ export default function MyPageSettings() {
   useEffect(() => {
     const fetchSettings = async () => {
       const token = localStorage.getItem('token');
+      if (!token) return;
       try {
         const res = await fetch('/api/my-page/settings', {
           headers: { Authorization: `Bearer ${token}` }
@@ -47,13 +48,9 @@ export default function MyPageSettings() {
         const data = await res.json();
         if (res.ok && data.settings) {
           setSettings(prev => ({ ...prev, ...data.settings }));
-        } else {
-          const stored = localStorage.getItem('myPageSettings');
-          if (stored) setSettings(prev => ({ ...prev, ...JSON.parse(stored) }));
         }
-      } catch {
-        const stored = localStorage.getItem('myPageSettings');
-        if (stored) setSettings(prev => ({ ...prev, ...JSON.parse(stored) }));
+      } catch (err) {
+        console.warn('Failed to fetch page settings:', err);
       }
     };
     fetchSettings();
@@ -70,11 +67,15 @@ export default function MyPageSettings() {
 
   const handleSaveSettings = async (e) => {
     if (e) e.preventDefault();
-    setLoading(true);
     const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('', 'Please sign in again to save page settings.');
+      return;
+    }
+    setLoading(true);
 
     try {
-      await fetch('/api/my-page/settings', {
+      const res = await fetch('/api/my-page/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,11 +83,16 @@ export default function MyPageSettings() {
         },
         body: JSON.stringify({ settings }),
       });
-      localStorage.setItem('myPageSettings', JSON.stringify(settings));
-      showToast('Page settings successfully saved to server!');
-    } catch {
-      localStorage.setItem('myPageSettings', JSON.stringify(settings));
-      showToast('Page settings saved locally.');
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to save page settings.');
+      }
+      if (data.settings) {
+        setSettings(prev => ({ ...prev, ...data.settings }));
+      }
+      showToast('Page settings saved successfully!');
+    } catch (err) {
+      showToast('', err.message || 'Unable to save page settings.');
     } finally {
       setLoading(false);
     }
@@ -283,8 +289,8 @@ export default function MyPageSettings() {
 
                 <div className="lp-row">
                   <div className="lp-row-text">
-                    <h3>Email Notification Digests</h3>
-                    <p>Receive daily or weekly summaries of page interactions via institutional email</p>
+                    <h3>Email Alerts for Moderation & Status</h3>
+                    <p>Receive institutional email alerts for post moderation & page status decisions when system email is active</p>
                   </div>
                   <label className="lp-toggle-switch">
                     <input

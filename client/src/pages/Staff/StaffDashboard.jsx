@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import '../styles/StaffDashboard.css';
 
 export default function StaffDashboard() {
@@ -8,6 +9,7 @@ export default function StaffDashboard() {
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [followedDepts, setFollowedDepts] = useState({});
+  const highlightedPostId = useHighlightedPost(!loading && feed.length > 0);
 
   useEffect(() => {
     const fetchDashboardContent = async () => {
@@ -100,9 +102,11 @@ export default function StaffDashboard() {
             const currentRegistered = item.registered_count ?? item.current_registered ?? 0;
             const maxCapacity = item.max_capacity || item.capacity || 'Unlimited';
             const locationText = item.location || 'University Campus';
+            const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
 
             return (
               <article 
+                id={domId}
                 key={item.id || index} 
                 className="card card-interactive" 
                 style={{ 
@@ -112,7 +116,8 @@ export default function StaffDashboard() {
                   backgroundColor: '#ffffff',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
                   overflow: 'hidden',
-                  flexShrink: 0
+                  flexShrink: 0,
+                  ...highlightStyle
                 }}
               >
                 {/* 1. POST HEADER */}
