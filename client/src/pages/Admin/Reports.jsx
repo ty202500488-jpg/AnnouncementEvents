@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import AdminLayout from '../../assets/components/AdminLayout';
+import Pagination from '../../assets/components/Pagination';
 import '../styles/Reports.css';
 
 // 6 Core Report Categories matching administrative requirements
@@ -101,6 +102,7 @@ const Reports = () => {
   });
 
   // Filter States
+  const [academicYearFilter, setAcademicYearFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [collegeFilter, setCollegeFilter] = useState('');
@@ -110,6 +112,7 @@ const Reports = () => {
   const [statusFilter, setStatusFilter] = useState('');
 
   // Dropdown Metadata Options (Populated from DB)
+  const [academicYearList, setAcademicYearList] = useState([]);
   const [collegeList, setCollegeList] = useState([]);
   const [deptList, setDeptList] = useState([]);
   const [programList, setProgramList] = useState([]);
@@ -128,7 +131,7 @@ const Reports = () => {
   const [sortColumn, setSortColumn] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc' or 'desc'
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Notification helper
   const showToast = (message, type = 'success') => {
@@ -162,12 +165,13 @@ const Reports = () => {
     }
   }, []);
 
-  // Fetch Filter Metadata (Colleges, Departments, Programs)
+  // Fetch Filter Metadata (Colleges, Departments, Programs, School Years)
   const fetchMetadata = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/reports/metadata', { credentials: 'include', headers: getAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
+        setAcademicYearList(data.academicYears || []);
         setCollegeList(data.colleges || []);
         setDeptList(data.departments || []);
         setProgramList(data.programs || []);
@@ -180,6 +184,7 @@ const Reports = () => {
   // Build Query Parameters string
   const buildQueryParams = useCallback((overrides = {}) => {
     const params = new URLSearchParams();
+    if (academicYearFilter) params.append('academicYearId', academicYearFilter);
     if (dateFrom) params.append('startDate', dateFrom);
     if (dateTo) params.append('endDate', dateTo);
     if (collegeFilter) params.append('collegeId', collegeFilter);
@@ -195,7 +200,7 @@ const Reports = () => {
     });
 
     return params.toString();
-  }, [dateFrom, dateTo, collegeFilter, deptFilter, programFilter, categoryTypeFilter, statusFilter]);
+  }, [academicYearFilter, dateFrom, dateTo, collegeFilter, deptFilter, programFilter, categoryTypeFilter, statusFilter]);
 
   // Fetch Selected Report Records & Chart Analytics
   const fetchReportData = useCallback(async () => {
@@ -245,7 +250,7 @@ const Reports = () => {
 
   useEffect(() => {
     fetchReportData();
-  }, [selectedCategory]);
+  }, [selectedCategory, fetchReportData]);
 
   const handleApplyFilters = (e) => {
     e.preventDefault();
@@ -253,6 +258,7 @@ const Reports = () => {
   };
 
   const handleResetFilters = () => {
+    setAcademicYearFilter('');
     setDateFrom('');
     setDateTo('');
     setCollegeFilter('');
@@ -262,9 +268,6 @@ const Reports = () => {
     setStatusFilter('');
     setSearchTerm('');
     setSortColumn('');
-    setTimeout(() => {
-      fetchReportData();
-    }, 0);
   };
 
   // Safe Cell Formatting & Date Localization
@@ -519,6 +522,23 @@ const Reports = () => {
           </div>
 
           <form onSubmit={handleApplyFilters} className="filter-grid-form">
+            <div className="filter-field">
+              <label htmlFor="filter-school-year">School Year</label>
+              <select
+                id="filter-school-year"
+                value={academicYearFilter}
+                onChange={e => setAcademicYearFilter(e.target.value)}
+                className="filter-select"
+              >
+                <option value="">All School Years</option>
+                {academicYearList.map(yr => (
+                  <option key={yr.id} value={yr.id}>
+                    {yr.year_label} ({yr.semester}) — {yr.status || (yr.is_active ? 'Active' : 'Archived')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="filter-field">
               <label htmlFor="filter-date-from">Date From</label>
               <input
@@ -855,30 +875,17 @@ const Reports = () => {
 
           {/* Pagination Toolbar */}
           {!loading && filteredAndSortedRecords.length > 0 && (
-            <div className="table-pagination-footer">
-              <span className="pagination-text">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredAndSortedRecords.length)} of {filteredAndSortedRecords.length} entries
-              </span>
-              <div className="pagination-buttons">
-                <button
-                  type="button"
-                  className="btn-page"
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                >
-                  <i className="fa-solid fa-chevron-left"></i> Previous
-                </button>
-                <span className="page-indicator">{currentPage} / {totalPages}</span>
-                <button
-                  type="button"
-                  className="btn-page"
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next <i className="fa-solid fa-chevron-right"></i>
-                </button>
-              </div>
-            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalRecords={filteredAndSortedRecords.length}
+              rowsPerPage={itemsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
+              onRowsPerPageChange={(limit) => {
+                setItemsPerPage(limit);
+                setCurrentPage(1);
+              }}
+            />
           )}
         </section>
       </div>

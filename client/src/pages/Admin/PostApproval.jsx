@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
+import Pagination from '../../assets/components/Pagination';
+import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import '../styles/PostApproval.css';
 
 const PostApproval = () => {
@@ -10,8 +12,18 @@ const PostApproval = () => {
   // Navigation & Filter States
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'pending');
   const [contentTypeFilter, setContentTypeFilter] = useState('all'); // 'all', 'announcement', 'event'
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [submissionDateFilter, setSubmissionDateFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortOrder, setSortOrder] = useState('oldest');
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Async Data States
   const [items, setItems] = useState([]);
@@ -31,7 +43,7 @@ const PostApproval = () => {
   // Handle Tab Switch
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
-    setSearchQuery('');
+    setStatusFilter('all');
     setPagination(prev => ({ ...prev, page: 1 }));
     setSearchParams({ tab: tabId });
   };
@@ -45,7 +57,9 @@ const PostApproval = () => {
     const queryParams = new URLSearchParams({
       tab: activeTab,
       type: contentTypeFilter,
-      search: searchQuery,
+      status: statusFilter,
+      submissionDate: submissionDateFilter,
+      search: debouncedSearch,
       sort: sortOrder,
       page: pagination.page,
       limit: pagination.limit
@@ -88,16 +102,17 @@ const PostApproval = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, contentTypeFilter, searchQuery, sortOrder, pagination.page, pagination.limit, navigate]);
+  }, [activeTab, contentTypeFilter, statusFilter, submissionDateFilter, debouncedSearch, sortOrder, pagination.page, pagination.limit, navigate]);
 
   useEffect(() => {
     fetchApprovalData();
   }, [fetchApprovalData]);
 
   // Execute Review Decision (Approve / Reject / Correction)
-  const handleExecuteDecision = async () => {
+  const handleExecuteDecision = async (reasonFromModal) => {
     if (!selectedItem || !decisionType) return;
-    if ((decisionType === 'reject' || decisionType === 'correction') && !decisionReason.trim()) {
+    const finalReason = reasonFromModal !== undefined ? reasonFromModal : decisionReason;
+    if ((decisionType === 'reject' || decisionType === 'correction') && !String(finalReason || '').trim()) {
       setFeedback({ type: 'error', message: 'A valid explanation is required for rejection or requesting corrections.' });
       return;
     }
@@ -115,7 +130,7 @@ const PostApproval = () => {
         body: JSON.stringify({
           type: selectedItem.type,
           decision: decisionType,
-          reason: decisionReason
+          reason: finalReason
         })
       });
 
@@ -230,7 +245,8 @@ const PostApproval = () => {
             {[
               { id: 'pending', label: `Pending Queue (${summaryCounts.totalPending})` },
               { id: 'reviewed', label: 'Recently Reviewed' },
-              { id: 'correction', label: 'Needs Correction' }
+              { id: 'correction', label: 'Needs Correction' },
+              { id: 'all', label: 'All Submissions' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -256,9 +272,18 @@ const PostApproval = () => {
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
                 className="pa-search-input"
+                aria-label="Search submissions"
               />
               {searchQuery && (
-                <button type="button" className="pa-clear-search-btn" onClick={() => setSearchQuery('')}>
+                <button
+                  type="button"
+                  className="pa-clear-search-btn"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                >
                   <i className="fa-solid fa-xmark"></i>
                 </button>
               )}
@@ -268,6 +293,7 @@ const PostApproval = () => {
               <select 
                 className="pa-select"
                 value={contentTypeFilter}
+                aria-label="Filter by content type"
                 onChange={(e) => {
                   setContentTypeFilter(e.target.value);
                   setPagination(prev => ({ ...prev, page: 1 }));
@@ -279,25 +305,65 @@ const PostApproval = () => {
               </select>
             </div>
 
+            {(activeTab === 'reviewed' || activeTab === 'all') && (
+              <div className="pa-filter-item">
+                <select 
+                  className="pa-select"
+                  value={statusFilter}
+                  aria-label="Filter by approval status"
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                >
+                  <option value="all">All Approval Statuses</option>
+                  {activeTab === 'all' && <option value="pending">Pending</option>}
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+            )}
+
+            <div className="pa-filter-item">
+              <input
+                type="date"
+                className="pa-select"
+                value={submissionDateFilter}
+                aria-label="Filter by submission date"
+                onChange={(e) => {
+                  setSubmissionDateFilter(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                title="Filter by Submission Date"
+              />
+            </div>
+
             <div className="pa-filter-item">
               <select 
                 className="pa-select"
                 value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
+                aria-label="Sort submissions"
+                onChange={(e) => {
+                  setSortOrder(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
               >
                 <option value="oldest">Oldest First (Priority Queue)</option>
                 <option value="newest">Newest First</option>
               </select>
             </div>
 
-            {(searchQuery || contentTypeFilter !== 'all' || sortOrder !== 'oldest') && (
+            {(searchQuery || contentTypeFilter !== 'all' || statusFilter !== 'all' || submissionDateFilter || sortOrder !== 'oldest') && (
               <button 
                 type="button" 
                 className="btn-pa-link"
                 onClick={() => {
                   setSearchQuery('');
                   setContentTypeFilter('all');
+                  setStatusFilter('all');
+                  setSubmissionDateFilter('');
                   setSortOrder('oldest');
+                  setPagination(prev => ({ ...prev, page: 1 }));
                 }}
               >
                 Clear Filters
@@ -371,16 +437,46 @@ const PostApproval = () => {
                         </span>
                       </td>
                       <td className="pa-text-right">
-                        <button 
-                          type="button" 
-                          className="btn-pa-table-action"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setActiveModal('review');
-                          }}
-                        >
-                          Review Content
-                        </button>
+                        <div className="pa-action-button-group" style={{ justifyContent: 'flex-end', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                          <button 
+                            type="button" 
+                            className="btn-pa-table-action"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setActiveModal('review');
+                            }}
+                          >
+                            View
+                          </button>
+                          {String(item.status || '').toLowerCase() === 'pending' && (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-pa-emerald"
+                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setDecisionType('approve');
+                                  setActiveModal('decision');
+                                }}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-pa-rose"
+                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+                                onClick={() => {
+                                  setSelectedItem(item);
+                                  setDecisionType('reject');
+                                  setActiveModal('decision');
+                                }}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -392,29 +488,16 @@ const PostApproval = () => {
 
         {/* ================= PAGINATION BAR ================= */}
         {!loading && items.length > 0 && (
-          <div className="pa-pagination-bar">
-            <span className="pa-pagination-info">
-              Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} records)
-            </span>
-            <div className="pa-pagination-actions">
-              <button 
-                type="button" 
-                className="btn-pa-pagination"
-                disabled={pagination.page <= 1}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              >
-                Previous
-              </button>
-              <button 
-                type="button" 
-                className="btn-pa-pagination"
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            totalRecords={pagination.total}
+            pageSize={pagination.limit}
+            onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+            onPageSizeChange={(limit) => setPagination(prev => ({ ...prev, limit, page: 1 }))}
+            loading={loading}
+            itemLabel="submissions"
+          />
         )}
 
         {/* ================= MODALS & DRAWERS ================= */}
@@ -479,7 +562,7 @@ const PostApproval = () => {
                   Close
                 </button>
 
-                {activeTab === 'pending' && (
+                {String(selectedItem.status || '').toLowerCase() === 'pending' && (
                   <div className="pa-action-button-group">
                     <button 
                       type="button" 
@@ -519,53 +602,42 @@ const PostApproval = () => {
         )}
 
         {/* 2. DECISION REASON CONFIRMATION MODAL */}
-        {activeModal === 'decision' && selectedItem && (
-          <div className="pa-modal-backdrop">
-            <div className="pa-modal-card pa-modal-small">
-              <div className="pa-modal-header">
-                <h2 className="pa-modal-title-text">Confirm Decision: {decisionType.toUpperCase()}</h2>
-                <button type="button" className="pa-close-btn" onClick={() => setActiveModal('review')}>
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
-              </div>
-
-              <div className="pa-modal-body">
-                <p>
-                  Are you sure you want to execute <strong>{decisionType}</strong> for "<strong>{selectedItem.title}</strong>"?
-                </p>
-
-                {(decisionType === 'reject' || decisionType === 'correction') && (
-                  <div className="pa-form-group pa-mt-12">
-                    <label htmlFor="decision-reason" className="pa-form-label">Administrative Note / Instructions *</label>
-                    <textarea 
-                      id="decision-reason"
-                      rows="3"
-                      required
-                      value={decisionReason}
-                      onChange={(e) => setDecisionReason(e.target.value)}
-                      placeholder={`State why this submission is being ${decisionType === 'reject' ? 'rejected' : 'returned for corrections'}...`}
-                      className="pa-textarea"
-                    ></textarea>
-                  </div>
-                )}
-              </div>
-
-              <div className="pa-modal-footer">
-                <button type="button" className="btn-pa-secondary" onClick={() => setActiveModal('review')}>
-                  Back
-                </button>
-                <button 
-                  type="button" 
-                  className={`btn-pa-primary ${decisionType === 'reject' ? 'danger-btn' : decisionType === 'approve' ? 'success-btn' : ''}`}
-                  disabled={submitting}
-                  onClick={handleExecuteDecision}
-                >
-                  {submitting ? 'Submitting...' : `Confirm ${decisionType}`}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ConfirmationModal
+          isOpen={activeModal === 'decision' && Boolean(selectedItem)}
+          title={
+            decisionType === 'approve'
+              ? 'Approve & Publish Submission?'
+              : decisionType === 'reject'
+              ? 'Reject Submission?'
+              : 'Request Submission Corrections?'
+          }
+          message={
+            selectedItem
+              ? `Are you sure you want to ${
+                  decisionType === 'approve'
+                    ? 'approve and publish'
+                    : decisionType === 'reject'
+                    ? 'reject'
+                    : 'request corrections for'
+                } "${selectedItem.title}" submitted by ${selectedItem.submitted_by || selectedItem.author_name || 'Staff'}?`
+              : ''
+          }
+          variant={decisionType === 'reject' ? 'danger' : decisionType === 'approve' ? 'success' : 'warning'}
+          confirmText={
+            decisionType === 'approve'
+              ? 'Confirm & Publish'
+              : decisionType === 'reject'
+              ? 'Confirm Rejection'
+              : 'Send Correction Request'
+          }
+          cancelText="Back to Review"
+          requireReason={decisionType === 'reject' || decisionType === 'correction'}
+          reasonLabel="Administrative Note / Instructions *"
+          reasonPlaceholder={`State why this submission is being ${decisionType === 'reject' ? 'rejected' : 'returned for corrections'}...`}
+          loading={submitting}
+          onCancel={() => setActiveModal('review')}
+          onConfirm={(reasonText) => handleExecuteDecision(reasonText)}
+        />
 
       </div>
     </AdminLayout>

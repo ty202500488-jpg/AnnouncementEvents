@@ -338,16 +338,45 @@
 .actor-name { font-weight: 600; color: #1e293b; }
 .actor-role-badge { font-size: 0.6875rem; color: #64748b; }
 
-.action-label { font-weight: 600; color: #0f172a; }
+.cell-action {
+  min-width: 170px;
+  max-width: 240px;
+}
+
+.action-label {
+  display: block;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+  word-break: break-word;
+}
 
 .module-tag {
   display: inline-block;
+  margin-top: 0.25rem;
   background-color: #f1f5f9;
   color: #475569;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  padding: 0.2rem 0.5rem;
+  padding: 0.15rem 0.45rem;
   border-radius: 0.25rem;
+}
+
+.cell-description {
+  max-width: 440px;
+  min-width: 220px;
+}
+
+.audit-desc-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.825rem;
+  color: #334155;
+  line-height: 1.45;
+  word-break: break-word;
 }
 
 .cell-resource {

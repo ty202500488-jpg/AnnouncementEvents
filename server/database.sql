@@ -559,4 +559,41 @@ SELECT setval(pg_get_serial_sequence('users', 'user_id'), COALESCE((SELECT MAX(u
 SELECT setval(pg_get_serial_sequence('pages', 'page_id'), COALESCE((SELECT MAX(page_id) FROM pages), 1));
 SELECT setval(pg_get_serial_sequence('page_members', 'page_member_id'), COALESCE((SELECT MAX(page_member_id) FROM page_members), 1));
 
+-- =============================================================================
+-- PHASE 7: SAFE NON-DESTRUCTIVE MIGRATION FOR SCHOOL YEAR & ARCHIVING
+-- =============================================================================
+
+-- 1. Enhance academic_years with start_date, end_date, status, archived_at, updated_at
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE;
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS end_date DATE;
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'Active' NOT NULL;
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL;
+
+-- Backfill start_date, end_date, and status for existing academic_years rows
+UPDATE academic_years
+SET
+    start_date = COALESCE(start_date, make_date(start_year::int, 8, 1)),
+    end_date = COALESCE(end_date, make_date(end_year::int, 5, 31)),
+    status = CASE
+        WHEN is_active = TRUE THEN 'Active'
+        WHEN archived_at IS NOT NULL THEN 'Archived'
+        ELSE COALESCE(NULLIF(status, 'Active'), 'Archived')
+    END
+WHERE start_date IS NULL OR end_date IS NULL OR (is_active = FALSE AND status = 'Active');
+
+-- 2. Enhance posts with academic_year_id and previous_status for non-destructive archiving
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS academic_year_id INTEGER REFERENCES academic_years(academic_year_id) ON DELETE SET NULL;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS previous_status VARCHAR(30);
+
+-- Backfill existing posts without academic_year_id to the currently active academic year (or latest)
+UPDATE posts
+SET academic_year_id = COALESCE(
+    (SELECT academic_year_id FROM academic_years WHERE is_active = TRUE ORDER BY academic_year_id DESC LIMIT 1),
+    (SELECT academic_year_id FROM academic_years ORDER BY academic_year_id DESC LIMIT 1)
+)
+WHERE academic_year_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_posts_academic_year ON posts(academic_year_id, post_type, status, is_archived);
+
 COMMIT;

@@ -65,6 +65,19 @@ async function getDefaultCategoryId() {
     }
 }
 
+async function getActiveAcademicYearId(db = pool) {
+    try {
+        const ayRes = await db.query(
+            `SELECT academic_year_id FROM academic_years WHERE is_active = TRUE ORDER BY academic_year_id DESC LIMIT 1`
+        );
+        if (ayRes.rows.length > 0) return ayRes.rows[0].academic_year_id;
+        const fallback = await db.query(`SELECT academic_year_id FROM academic_years ORDER BY academic_year_id DESC LIMIT 1`);
+        return fallback.rows[0]?.academic_year_id || null;
+    } catch (_) {
+        return null;
+    }
+}
+
 // -------- CHECK USER'S PAGE STATUS -------- //
 router.get('/my-page-status', async (req, res) => {
     try {
@@ -469,23 +482,30 @@ router.post('/announcements', async (req, res) => {
         }
 
         const finalCategoryId = category_id ? Number(category_id) : await getDefaultCategoryId();
+        const activeAyId = await getActiveAcademicYearId();
+        const needsModeration = Boolean(req.body.require_approval || String(req.body.moderation_status || '').toLowerCase() === 'pending');
+        const initModStatus = needsModeration ? 'Pending' : 'Approved';
+        const initPostStatus = needsModeration ? 'Pending' : 'Published';
 
         const result = await pool.query(
             `INSERT INTO posts (
-                page_id, creator_user_id, category_id, post_type,
+                page_id, creator_user_id, category_id, academic_year_id, post_type,
                 title, content, image_url, audience, is_pinned,
                 moderation_status, status, published_at
-             ) VALUES ($1, $2, $3, 'announcement', $4, $5, $6, $7, $8, 'Approved', 'Published', NOW())
+             ) VALUES ($1, $2, $3, $4, 'announcement', $5, $6, $7, $8, $9, $10, $11, NOW())
              RETURNING *, post_id AS id, post_id AS announcement_id, content AS description`,
             [
                 targetPageId,
                 user.user_id,
                 finalCategoryId,
+                activeAyId,
                 title.trim(),
                 bodyText.trim(),
                 image_url || null,
                 audience || 'All Campus',
-                Boolean(is_pinned)
+                Boolean(is_pinned),
+                initModStatus,
+                initPostStatus
             ]
         );
 
@@ -553,29 +573,36 @@ router.post('/events', async (req, res) => {
         }
 
         const finalCategoryId = category_id ? Number(category_id) : await getDefaultCategoryId();
+        const activeAyId = await getActiveAcademicYearId(client);
         const eDate = event_date || new Date().toISOString();
         const eLocation = (location || venue || 'University Campus').trim();
         const imgUrl = image_url || poster_url || null;
         const capNum = capacity ? Number(capacity) : null;
+        const needsModeration = Boolean(req.body.require_approval || String(req.body.moderation_status || '').toLowerCase() === 'pending');
+        const initModStatus = needsModeration ? 'Pending' : 'Approved';
+        const initPostStatus = needsModeration ? 'Pending' : 'Upcoming';
 
         await client.query('BEGIN');
 
         // 1. Insert into supertype posts table
         const postRes = await client.query(
             `INSERT INTO posts (
-                page_id, creator_user_id, category_id, post_type,
+                page_id, creator_user_id, category_id, academic_year_id, post_type,
                 title, content, image_url, audience,
                 moderation_status, status, published_at
-             ) VALUES ($1, $2, $3, 'event', $4, $5, $6, $7, 'Approved', 'Upcoming', NOW())
+             ) VALUES ($1, $2, $3, $4, 'event', $5, $6, $7, $8, $9, $10, NOW())
              RETURNING *`,
             [
                 targetPageId,
                 user.user_id,
                 finalCategoryId,
+                activeAyId,
                 eTitle,
                 eDesc,
                 imgUrl,
-                audience || 'All Campus'
+                audience || 'All Campus',
+                initModStatus,
+                initPostStatus
             ]
         );
         const postRow = postRes.rows[0];

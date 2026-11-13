@@ -455,6 +455,7 @@
 
 .system-settings-page .form-group input[type="text"],
 .system-settings-page .form-group input[type="number"],
+.system-settings-page .form-group input[type="date"],
 .system-settings-page .form-group select,
 .system-settings-page .form-group textarea {
   width: 100%;
@@ -708,4 +709,82 @@
     align-items: flex-start;
     gap: 0.75rem;
   }
+}
+
+/* School Year Management & Taxonomy Enhancements */
+.system-settings-page .sy-management-form-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.system-settings-page .status-pill.status-upcoming {
+  background-color: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.system-settings-page .sy-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.system-settings-page .sy-action-btn.activate {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #7B0D1E;
+}
+
+.system-settings-page .sy-action-btn.activate:hover {
+  background: #7B0D1E;
+  color: #ffffff;
+}
+
+.system-settings-page .sy-action-btn.edit:hover,
+.system-settings-page .sy-action-btn.view:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.system-settings-page .taxonomy-block h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.75rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.system-settings-page .taxonomy-inline-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.system-settings-page .taxonomy-inline-form input,
+.system-settings-page .taxonomy-inline-form select {
+  flex: 1;
+  min-width: 160px;
+  padding: 0.55rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.84rem;
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../../assets/components/AdminLayout'; // Adjust path if AdminLayout is in components
+import Pagination from '../../assets/components/Pagination';
 import '../styles/AuditLogs.css';
 
 const AuditLogs = () => {
@@ -20,6 +21,7 @@ const AuditLogs = () => {
   // Filter values
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [actorFilter, setActorFilter] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedModule, setSelectedModule] = useState('ALL');
   const [selectedOutcome, setSelectedOutcome] = useState('ALL');
@@ -30,7 +32,7 @@ const AuditLogs = () => {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
 
@@ -82,6 +84,7 @@ const AuditLogs = () => {
         page: currentPage,
         limit: pageSize,
         search: debouncedSearch,
+        actor: actorFilter,
         role: selectedRole !== 'ALL' ? selectedRole : '',
         module: selectedModule !== 'ALL' ? selectedModule : '',
         outcome: selectedOutcome !== 'ALL' ? selectedOutcome : '',
@@ -112,7 +115,7 @@ const AuditLogs = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearch, selectedRole, selectedModule, selectedOutcome, isSecurityOnly, startDate, endDate]);
+  }, [currentPage, pageSize, debouncedSearch, actorFilter, selectedRole, selectedModule, selectedOutcome, isSecurityOnly, startDate, endDate]);
 
   // --- Fetch Summary Overview Metrics ---
   const fetchAuditSummary = useCallback(async () => {
@@ -155,6 +158,7 @@ const AuditLogs = () => {
   // --- Clear Filters Action ---
   const handleClearFilters = () => {
     setSearchTerm('');
+    setActorFilter('');
     setSelectedRole('ALL');
     setSelectedModule('ALL');
     setSelectedOutcome('ALL');
@@ -172,6 +176,7 @@ const AuditLogs = () => {
       const token = localStorage.getItem('token');
       const queryParams = new URLSearchParams({
         search: debouncedSearch,
+        actor: actorFilter,
         role: selectedRole !== 'ALL' ? selectedRole : '',
         module: selectedModule !== 'ALL' ? selectedModule : '',
         outcome: selectedOutcome !== 'ALL' ? selectedOutcome : '',
@@ -197,7 +202,7 @@ const AuditLogs = () => {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err.message || 'CSV export failed.');
+      setError(err.message || 'CSV export failed.');
     } finally {
       setIsExporting(false);
     }
@@ -333,15 +338,40 @@ const AuditLogs = () => {
 
         {/* ==================== FILTER TOOLBAR ==================== */}
         <div className="audit-logs-filters">
-          <div className="filter-group search-group">
+          <div className="filter-group search-group" style={{ position: 'relative' }}>
             <i className="fa-solid fa-magnifying-glass search-icon"></i>
             <input 
               type="text" 
               className="audit-input search-input" 
-              placeholder="Search actor, action, module, or resource..." 
+              placeholder="Search action, module, actor name/email, or resource..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setSearchTerm('')}
+                style={{
+                  position: 'absolute',
+                  right: '0.55rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  border: 'none',
+                  background: '#e2e8f0',
+                  color: '#475569',
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <i className="fa-solid fa-xmark" style={{ fontSize: '0.7rem' }}></i>
+              </button>
+            )}
           </div>
 
           <div className="filter-group">
@@ -443,11 +473,6 @@ const AuditLogs = () => {
           </button>
         </div>
 
-        {/* Filter Summary Counter */}
-        <div className="audit-results-info">
-          <span>Showing {logs.length} of {totalRecords} matching audit records</span>
-        </div>
-
         {/* ==================== AUDIT TABLE / DATA STATE ==================== */}
         {error ? (
           <div className="audit-logs-error">
@@ -482,67 +507,64 @@ const AuditLogs = () => {
             <table className="audit-logs-table">
               <thead>
                 <tr>
-                  <th>Timestamp</th>
-                  <th>Actor</th>
+                  <th>Date &amp; Time</th>
                   <th>Action</th>
-                  <th>Module</th>
-                  <th>Affected Resource</th>
-                  <th>Outcome</th>
-                  <th>Source IP</th>
+                  <th>Description</th>
+                  <th>Status</th>
                   <th className="text-right">Details</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="audit-logs-row">
-                    <td className="cell-nowrap cell-timestamp">
-                      {new Date(log.created_at).toLocaleString('en-US', {
-                        month: 'short',
-                        day: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
-                    </td>
-                    <td>
-                      <div className="actor-cell">
-                        <span className="actor-name">{log.actor_label || 'Unauthenticated'}</span>
-                        <span className="actor-role-badge">{log.actor_role || '0'}</span>
-                      </div>
-                    </td>
-                    <td className="cell-action">
-                      <span className="action-label">{log.action}</span>
-                    </td>
-                    <td>
-                      <span className="module-tag">{log.module}</span>
-                    </td>
-                    <td className="cell-resource">
-                      <span className="resource-type">{log.resource_type || '—'}</span>
-                      <span className="resource-title" title={log.resource_title}>
-                        {log.resource_title || (log.resource_id ? `#${log.resource_id}` : '—')}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`audit-logs-badge ${renderBadgeClass(log.outcome)}`}>
-                        {log.outcome}
-                      </span>
-                    </td>
-                    <td className="cell-nowrap cell-ip">
-                      {log.ip_address || '—'}
-                    </td>
-                    <td className="text-right">
-                      <button 
-                        type="button" 
-                        className="btn-view-details" 
-                        onClick={() => handleOpenDetails(log)}
-                        aria-label="View Audit Record Details"
-                      >
-                        <i className="fa-solid fa-eye"></i> Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {logs.map((log) => {
+                  const modulePrefix = log.module ? `[${log.module}] ` : '';
+                  const resourcePart = log.resource_title
+                    ? `${log.resource_type ? `${log.resource_type}: ` : ''}${log.resource_title}`
+                    : log.resource_id
+                      ? `${log.resource_type || 'Record'} #${log.resource_id}`
+                      : '';
+                  const actorPart = log.actor_label ? `By ${log.actor_label}` : '';
+                  const reasonPart = log.reason ? `Note: ${log.reason}` : '';
+                  const descriptionText =
+                    [resourcePart, actorPart, reasonPart].filter(Boolean).join(' • ') ||
+                    `${log.action || 'System activity'} recorded in ${log.module || 'System'}`;
+
+                  return (
+                    <tr key={log.id} className="audit-logs-row">
+                      <td className="cell-nowrap cell-timestamp">
+                        {new Date(log.created_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}
+                      </td>
+                      <td className="cell-action">
+                        <span className="action-label">{log.action}</span>
+                        {log.module && <span className="module-tag">{log.module}</span>}
+                      </td>
+                      <td className="cell-description" title={`${modulePrefix}${descriptionText}`}>
+                        <span className="audit-desc-text">{descriptionText}</span>
+                      </td>
+                      <td className="cell-nowrap">
+                        <span className={`audit-logs-badge ${renderBadgeClass(log.outcome)}`}>
+                          {log.outcome}
+                        </span>
+                      </td>
+                      <td className="text-right cell-nowrap">
+                        <button
+                          type="button"
+                          className="btn-view-details"
+                          onClick={() => handleOpenDetails(log)}
+                          aria-label="View Audit Record Details"
+                        >
+                          <i className="fa-solid fa-eye"></i> Details
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -550,39 +572,17 @@ const AuditLogs = () => {
 
         {/* ==================== SERVER-SIDE PAGINATION ==================== */}
         {!loading && logs.length > 0 && (
-          <div className="audit-logs-pagination">
-            <div className="pagination-info">
-              <span>Page {currentPage} of {totalPages}</span>
-              <select 
-                className="audit-select size-select" 
-                value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              >
-                <option value={15}>15 rows</option>
-                <option value={30}>30 rows</option>
-                <option value={50}>50 rows</option>
-                <option value={100}>100 rows</option>
-              </select>
-            </div>
-
-            <div className="pagination-controls">
-              <button 
-                className="btn-page" 
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              >
-                <i className="fa-solid fa-chevron-left"></i> Previous
-              </button>
-              
-              <button 
-                className="btn-page" 
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-              >
-                Next <i className="fa-solid fa-chevron-right"></i>
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRecords={totalRecords}
+            rowsPerPage={pageSize}
+            onPageChange={(page) => setCurrentPage(page)}
+            onRowsPerPageChange={(limit) => {
+              setPageSize(limit);
+              setCurrentPage(1);
+            }}
+          />
         )}
 
         {/* ==================== READ-ONLY DETAILS MODAL ==================== */}

@@ -1,16 +1,29 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
+import Pagination from '../../assets/components/Pagination';
+import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import '../styles/ContentFeed.css';
 
 const ContentFeed = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Navigation & Filter States
+  // Navigation & Filter States (Parts 10 & 11)
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'announcements', 'events', 'scheduled', 'archived', 'takedown'
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [collegeFilter, setCollegeFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [academicYearFilter, setAcademicYearFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('');
   const [sortOrder, setSortOrder] = useState('newest');
+
+  // Filter Metadata Options
+  const [collegesList, setCollegesList] = useState([]);
+  const [categoriesList, setCategoriesList] = useState([]);
+  const [academicYearsList, setAcademicYearsList] = useState([]);
 
   // Data States
   const [items, setItems] = useState([]);
@@ -20,18 +33,25 @@ const ContentFeed = () => {
 
   // UI Control States
   const [showCreateMenu, setShowCreateMenu] = useState(false);
-  const [activeModal, setActiveModal] = useState(null); // 'create_announcement', 'create_event', 'edit', 'preview', 'archive', 'takedown'
+  const [activeModal, setActiveModal] = useState(null); // 'create_announcement', 'create_event', 'edit', 'preview', 'archive', 'takedown', 'restore', 'delete'
   const [selectedItem, setSelectedItem] = useState(null);
-  const [actionReason, setActionReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
+
+  // Event Engagement (Registrations & Attendance) in Preview Modal
+  const [eventEngagement, setEventEngagement] = useState({
+    loading: false,
+    registrations: [],
+    session: null,
+    summary: { totalRegistered: 0, totalAttended: 0 }
+  });
 
   // Form State for Create / Edit
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     category: 'General',
-    audience: 'All Students',
+    audience: 'All Campus',
     scheduled_at: '',
     expires_at: '',
     event_start: '',
@@ -43,6 +63,39 @@ const ContentFeed = () => {
   });
 
   const createMenuRef = useRef(null);
+
+  // Sync URL ?tab=...
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['all', 'announcements', 'events', 'scheduled', 'archived', 'takedown'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [location.search]);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch filter metadata (colleges, categories, academic years)
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    fetch('/api/admin/reports/metadata', {
+      headers: { Authorization: token ? `Bearer ${token}` : '' }
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data) return;
+        if (Array.isArray(data.departments)) setCollegesList(data.departments);
+        if (Array.isArray(data.categories)) setCategoriesList(data.categories);
+        if (Array.isArray(data.academicYears)) setAcademicYearsList(data.academicYears);
+      })
+      .catch(() => {});
+  }, []);
 
   // Close Create Dropdown when clicking outside
   useEffect(() => {
@@ -63,15 +116,19 @@ const ContentFeed = () => {
 
     const params = new URLSearchParams({
       tab: activeTab,
-      search: searchQuery,
+      search: debouncedSearch,
       category: categoryFilter,
+      college: collegeFilter,
+      status: statusFilter,
+      academicYearId: academicYearFilter,
+      eventDate: dateFilter,
       sort: sortOrder,
       page: pagination.page,
       limit: pagination.limit
     });
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/content-feed?${params.toString()}`, {
+      const response = await fetch(`/api/admin/content-feed?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -104,11 +161,52 @@ const ContentFeed = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery, categoryFilter, sortOrder, pagination.page, pagination.limit, navigate]);
+  }, [
+    activeTab,
+    debouncedSearch,
+    categoryFilter,
+    collegeFilter,
+    statusFilter,
+    academicYearFilter,
+    dateFilter,
+    sortOrder,
+    pagination.page,
+    pagination.limit,
+    navigate
+  ]);
 
   useEffect(() => {
     fetchFeedData();
   }, [fetchFeedData]);
+
+  // Load Event Registrations & Attendance when previewing an event
+  const handleOpenPreview = async (item) => {
+    setSelectedItem(item);
+    setActiveModal('preview');
+
+    if (item.type === 'event') {
+      setEventEngagement({ loading: true, registrations: [], session: null, summary: { totalRegistered: 0, totalAttended: 0 } });
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/admin/content-feed/${item.id}/engagement`, {
+          headers: { Authorization: token ? `Bearer ${token}` : '' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setEventEngagement({
+            loading: false,
+            registrations: data.registrations || [],
+            session: data.session || null,
+            summary: data.summary || { totalRegistered: 0, totalAttended: 0 }
+          });
+        } else {
+          setEventEngagement(prev => ({ ...prev, loading: false }));
+        }
+      } catch (_) {
+        setEventEngagement(prev => ({ ...prev, loading: false }));
+      }
+    }
+  };
 
   // Handle Form Input Changes
   const handleInputChange = (e) => {
@@ -123,7 +221,7 @@ const ContentFeed = () => {
       title: item.title || '',
       description: item.description || item.body || '',
       category: item.category || 'General',
-      audience: item.audience || 'All Students',
+      audience: item.audience || 'All Campus',
       scheduled_at: item.scheduled_at ? new Date(item.scheduled_at).toISOString().slice(0, 16) : '',
       expires_at: item.expires_at ? new Date(item.expires_at).toISOString().slice(0, 16) : '',
       event_start: item.event_start ? new Date(item.event_start).toISOString().slice(0, 16) : '',
@@ -140,12 +238,11 @@ const ContentFeed = () => {
   const handleCloseModal = () => {
     setActiveModal(null);
     setSelectedItem(null);
-    setActionReason('');
     setFormData({
       title: '',
       description: '',
       category: 'General',
-      audience: 'All Students',
+      audience: 'All Campus',
       scheduled_at: '',
       expires_at: '',
       event_start: '',
@@ -163,7 +260,7 @@ const ContentFeed = () => {
     setSubmitting(true);
     const token = localStorage.getItem('token');
 
-    let endpoint = 'http://localhost:5000/api/admin/content-feed';
+    let endpoint = '/api/admin/content-feed';
     let method = 'POST';
     const payload = { ...formData };
 
@@ -172,7 +269,7 @@ const ContentFeed = () => {
     } else if (activeModal === 'create_event') {
       payload.type = 'event';
     } else if (activeModal === 'edit' && selectedItem) {
-      endpoint = `http://localhost:5000/api/admin/content-feed/${selectedItem.id}?type=${selectedItem.type}`;
+      endpoint = `/api/admin/content-feed/${selectedItem.id}?type=${selectedItem.type}`;
       method = 'PUT';
     }
 
@@ -203,31 +300,39 @@ const ContentFeed = () => {
     }
   };
 
-  // Handle Workflow Operations (Archive, Takedown, Restore)
-  const handleExecuteWorkflow = async () => {
+  // Handle Workflow Operations (Archive, Takedown, Restore, Delete)
+  const handleExecuteWorkflow = async (reasonText) => {
     if (!selectedItem) return;
-    if ((activeModal === 'takedown' || activeModal === 'archive') && !actionReason.trim()) {
-      setFeedback({ type: 'error', message: 'A valid reason is required for this action.' });
-      return;
-    }
 
     setSubmitting(true);
     const token = localStorage.getItem('token');
-    const actionType = activeModal; // 'archive', 'takedown', 'restore'
+    const actionType = activeModal; // 'archive', 'takedown', 'restore', 'delete'
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/content-feed/${selectedItem.id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({
-          type: selectedItem.type,
-          action: actionType,
-          reason: actionReason
-        })
-      });
+      let response;
+      if (actionType === 'delete') {
+        response = await fetch(`/api/admin/content-feed/${selectedItem.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          },
+          body: JSON.stringify({ reason: reasonText })
+        });
+      } else {
+        response = await fetch(`/api/admin/content-feed/${selectedItem.id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          },
+          body: JSON.stringify({
+            type: selectedItem.type,
+            action: actionType,
+            reason: reasonText
+          })
+        });
+      }
 
       const data = await response.json();
 
@@ -246,6 +351,15 @@ const ContentFeed = () => {
     }
   };
 
+  const hasActiveFilters =
+    searchQuery ||
+    categoryFilter !== 'all' ||
+    collegeFilter !== 'all' ||
+    statusFilter !== 'all' ||
+    academicYearFilter !== 'all' ||
+    dateFilter !== '' ||
+    sortOrder !== 'newest';
+
   return (
     <AdminLayout>
       <div className="content-feed-container">
@@ -253,9 +367,9 @@ const ContentFeed = () => {
         {/* ================= PAGE HEADER ================= */}
         <div className="feed-header">
           <div>
-            <h1 className="feed-title">Content Feed</h1>
+            <h1 className="feed-title">Announcements & Events</h1>
             <p className="feed-subtitle">
-              View and manage campus announcements and events in one place.
+              View, filter, publish, moderate, and manage all campus announcements, events, registrations, and attendance.
             </p>
           </div>
 
@@ -361,14 +475,14 @@ const ContentFeed = () => {
           </div>
 
           {/* Filter & Search Toolbar */}
-          <div className="feed-toolbar">
+          <div className="feed-toolbar" style={{ flexWrap: 'wrap' }}>
             
             {/* Search Field */}
-            <div className="feed-search-box">
+            <div className="feed-search-box" style={{ minWidth: '220px' }}>
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
               <input 
                 type="text" 
-                placeholder="Search by title, author, or scope..."
+                placeholder="Search title, organizer, or page..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -383,9 +497,28 @@ const ContentFeed = () => {
               )}
             </div>
 
+            {/* School Year Filter */}
+            <div className="feed-filter-item">
+              <select
+                className="feed-select"
+                value={academicYearFilter}
+                onChange={(e) => {
+                  setAcademicYearFilter(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                aria-label="Filter by School Year"
+              >
+                <option value="all">All School Years</option>
+                {academicYearsList.map(ay => (
+                  <option key={ay.id} value={ay.id}>
+                    SY {ay.label}{ay.is_active ? ' (Active)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Category Filter */}
             <div className="feed-filter-item">
-              <label htmlFor="category-select" className="sr-only">Category</label>
               <select 
                 id="category-select"
                 className="feed-select" 
@@ -396,21 +529,89 @@ const ContentFeed = () => {
                 }}
               >
                 <option value="all">All Categories</option>
-                <option value="General">General</option>
-                <option value="Academic">Academic</option>
-                <option value="Sports">Sports</option>
-                <option value="Organizations">Organizations</option>
+                {categoriesList.length > 0 ? (
+                  categoriesList.map(c => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))
+                ) : (
+                  <>
+                    <option value="General">General</option>
+                    <option value="Academic">Academic</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Campus Life">Campus Life</option>
+                    <option value="Sports">Sports</option>
+                    <option value="Scholarship">Scholarship</option>
+                  </>
+                )}
               </select>
+            </div>
+
+            {/* College / Department Filter */}
+            <div className="feed-filter-item">
+              <select
+                className="feed-select"
+                value={collegeFilter}
+                onChange={(e) => {
+                  setCollegeFilter(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                aria-label="Filter by College or Department"
+              >
+                <option value="all">All Colleges / Offices</option>
+                {collegesList.map(col => (
+                  <option key={col.id} value={col.name}>
+                    {col.code ? `${col.code} — ${col.name}` : col.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="feed-filter-item">
+              <select
+                className="feed-select"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                aria-label="Filter by Status"
+              >
+                <option value="all">All Statuses</option>
+                <option value="Published">Published</option>
+                <option value="Upcoming">Upcoming</option>
+                <option value="Ongoing">Ongoing</option>
+                <option value="Completed">Completed</option>
+                <option value="Pending">Pending</option>
+                <option value="Archived">Archived</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+
+            {/* Date Filter */}
+            <div className="feed-filter-item">
+              <input
+                type="date"
+                className="feed-select"
+                value={dateFilter}
+                onChange={(e) => {
+                  setDateFilter(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                title="Filter by Event or Publication Date"
+              />
             </div>
 
             {/* Sorting Order */}
             <div className="feed-filter-item">
-              <label htmlFor="sort-select" className="sr-only">Sort Order</label>
               <select 
                 id="sort-select"
                 className="feed-select" 
                 value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
+                onChange={(e) => {
+                  setSortOrder(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
               >
                 <option value="newest">Newest First</option>
                 <option value="oldest">Oldest First</option>
@@ -418,14 +619,19 @@ const ContentFeed = () => {
             </div>
 
             {/* Reset Filters */}
-            {(searchQuery || categoryFilter !== 'all' || sortOrder !== 'newest') && (
+            {hasActiveFilters && (
               <button 
                 type="button" 
                 className="btn-feed-link"
                 onClick={() => {
                   setSearchQuery('');
                   setCategoryFilter('all');
+                  setCollegeFilter('all');
+                  setStatusFilter('all');
+                  setAcademicYearFilter('all');
+                  setDateFilter('');
                   setSortOrder('newest');
+                  setPagination(prev => ({ ...prev, page: 1 }));
                 }}
               >
                 Reset Filters
@@ -459,161 +665,185 @@ const ContentFeed = () => {
             <i className="fa-solid fa-box-open empty-icon"></i>
             <h3 className="empty-title">No Content Records Found</h3>
             <p className="empty-desc">
-              {searchQuery || categoryFilter !== 'all' 
+              {hasActiveFilters
                 ? 'No items match your active search or filter criteria.'
                 : 'There are no items currently listed in this category view.'}
             </p>
           </div>
         ) : (
           <div className="feed-cards-grid">
-            {items.map(item => (
-              <div key={`${item.type}-${item.id}`} className="feed-item-card">
-                
-                {/* Card Top Metadata Header */}
-                <div className="card-top-bar">
-                  <div className="card-type-group">
-                    <span className={`type-badge ${item.type}`}>
-                      <i className={`fa-solid ${item.type === 'event' ? 'fa-calendar-days' : 'fa-bullhorn'}`}></i>
-                      {item.type}
-                    </span>
-                    <span className="category-pill">{item.category || 'General'}</span>
-                  </div>
+            {items.map(item => {
+              const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
+              const isTakenDown = String(item.status).toLowerCase() === 'rejected';
 
-                  <span className={`workflow-status-badge status-${item.status}`}>
-                    {item.status}
-                  </span>
-                </div>
-
-                {/* Card Title & Content Body */}
-                <h2 className="card-item-title">{item.title}</h2>
-                <p className="card-item-snippet">
-                  {item.description || item.body ? (
-                    (item.description || item.body).length > 140 
-                      ? `${(item.description || item.body).substring(0, 140)}...` 
-                      : (item.description || item.body)
-                  ) : 'No description provided.'}
-                </p>
-
-                {/* Event Specific Metadata Bar */}
-                {item.type === 'event' && (
-                  <div className="event-meta-box">
-                    <div className="meta-row">
-                      <i className="fa-regular fa-clock meta-icon"></i>
-                      <span>{item.event_start ? new Date(item.event_start).toLocaleString() : 'Date TBD'}</span>
+              return (
+                <div key={`${item.type}-${item.id}`} className="feed-item-card">
+                  
+                  {/* Card Top Metadata Header */}
+                  <div className="card-top-bar">
+                    <div className="card-type-group">
+                      <span className={`type-badge ${item.type}`}>
+                        <i className={`fa-solid ${item.type === 'event' ? 'fa-calendar-days' : 'fa-bullhorn'}`}></i>
+                        {item.type}
+                      </span>
+                      <span className="category-pill">{item.category || 'General'}</span>
+                      {item.academic_year_label && (
+                        <span className="category-pill" style={{ background: '#fff1f2', color: '#7b0d1e' }}>
+                          SY {item.academic_year_label}
+                        </span>
+                      )}
                     </div>
-                    {item.venue && (
+
+                    <span className={`workflow-status-badge status-${String(item.status).toLowerCase()}`}>
+                      {item.status}
+                    </span>
+                  </div>
+
+                  {/* Card Title & Content Body */}
+                  <h2 className="card-item-title">{item.title}</h2>
+                  <p className="card-item-snippet">
+                    {item.description || item.body ? (
+                      (item.description || item.body).length > 140 
+                        ? `${(item.description || item.body).substring(0, 140)}...` 
+                        : (item.description || item.body)
+                    ) : 'No description provided.'}
+                  </p>
+
+                  {/* Event Specific Metadata Bar */}
+                  {item.type === 'event' && (
+                    <div className="event-meta-box">
                       <div className="meta-row">
-                        <i className="fa-solid fa-location-dot meta-icon"></i>
-                        <span>{item.venue}</span>
+                        <i className="fa-regular fa-clock meta-icon"></i>
+                        <span>{item.event_start ? new Date(item.event_start).toLocaleString() : 'Date TBD'}</span>
                       </div>
-                    )}
-                  </div>
-                )}
+                      {item.venue && (
+                        <div className="meta-row">
+                          <i className="fa-solid fa-location-dot meta-icon"></i>
+                          <span>{item.venue}</span>
+                        </div>
+                      )}
+                      <div className="meta-row">
+                        <i className="fa-solid fa-users meta-icon"></i>
+                        <span>
+                          <strong>{item.registered_count || 0}</strong>{item.capacity ? `/${item.capacity}` : ''} Registered •{' '}
+                          <strong>{item.attended_count || 0}</strong> Attended
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
-                {/* Author & Creation Info */}
-                <div className="card-author-footer">
-                  <div className="author-details">
-                    <span className="author-name">{item.submitted_by || item.author_name || 'System Administrator'}</span>
-                    <span className="post-date">{new Date(item.created_at).toLocaleDateString()}</span>
-                  </div>
+                  {/* Author & Creation Info */}
+                  <div className="card-author-footer">
+                    <div className="author-details">
+                      <span className="author-name">
+                        {item.page_name || item.department_name || 'University Administration'} • {item.author_name || 'Admin'}
+                      </span>
+                      <span className="post-date">{new Date(item.created_at).toLocaleDateString()}</span>
+                    </div>
 
-                  {/* Action Buttons Toolbar */}
-                  <div className="card-actions-row">
-                    <button 
-                      type="button" 
-                      className="card-icon-btn" 
-                      title="View Details"
-                      onClick={() => {
-                        setSelectedItem(item);
-                        setActiveModal('preview');
-                      }}
-                    >
-                      <i className="fa-solid fa-eye"></i>
-                    </button>
-
-                    {item.status !== 'takedown' && (
+                    {/* Action Buttons Toolbar */}
+                    <div className="card-actions-row" style={{ flexWrap: 'wrap', gap: '0.35rem' }}>
                       <button 
                         type="button" 
                         className="card-icon-btn" 
+                        style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                        title="View Details & Attendance"
+                        onClick={() => handleOpenPreview(item)}
+                      >
+                        <i className="fa-solid fa-eye"></i>
+                        <span>View</span>
+                      </button>
+
+                      <button 
+                        type="button" 
+                        className="card-icon-btn" 
+                        style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
                         title="Edit Record"
                         onClick={() => handleOpenEdit(item)}
                       >
                         <i className="fa-solid fa-pen-to-square"></i>
+                        <span>Edit</span>
                       </button>
-                    )}
 
-                    {item.status === 'archived' ? (
-                      <button 
-                        type="button" 
-                        className="card-icon-btn text-emerald" 
-                        title="Restore Item"
-                        onClick={() => {
-                          setSelectedItem(item);
-                          setActiveModal('restore');
-                        }}
-                      >
-                        <i className="fa-solid fa-rotate-left"></i>
-                      </button>
-                    ) : item.status !== 'takedown' && (
-                      <button 
-                        type="button" 
-                        className="card-icon-btn text-amber" 
-                        title="Archive Item"
-                        onClick={() => {
-                          setSelectedItem(item);
-                          setActiveModal('archive');
-                        }}
-                      >
-                        <i className="fa-solid fa-box-archive"></i>
-                      </button>
-                    )}
+                      {isArchived || isTakenDown ? (
+                        <button 
+                          type="button" 
+                          className="card-icon-btn text-emerald" 
+                          style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                          title="Restore Item"
+                          onClick={() => {
+                            setSelectedItem(item);
+                            setActiveModal('restore');
+                          }}
+                        >
+                          <i className="fa-solid fa-rotate-left"></i>
+                          <span>Restore</span>
+                        </button>
+                      ) : (
+                        <>
+                          <button 
+                            type="button" 
+                            className="card-icon-btn text-amber" 
+                            style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                            title="Archive Item"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setActiveModal('archive');
+                            }}
+                          >
+                            <i className="fa-solid fa-box-archive"></i>
+                            <span>Archive</span>
+                          </button>
+                          <button 
+                            type="button" 
+                            className="card-icon-btn text-rose" 
+                            style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                            title="Take Down (Moderate)"
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setActiveModal('takedown');
+                            }}
+                          >
+                            <i className="fa-solid fa-shield-halved"></i>
+                            <span>Take Down</span>
+                          </button>
+                        </>
+                      )}
 
-                    {item.status !== 'takedown' && (
-                      <button 
-                        type="button" 
-                        className="card-icon-btn text-rose" 
-                        title="Take Down (Moderate)"
+                      <button
+                        type="button"
+                        className="card-icon-btn text-rose"
+                        style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                        title="Permanently Delete Record"
                         onClick={() => {
                           setSelectedItem(item);
-                          setActiveModal('takedown');
+                          setActiveModal('delete');
                         }}
                       >
-                        <i className="fa-solid fa-shield-halved"></i>
+                        <i className="fa-solid fa-trash-can"></i>
+                        <span>Delete</span>
                       </button>
-                    )}
+                    </div>
                   </div>
-                </div>
 
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {/* ================= PAGINATION BAR ================= */}
-        {!loading && items.length > 0 && (
-          <div className="feed-pagination-bar">
-            <span className="pagination-text">
-              Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} total items)
-            </span>
-            <div className="pagination-btn-group">
-              <button 
-                type="button" 
-                className="btn-pagination"
-                disabled={pagination.page <= 1}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              >
-                Previous
-              </button>
-              <button 
-                type="button" 
-                className="btn-pagination"
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+        {/* ================= GLOBAL PAGINATION BAR (PART 5) ================= */}
+        {!loading && (
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            totalRecords={pagination.total}
+            pageSize={pagination.limit}
+            onPageChange={(nextPage) => setPagination(prev => ({ ...prev, page: nextPage }))}
+            onPageSizeChange={(nextLimit) => setPagination(prev => ({ ...prev, limit: nextLimit, page: 1 }))}
+            loading={loading}
+            itemLabel="posts"
+          />
         )}
 
         {/* ================= MODALS & DRAWERS ================= */}
@@ -676,10 +906,20 @@ const ContentFeed = () => {
                       onChange={handleInputChange}
                       className="modal-select"
                     >
-                      <option value="General">General</option>
-                      <option value="Academic">Academic</option>
-                      <option value="Sports">Sports</option>
-                      <option value="Organizations">Organizations</option>
+                      {categoriesList.length > 0 ? (
+                        categoriesList.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="General">General</option>
+                          <option value="Academic">Academic</option>
+                          <option value="Urgent">Urgent</option>
+                          <option value="Campus Life">Campus Life</option>
+                          <option value="Sports">Sports</option>
+                          <option value="Scholarship">Scholarship</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
@@ -692,6 +932,7 @@ const ContentFeed = () => {
                       onChange={handleInputChange}
                       className="modal-select"
                     >
+                      <option value="All Campus">All Campus</option>
                       <option value="All Students">All Students</option>
                       <option value="Staff Only">Staff Only</option>
                       <option value="University-Wide">University-Wide</option>
@@ -754,6 +995,33 @@ const ContentFeed = () => {
                         />
                       </div>
                     </div>
+
+                    <div className="form-row">
+                      <div className="form-group flex-1">
+                        <label htmlFor="event-capacity">Registration Capacity</label>
+                        <input
+                          id="event-capacity"
+                          type="number"
+                          min="0"
+                          name="capacity"
+                          value={formData.capacity}
+                          onChange={handleInputChange}
+                          placeholder="e.g. 200"
+                          className="modal-input"
+                        />
+                      </div>
+                      <div className="form-group flex-1">
+                        <label htmlFor="event-deadline">Registration Deadline</label>
+                        <input
+                          id="event-deadline"
+                          type="datetime-local"
+                          name="reg_deadline"
+                          value={formData.reg_deadline}
+                          onChange={handleInputChange}
+                          className="modal-input"
+                        />
+                      </div>
+                    </div>
                   </>
                 )}
 
@@ -786,10 +1054,10 @@ const ContentFeed = () => {
           </div>
         )}
 
-        {/* 2. PREVIEW DETAILS MODAL */}
+        {/* 2. PREVIEW DETAILS & EVENT REGISTRATION/ATTENDANCE MODAL */}
         {activeModal === 'preview' && selectedItem && (
           <div className="modal-backdrop">
-            <div className="modal-container-card">
+            <div className="modal-container-card" style={{ maxWidth: '680px' }}>
               <div className="modal-card-header">
                 <div>
                   <span className={`type-badge ${selectedItem.type}`}>
@@ -802,11 +1070,13 @@ const ContentFeed = () => {
                 </button>
               </div>
 
-              <div className="preview-modal-body">
+              <div className="preview-modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
                 <div className="preview-meta-list">
                   <div><strong>Category:</strong> {selectedItem.category || 'General'}</div>
-                  <div><strong>Audience:</strong> {selectedItem.audience || 'All Students'}</div>
-                  <div><strong>Status:</strong> <span className={`workflow-status-badge status-${selectedItem.status}`}>{selectedItem.status}</span></div>
+                  <div><strong>Audience:</strong> {selectedItem.audience || 'All Campus'}</div>
+                  <div><strong>School Year:</strong> {selectedItem.academic_year_label || 'Active Period'}</div>
+                  <div><strong>Source / Unit:</strong> {selectedItem.page_name || selectedItem.department_name || 'University Administration'}</div>
+                  <div><strong>Status:</strong> <span className={`workflow-status-badge status-${String(selectedItem.status).toLowerCase()}`}>{selectedItem.status}</span></div>
                   <div><strong>Author:</strong> {selectedItem.submitted_by || selectedItem.author_name || 'Administrator'}</div>
                   <div><strong>Date Created:</strong> {new Date(selectedItem.created_at).toLocaleString()}</div>
                 </div>
@@ -817,6 +1087,7 @@ const ContentFeed = () => {
                     <div><strong>End:</strong> {selectedItem.event_end ? new Date(selectedItem.event_end).toLocaleString() : 'N/A'}</div>
                     <div><strong>Venue:</strong> {selectedItem.venue || 'N/A'}</div>
                     <div><strong>Organizer:</strong> {selectedItem.organizer || 'N/A'}</div>
+                    <div><strong>Capacity:</strong> {selectedItem.capacity || 'Unlimited'}</div>
                   </div>
                 )}
 
@@ -826,6 +1097,62 @@ const ContentFeed = () => {
                     {selectedItem.description || selectedItem.body || 'No detailed content available.'}
                   </p>
                 </div>
+
+                {/* Event Registrations & Attendance Inspection (Part 11) */}
+                {selectedItem.type === 'event' && (
+                  <div style={{ marginTop: '1.25rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                      <h4 style={{ margin: 0, color: '#0f172a', fontSize: '0.95rem' }}>
+                        <i className="fa-solid fa-clipboard-user" style={{ color: '#7b0d1e', marginRight: '6px' }}></i>
+                        Event Registrations & Attendance ({eventEngagement.summary.totalRegistered} Registered • {eventEngagement.summary.totalAttended} Attended)
+                      </h4>
+                      {eventEngagement.session && (
+                        <span className="category-pill">
+                          QR Session: {eventEngagement.session.status}
+                        </span>
+                      )}
+                    </div>
+
+                    {eventEngagement.loading ? (
+                      <p style={{ fontSize: '0.82rem', color: '#64748b' }}>Loading registration & attendance records...</p>
+                    ) : eventEngagement.registrations.length === 0 ? (
+                      <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0 }}>
+                        No student registrations recorded for this event yet.
+                      </p>
+                    ) : (
+                      <div style={{ overflowX: 'auto', maxHeight: '220px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                          <thead>
+                            <tr style={{ background: '#f8fafc', textAlign: 'left', color: '#475569' }}>
+                              <th style={{ padding: '0.5rem' }}>Student</th>
+                              <th style={{ padding: '0.5rem' }}>Student ID</th>
+                              <th style={{ padding: '0.5rem' }}>College</th>
+                              <th style={{ padding: '0.5rem' }}>Attendance</th>
+                              <th style={{ padding: '0.5rem' }}>Check-in Time</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {eventEngagement.registrations.map((reg) => (
+                              <tr key={reg.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '0.5rem', fontWeight: 600 }}>{reg.student_name}</td>
+                                <td style={{ padding: '0.5rem' }}>{reg.student_number}</td>
+                                <td style={{ padding: '0.5rem' }}>{reg.college}</td>
+                                <td style={{ padding: '0.5rem' }}>
+                                  <span style={{ fontWeight: 700, color: ['PRESENT', 'LATE'].includes(String(reg.attendance_status).toUpperCase()) ? '#059669' : '#64748b' }}>
+                                    {reg.attendance_status || reg.registration_status || 'Registered'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '0.5rem', color: '#64748b' }}>
+                                  {reg.checkin_time ? new Date(reg.checkin_time).toLocaleString() : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer-actions">
@@ -837,58 +1164,52 @@ const ContentFeed = () => {
           </div>
         )}
 
-        {/* 3. WORKFLOW ACTION MODAL (Archive / Takedown / Restore) */}
-        {(activeModal === 'archive' || activeModal === 'takedown' || activeModal === 'restore') && selectedItem && (
-          <div className="modal-backdrop">
-            <div className="modal-container-card small-modal">
-              <div className="modal-card-header">
-                <h2 className="modal-card-title">
-                  {activeModal === 'archive' && 'Archive Content'}
-                  {activeModal === 'takedown' && 'Take Down Content'}
-                  {activeModal === 'restore' && 'Restore Content'}
-                </h2>
-                <button type="button" className="close-modal-btn" onClick={handleCloseModal}>
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
-              </div>
-
-              <div className="modal-form-body">
-                <p style={{ fontSize: '0.875rem', color: '#475569', marginBottom: '1rem' }}>
-                  Are you sure you want to execute <strong>{activeModal}</strong> for "<strong>{selectedItem.title}</strong>"?
-                </p>
-
-                {(activeModal === 'archive' || activeModal === 'takedown') && (
-                  <div className="form-group">
-                    <label htmlFor="action-reason">Reason for {activeModal} *</label>
-                    <textarea 
-                      id="action-reason"
-                      rows="3"
-                      required
-                      value={actionReason}
-                      onChange={(e) => setActionReason(e.target.value)}
-                      placeholder={`State why this content is being ${activeModal === 'archive' ? 'archived' : 'taken down'}...`}
-                      className="modal-textarea"
-                    ></textarea>
-                  </div>
-                )}
-
-                <div className="modal-footer-actions">
-                  <button type="button" className="btn-feed-secondary" onClick={handleCloseModal}>
-                    Cancel
-                  </button>
-                  <button 
-                    type="button" 
-                    className={`btn-feed-primary ${activeModal === 'takedown' ? 'danger-btn' : ''}`}
-                    disabled={submitting}
-                    onClick={handleExecuteWorkflow}
-                  >
-                    {submitting ? 'Processing...' : `Confirm ${activeModal}`}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 3. GLOBAL REUSABLE CONFIRMATION MODAL FOR ARCHIVE / TAKEDOWN / RESTORE / DELETE (PART 6) */}
+        <ConfirmationModal
+          isOpen={['archive', 'takedown', 'restore', 'delete'].includes(activeModal) && Boolean(selectedItem)}
+          title={
+            activeModal === 'archive'
+              ? 'Archive Content?'
+              : activeModal === 'takedown'
+              ? 'Take Down Content?'
+              : activeModal === 'delete'
+              ? 'Permanently Delete Content?'
+              : 'Restore Content?'
+          }
+          itemName={selectedItem?.title || ''}
+          itemSubtitle={selectedItem ? `${String(selectedItem.type).toUpperCase()} • ${selectedItem.page_name || 'Campus Page'}` : ''}
+          variant={
+            activeModal === 'takedown' || activeModal === 'delete'
+              ? 'danger'
+              : activeModal === 'archive'
+              ? 'warning'
+              : 'success'
+          }
+          confirmText={
+            activeModal === 'archive'
+              ? 'Confirm Archive'
+              : activeModal === 'takedown'
+              ? 'Confirm Takedown'
+              : activeModal === 'delete'
+              ? 'Confirm Delete'
+              : 'Confirm Restore'
+          }
+          requireReason={activeModal === 'archive' || activeModal === 'takedown' || activeModal === 'delete'}
+          reasonLabel={`Reason for ${activeModal || 'action'}`}
+          reasonPlaceholder={`Provide a clear reason for audit logs...`}
+          loading={submitting}
+          message={
+            activeModal === 'archive'
+              ? `This will move "${selectedItem?.title}" to the Historical Archives while preserving all associated data.`
+              : activeModal === 'takedown'
+              ? `This will immediately remove "${selectedItem?.title}" from active campus feeds and mark it as Rejected.`
+              : activeModal === 'delete'
+              ? `Are you sure you want to permanently delete "${selectedItem?.title}"? For historical preservation, archiving is recommended unless this record is inappropriate or invalid.`
+              : `This will restore "${selectedItem?.title}" back to active campus visibility.`
+          }
+          onConfirm={handleExecuteWorkflow}
+          onCancel={handleCloseModal}
+        />
 
       </div>
     </AdminLayout>

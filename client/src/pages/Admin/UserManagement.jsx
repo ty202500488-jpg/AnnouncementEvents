@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
+import Pagination from '../../assets/components/Pagination';
+import ConfirmationModal from '../../assets/components/ConfirmationModal';
+import SearchableUserSelect from '../../assets/components/SearchableUserSelect';
 import '../styles/UserManagement.css';
 
 const UserManagement = () => {
@@ -12,12 +15,15 @@ const UserManagement = () => {
 
   // Shared Search & Pagination State
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [collegeFilter, setCollegeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || 'all');
   const [sortOrder, setSortOrder] = useState('newest');
 
   // Data States
   const [users, setUsers] = useState([]);
+  const [collegesList, setCollegesList] = useState([]);
   const [verificationQueue, setVerificationQueue] = useState([]);
   const [staffAssignments, setStaffAssignments] = useState([]);
   const [eligibleUsersList, setEligibleUsersList] = useState([]);
@@ -31,14 +37,23 @@ const UserManagement = () => {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
 
   // Modal & Drawer States
-  const [activeModal, setActiveModal] = useState(null); // 'user_details', 'verify_review', 'grant_staff', 'revoke_staff', 'edit_user'
+  const [activeModal, setActiveModal] = useState(null); // 'user_details', 'verify_review', 'grant_staff', 'revoke_staff', 'account_status'
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedStaffItem, setSelectedStaffItem] = useState(null);
+  const [pendingAccountAction, setPendingAccountAction] = useState(''); // 'activate', 'suspend', 'archive'
 
   // Form States
   const [reviewReason, setReviewReason] = useState('');
   const [grantFormData, setGrantFormData] = useState({ userId: '', pageId: '', roleScope: 'page_editor' });
   const [editFormData, setEditFormData] = useState({ firstName: '', lastName: '', studentId: '', college: '', program: '' });
+
+  // Debounce search query (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Update tab in URL query when switched
   const handleTabChange = (tabName) => {
@@ -56,8 +71,9 @@ const UserManagement = () => {
 
     const queryParams = new URLSearchParams({
       tab: activeTab,
-      search: searchQuery,
+      search: debouncedSearch,
       role: roleFilter,
+      college: collegeFilter,
       status: statusFilter,
       sort: sortOrder,
       page: pagination.page,
@@ -65,7 +81,7 @@ const UserManagement = () => {
     });
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/users?${queryParams.toString()}`, {
+      const response = await fetch(`/api/admin/users?${queryParams.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -83,6 +99,9 @@ const UserManagement = () => {
       const data = await response.json();
 
       if (response.ok) {
+        if (data.colleges) {
+          setCollegesList(data.colleges);
+        }
         if (activeTab === 'all') {
           setUsers(data.users || []);
         } else if (activeTab === 'verification') {
@@ -107,7 +126,7 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery, roleFilter, statusFilter, sortOrder, pagination.page, pagination.limit, navigate]);
+  }, [activeTab, debouncedSearch, roleFilter, collegeFilter, statusFilter, sortOrder, pagination.page, pagination.limit, navigate]);
 
   useEffect(() => {
     fetchTabData();
@@ -125,7 +144,7 @@ const UserManagement = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/users/${selectedUser.id}/verify`, {
+      const response = await fetch(`/api/admin/users/${selectedUser.id}/verify`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -161,7 +180,7 @@ const UserManagement = () => {
     const token = localStorage.getItem('token');
     try {
       const response = await fetch(
-        `http://localhost:5000/api/admin/documents/view?userId=${encodeURIComponent(userId)}&type=${encodeURIComponent(docType)}`,
+        `/api/admin/documents/view?userId=${encodeURIComponent(userId)}&type=${encodeURIComponent(docType)}`,
         {
           headers: {
             'Authorization': token ? `Bearer ${token}` : ''
@@ -193,7 +212,7 @@ const UserManagement = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/staff-access', {
+      const response = await fetch('/api/admin/staff-access', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,7 +246,7 @@ const UserManagement = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/staff-access/${selectedStaffItem.id}`, {
+      const response = await fetch(`/api/admin/staff-access/${selectedStaffItem.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -247,6 +266,44 @@ const UserManagement = () => {
       }
     } catch (err) {
       console.error('Revoke Staff Error:', err);
+      setFeedback({ type: 'error', message: err.message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Activate / Suspend / Archive User Account
+  const handleExecuteAccountStatusChange = async (reasonText) => {
+    if (!selectedUser || !pendingAccountAction) return;
+    setSubmitting(true);
+    const token = localStorage.getItem('token');
+
+    try {
+      const response = await fetch(`/api/admin/users/${selectedUser.id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({
+          action: pendingAccountAction,
+          reason: reasonText
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setFeedback({ type: 'success', message: data.message || 'User account status updated.' });
+        setActiveModal(null);
+        setSelectedUser(null);
+        setPendingAccountAction('');
+        fetchTabData();
+      } else {
+        throw new Error(data.message || 'Failed to update user account status.');
+      }
+    } catch (err) {
+      console.error('Account Status Update Error:', err);
       setFeedback({ type: 'error', message: err.message });
     } finally {
       setSubmitting(false);
@@ -366,34 +423,79 @@ const UserManagement = () => {
               </div>
             )}
 
-            {/* Role Filter for All Users */}
+            {/* Role & Account Status Filter for All Users */}
             {activeTab === 'all' && (
+              <>
+                <div className="um-filter-item">
+                  <select 
+                    className="um-select" 
+                    value={roleFilter}
+                    onChange={(e) => {
+                      setRoleFilter(e.target.value);
+                      setPagination(prev => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="student">Student</option>
+                    <option value="staff">Staff</option>
+                    <option value="admin">Administrator</option>
+                  </select>
+                </div>
+
+                <div className="um-filter-item">
+                  <select 
+                    className="um-select" 
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setPagination(prev => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <option value="all">All Account Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Suspended">Suspended</option>
+                    <option value="Archived">Archived</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* College Filter for All Users & Verification */}
+            {(activeTab === 'all' || activeTab === 'verification') && (
               <div className="um-filter-item">
                 <select 
                   className="um-select" 
-                  value={roleFilter}
+                  value={collegeFilter}
                   onChange={(e) => {
-                    setRoleFilter(e.target.value);
+                    setCollegeFilter(e.target.value);
                     setPagination(prev => ({ ...prev, page: 1 }));
                   }}
                 >
-                  <option value="all">All Roles</option>
-                  <option value="student">Student</option>
-                  <option value="staff">Staff</option>
-                  <option value="admin">Administrator</option>
+                  <option value="all">All Colleges</option>
+                  {collegesList.map((col, idx) => {
+                    const colName = typeof col === 'string' ? col : col.name;
+                    const colCode = typeof col === 'string' ? '' : col.code;
+                    return (
+                      <option key={col.id || idx} value={colName}>
+                        {colCode ? `${colCode} — ${colName}` : colName}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}
 
             {/* Reset Action */}
-            {(searchQuery || roleFilter !== 'all' || (statusFilter !== 'all' && statusFilter !== 'pending')) && (
+            {(searchQuery || roleFilter !== 'all' || collegeFilter !== 'all' || (statusFilter !== 'all' && statusFilter !== 'pending')) && (
               <button 
                 type="button" 
                 className="btn-um-link"
                 onClick={() => {
                   setSearchQuery('');
                   setRoleFilter('all');
+                  setCollegeFilter('all');
                   setStatusFilter('all');
+                  setPagination(prev => ({ ...prev, page: 1 }));
                 }}
               >
                 Clear Filters
@@ -467,16 +569,47 @@ const UserManagement = () => {
                         </td>
                         <td className="text-slate-500">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="text-right">
-                          <button 
-                            type="button" 
-                            className="btn-table-action"
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setActiveModal('user_details');
-                            }}
-                          >
-                            Details
-                          </button>
+                          <div style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
+                            <button 
+                              type="button" 
+                              className="btn-table-action"
+                              onClick={() => {
+                                setSelectedUser(u);
+                                setActiveModal('user_details');
+                              }}
+                            >
+                              Details
+                            </button>
+                            {u.role !== 'admin' && (
+                              String(u.status || 'Active').toLowerCase() === 'suspended' ? (
+                                <button
+                                  type="button"
+                                  className="btn-table-action primary"
+                                  title="Reactivate Account"
+                                  onClick={() => {
+                                    setSelectedUser(u);
+                                    setPendingAccountAction('activate');
+                                    setActiveModal('account_status');
+                                  }}
+                                >
+                                  Activate
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn-table-action danger"
+                                  title="Suspend Account"
+                                  onClick={() => {
+                                    setSelectedUser(u);
+                                    setPendingAccountAction('suspend');
+                                    setActiveModal('account_status');
+                                  }}
+                                >
+                                  Suspend
+                                </button>
+                              )
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -611,29 +744,14 @@ const UserManagement = () => {
 
         {/* ================= PAGINATION BAR ================= */}
         {!loading && (users.length > 0 || verificationQueue.length > 0 || staffAssignments.length > 0) && (
-          <div className="um-pagination-bar">
-            <span className="pagination-info">
-              Page {pagination.page} of {pagination.totalPages} ({pagination.total} records)
-            </span>
-            <div className="pagination-actions">
-              <button 
-                type="button" 
-                className="btn-pagination"
-                disabled={pagination.page <= 1}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              >
-                Previous
-              </button>
-              <button 
-                type="button" 
-                className="btn-pagination"
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            totalRecords={pagination.total}
+            rowsPerPage={pagination.limit}
+            onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+            onRowsPerPageChange={(limit) => setPagination(prev => ({ ...prev, limit, page: 1 }))}
+          />
         )}
 
         {/* ================= MODALS & DRAWERS ================= */}
@@ -787,21 +905,18 @@ const UserManagement = () => {
               <form onSubmit={handleGrantStaffAccess} className="modal-body">
                 
                 <div className="form-group">
-                  <label htmlFor="select-user">Select Eligible User *</label>
-                  <select 
-                    id="select-user"
-                    className="um-select" 
+                  <SearchableUserSelect
+                    label="Select Eligible User"
                     required
+                    disabled={submitting}
+                    users={eligibleUsersList}
                     value={grantFormData.userId}
-                    onChange={(e) => setGrantFormData(prev => ({ ...prev, userId: e.target.value }))}
-                  >
-                    <option value="">-- Choose User --</option>
-                    {eligibleUsersList.map(u => (
-                      <option key={u.id} value={u.id}>
-                        {u.first_name} {u.last_name} ({u.email})
-                      </option>
-                    ))}
-                  </select>
+                    excludeUserIds={staffAssignments
+                      .filter((sa) => grantFormData.pageId && String(sa.page_id) === String(grantFormData.pageId))
+                      .map((sa) => sa.user_id)}
+                    onChange={(userId) => setGrantFormData(prev => ({ ...prev, userId }))}
+                    placeholder="Search user by name, WMSU email, or Student ID..."
+                  />
                 </div>
 
                 <div className="form-group">
@@ -850,34 +965,44 @@ const UserManagement = () => {
         )}
 
         {/* 3. REVOKE STAFF ACCESS CONFIRMATION MODAL */}
-        {activeModal === 'revoke_staff' && selectedStaffItem && (
-          <div className="um-modal-backdrop">
-            <div className="um-modal-card small-modal">
-              <div className="modal-header">
-                <h2>Revoke Staff Access</h2>
-                <button type="button" className="close-btn" onClick={() => setActiveModal(null)}>
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
-              </div>
+        <ConfirmationModal
+          isOpen={activeModal === 'revoke_staff' && Boolean(selectedStaffItem)}
+          title="Revoke Staff Access?"
+          message={
+            selectedStaffItem
+              ? `Are you sure you want to revoke Staff management permissions for ${selectedStaffItem.first_name} ${selectedStaffItem.last_name} from "${selectedStaffItem.page_name}"? This immediately restricts their staff editing rights without deleting their user account.`
+              : ''
+          }
+          variant="danger"
+          confirmText="Confirm Revoke"
+          cancelText="Cancel"
+          loading={submitting}
+          onCancel={() => setActiveModal(null)}
+          onConfirm={handleRevokeStaffAccess}
+        />
 
-              <div className="modal-body">
-                <p>
-                  Are you sure you want to revoke Staff management permissions for <strong>{selectedStaffItem.first_name} {selectedStaffItem.last_name}</strong> from <strong>{selectedStaffItem.page_name}</strong>?
-                </p>
-                <span className="warning-note">This action will immediately restrict their staff editing rights without deleting their user account.</span>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn-um-secondary" onClick={() => setActiveModal(null)}>
-                  Cancel
-                </button>
-                <button type="button" className="btn-um-rose" disabled={submitting} onClick={handleRevokeStaffAccess}>
-                  {submitting ? 'Revoking...' : 'Confirm Revoke'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 3B. ACCOUNT STATUS CONFIRMATION MODAL */}
+        <ConfirmationModal
+          isOpen={activeModal === 'account_status' && Boolean(selectedUser)}
+          title={pendingAccountAction === 'suspend' ? 'Suspend User Account?' : 'Activate User Account?'}
+          message={
+            selectedUser
+              ? `Are you sure you want to ${pendingAccountAction} the account of ${selectedUser.first_name} ${selectedUser.last_name} (${selectedUser.email})?`
+              : ''
+          }
+          variant={pendingAccountAction === 'suspend' ? 'danger' : 'success'}
+          confirmText={pendingAccountAction === 'suspend' ? 'Confirm Suspend' : 'Confirm Activate'}
+          cancelText="Cancel"
+          requireReason={pendingAccountAction === 'suspend'}
+          reasonLabel="Reason for Account Suspension *"
+          reasonPlaceholder="Specify reason for suspending this user account..."
+          loading={submitting}
+          onCancel={() => {
+            setActiveModal(null);
+            setPendingAccountAction('');
+          }}
+          onConfirm={(reasonText) => handleExecuteAccountStatusChange(reasonText)}
+        />
 
         {/* 4. USER DETAILS MODAL */}
         {activeModal === 'user_details' && selectedUser && (

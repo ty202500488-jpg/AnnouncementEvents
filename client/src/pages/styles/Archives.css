@@ -540,6 +540,9 @@ TABLE & CONTAINER
 .archives-page .archives-badge-announcement { background-color: #eff6ff; color: #1d4ed8; }
 .archives-page .archives-badge-event { background-color: #fefce8; color: #a16207; }
 .archives-page .archives-badge-page { background-color: #f3e8ff; color: #7e22ce; }
+.archives-page .archives-badge-registration { background-color: #ecfdf5; color: #047857; }
+.archives-page .archives-badge-attendance { background-color: #f0f9ff; color: #0369a1; }
+.archives-page .archives-badge-moderation { background-color: #fef2f2; color: #b91c1c; }
 .archives-page .archives-badge-archived { background-color: #f1f5f9; color: #475569; }
 
 .archives-page .archives-reason-tag {
@@ -826,7 +829,8 @@ MODALS (STRICTLY SCOPED)
 /* Mobile Breakpoint */
 @media (max-width: 768px) {
   .archives-page .archives-table-responsive {
-    display: none;
+    display: block;
+    overflow-x: auto;
   }
   .archives-modal-overlay .archives-detail-grid {
     grid-template-columns: 1fr;

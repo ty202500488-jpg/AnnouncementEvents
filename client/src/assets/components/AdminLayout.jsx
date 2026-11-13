@@ -70,26 +70,25 @@ const AdminLayout = ({ children }) => {
     {
       title: 'Main Menu',
       items: [
-        { label: 'Overview', path: '/admin', icon: 'fa-solid fa-chart-pie' },
-        { label: 'Content Feed', path: '/admin/content-feed', icon: 'fa-solid fa-newspaper' },
-        { label: 'User Management', path: '/admin/users', icon: 'fa-solid fa-users' },
-        { label: 'Page Management', path: '/admin/pages', icon: 'fa-solid fa-layer-group' },
+        { label: 'Overview', path: '/admin', aliases: ['/admin', '/admin/dashboard'], icon: 'fa-solid fa-chart-pie' },
+        { label: 'Announcements & Events', path: '/admin/content-feed', aliases: ['/admin/content-feed'], icon: 'fa-solid fa-newspaper' },
+        { label: 'Post Approvals', path: '/admin/post-approval', aliases: ['/admin/post-approval', '/admin/posts', '/admin/moderation'], icon: 'fa-solid fa-file-circle-check' },
+        { label: 'Page Management', path: '/admin/pages', aliases: ['/admin/pages'], icon: 'fa-solid fa-layer-group' },
+        { label: 'User Management', path: '/admin/users', aliases: ['/admin/users'], icon: 'fa-solid fa-users' },
       ],
     },
     {
-      title: 'Content Workflow',
+      title: 'Records & Analytics',
       items: [
-        { label: 'Post Approval', path: '/admin/post-approval', icon: 'fa-solid fa-file-circle-check' },
-        { label: 'Content Moderation', path: '/admin/moderation', icon: 'fa-solid fa-shield-halved' },
-        { label: 'Archives', path: '/admin/archives', icon: 'fa-solid fa-box-archive' },
+        { label: 'Archives', path: '/admin/archives', aliases: ['/admin/archives'], icon: 'fa-solid fa-box-archive' },
+        { label: 'Reports & Statistics', path: '/admin/reports', aliases: ['/admin/reports'], icon: 'fa-solid fa-chart-line' },
+        { label: 'Audit Logs', path: '/admin/audit-logs', aliases: ['/admin/audit-logs'], icon: 'fa-solid fa-clipboard-list' },
       ],
     },
     {
-      title: 'System Administration',
+      title: 'Configuration',
       items: [
-        { label: 'Reports', path: '/admin/reports', icon: 'fa-solid fa-chart-line' },
-        { label: 'Audit Logs', path: '/admin/audit-logs', icon: 'fa-solid fa-clipboard-list' },
-        { label: 'Settings', path: '/admin/settings', icon: 'fa-solid fa-sliders' },
+        { label: 'System Settings', path: '/admin/settings', aliases: ['/admin/settings'], icon: 'fa-solid fa-sliders' },
       ],
     },
   ];
@@ -227,7 +226,9 @@ const AdminLayout = ({ children }) => {
                 <div className="nav-section-title">{section.title}</div>
                 <ul className="nav-list">
                   {section.items.map((item, itemIdx) => {
-                    const isActive = location.pathname === item.path;
+                    const isActive = item.aliases
+                      ? item.aliases.includes(location.pathname)
+                      : location.pathname === item.path;
                     return (
                       <li key={itemIdx}>
                         <Link

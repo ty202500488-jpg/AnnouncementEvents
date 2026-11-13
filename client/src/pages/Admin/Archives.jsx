@@ -1,16 +1,24 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout'; // Import existing AdminLayout
+import Pagination from '../../assets/components/Pagination';
+import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import '../styles/Archives.css';
 
 const Archives = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // State Management
   const [loading, setLoading] = useState(true);
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [summaryError, setSummaryError] = useState(false);
 
-  // Summary counts state
+  // Summary counts & School Years state
+  const [academicYears, setAcademicYears] = useState([]);
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState(
+    searchParams.get('academicYearId') || 'ALL'
+  );
   const [summary, setSummary] = useState({
     totalArchived: 0,
     announcements: 0,
@@ -67,11 +75,17 @@ const Archives = () => {
   const fetchArchiveSummary = useCallback(async () => {
     setSummaryError(false);
     try {
-      const res = await fetch('/api/admin/archives/summary', {
+      const qs = selectedAcademicYear && selectedAcademicYear !== 'ALL'
+        ? `?academicYearId=${encodeURIComponent(selectedAcademicYear)}`
+        : '';
+      const res = await fetch(`/api/admin/archives/summary${qs}`, {
         headers: getAuthHeaders(),
       });
       if (!res.ok) throw new Error('Failed to fetch summary counts');
       const data = await res.json();
+      if (data.academicYears) {
+        setAcademicYears(data.academicYears);
+      }
       setSummary({
         totalArchived: data.totalArchived || 0,
         announcements: data.announcements || 0,
@@ -83,21 +97,23 @@ const Archives = () => {
       console.error('Summary fetch error:', err);
       setSummaryError(true);
     }
-  }, []);
+  }, [selectedAcademicYear]);
 
   // Fetch Paginated & Filtered Archive Records
   const fetchArchivedRecords = useCallback(
-    async (page = 1) => {
+    async (page = 1, customLimit) => {
       setRecordsLoading(true);
       setError(null);
+      const effectiveLimit = customLimit || pagination.limit;
       try {
         const queryParams = new URLSearchParams({
           page: page.toString(),
-          limit: pagination.limit.toString(),
+          limit: effectiveLimit.toString(),
           search: debouncedSearch,
           category: activeCategory,
           type: recordTypeFilter,
           reason: reasonFilter,
+          academicYearId: selectedAcademicYear,
           dateFrom,
           dateTo,
           sort: sortBy,
@@ -112,12 +128,20 @@ const Archives = () => {
         }
 
         const data = await res.json();
-        setRecords(data.records || []);
+        const incoming = Array.isArray(data.records) ? data.records : [];
+        const seenKeys = new Set();
+        const uniqueRecords = incoming.filter((r) => {
+          const k = r.uid || `${r.type || 'POST'}-${r.id}`;
+          if (seenKeys.has(k)) return false;
+          seenKeys.add(k);
+          return true;
+        });
+        setRecords(uniqueRecords);
         setPagination({
           currentPage: data.currentPage || 1,
           totalPages: data.totalPages || 1,
           totalRecords: data.totalRecords || 0,
-          limit: data.limit || 10,
+          limit: data.limit || effectiveLimit,
         });
       } catch (err) {
         console.error('Records fetch error:', err);
@@ -127,7 +151,7 @@ const Archives = () => {
         setLoading(false);
       }
     },
-    [debouncedSearch, activeCategory, recordTypeFilter, reasonFilter, dateFrom, dateTo, sortBy, pagination.limit]
+    [debouncedSearch, activeCategory, recordTypeFilter, reasonFilter, selectedAcademicYear, dateFrom, dateTo, sortBy, pagination.limit]
   );
 
   // Trigger Data Loads
@@ -137,7 +161,7 @@ const Archives = () => {
 
   useEffect(() => {
     fetchArchivedRecords(1);
-  }, [debouncedSearch, activeCategory, recordTypeFilter, reasonFilter, dateFrom, dateTo, sortBy]);
+  }, [debouncedSearch, activeCategory, recordTypeFilter, reasonFilter, selectedAcademicYear, dateFrom, dateTo, sortBy]);
 
   const handleRefresh = () => {
     fetchArchiveSummary();
@@ -150,6 +174,8 @@ const Archives = () => {
     setActiveCategory('ALL');
     setRecordTypeFilter('ALL');
     setReasonFilter('ALL');
+    setSelectedAcademicYear('ALL');
+    setSearchParams({});
     setDateFrom('');
     setDateTo('');
     setSortBy('newest');
@@ -163,6 +189,7 @@ const Archives = () => {
         category: activeCategory,
         type: recordTypeFilter,
         reason: reasonFilter,
+        academicYearId: selectedAcademicYear,
         dateFrom,
         dateTo,
         export: 'true',
@@ -185,7 +212,7 @@ const Archives = () => {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert(`Export failed: ${err.message}`);
+      setActionFeedback({ type: 'error', message: `Export failed: ${err.message}` });
     }
   };
 
@@ -359,6 +386,8 @@ const Archives = () => {
               { id: 'ALL', label: 'All Records', icon: 'fa-layer-group' },
               { id: 'ANNOUNCEMENT', label: 'Announcements', icon: 'fa-bullhorn' },
               { id: 'EVENT', label: 'Events', icon: 'fa-calendar-days' },
+              { id: 'REGISTRATION', label: 'Event Registrations', icon: 'fa-clipboard-user' },
+              { id: 'ATTENDANCE', label: 'Attendance Records', icon: 'fa-qrcode' },
               { id: 'PAGE', label: 'Pages', icon: 'fa-file-lines' },
               { id: 'MODERATION', label: 'Moderation Records', icon: 'fa-shield-halved' },
             ].map((tab) => (
@@ -383,7 +412,7 @@ const Archives = () => {
                 <i className="fa-solid fa-magnifying-glass archives-search-icon"></i>
                 <input
                   type="text"
-                  placeholder="Search title, keywords, or author..."
+                  placeholder="Search title, keywords, student, or author..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="archives-input archives-search-input"
@@ -398,6 +427,35 @@ const Archives = () => {
                     <i className="fa-solid fa-xmark"></i>
                   </button>
                 )}
+              </div>
+
+              {/* School Year Selector */}
+              <div className="archives-filter-select-wrapper">
+                <label htmlFor="school-year-filter" className="sr-only">
+                  School Year
+                </label>
+                <select
+                  id="school-year-filter"
+                  value={selectedAcademicYear}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedAcademicYear(val);
+                    if (val && val !== 'ALL') {
+                      setSearchParams({ academicYearId: val });
+                    } else {
+                      setSearchParams({});
+                    }
+                  }}
+                  className="archives-select"
+                  title="Browse historical records by School Year"
+                >
+                  <option value="ALL">All School Years (Archived Records)</option>
+                  {academicYears.map((yr) => (
+                    <option key={yr.id} value={String(yr.id)}>
+                      {yr.year_label} ({yr.semester}) — {yr.status || (yr.is_active ? 'Active' : 'Archived')}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Archive Reason Filter */}
@@ -435,18 +493,16 @@ const Archives = () => {
                   <option value="alphabetical">Alphabetical (A-Z)</option>
                 </select>
               </div>
-            </div>
 
-            {/* Date Range & Reset Row */}
-            <div className="archives-filter-row archives-filter-row-secondary">
+              {/* Date Range */}
               <div className="archives-date-group">
-                <label className="archives-date-label">Archive Date Range:</label>
                 <input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
                   className="archives-input archives-date-input"
                   aria-label="Archive date from"
+                  title="Archive Date From"
                 />
                 <span className="archives-date-separator">to</span>
                 <input
@@ -455,28 +511,25 @@ const Archives = () => {
                   onChange={(e) => setDateTo(e.target.value)}
                   className="archives-input archives-date-input"
                   aria-label="Archive date to"
+                  title="Archive Date To"
                 />
               </div>
 
-              <div className="archives-filter-actions">
-                <span className="archives-count-indicator">
-                  Showing <strong>{pagination.totalRecords}</strong> matching record(s)
-                </span>
-                {(searchQuery ||
-                  activeCategory !== 'ALL' ||
-                  reasonFilter !== 'ALL' ||
-                  dateFrom ||
-                  dateTo ||
-                  sortBy !== 'newest') && (
-                  <button
-                    type="button"
-                    onClick={handleClearFilters}
-                    className="archives-btn-text"
-                  >
-                    <i className="fa-solid fa-filter-circle-xmark"></i> Clear Filters
-                  </button>
-                )}
-              </div>
+              {(searchQuery ||
+                activeCategory !== 'ALL' ||
+                selectedAcademicYear !== 'ALL' ||
+                reasonFilter !== 'ALL' ||
+                dateFrom ||
+                dateTo ||
+                sortBy !== 'newest') && (
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="archives-btn-text"
+                >
+                  <i className="fa-solid fa-filter-circle-xmark"></i> Clear Filters
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -518,164 +571,102 @@ const Archives = () => {
             </div>
           ) : (
             <>
-              {/* Desktop & Tablet Table */}
+              {/* Administrative Archives Data Table */}
               <div className="archives-table-responsive">
                 <table className="archives-table">
                   <thead>
                     <tr>
-                      <th scope="col">Title</th>
+                      <th scope="col">Title / Name</th>
                       <th scope="col">Type</th>
-                      <th scope="col">Author / Office</th>
+                      <th scope="col">Original Owner</th>
                       <th scope="col">Archived Date</th>
-                      <th scope="col">Archived By</th>
                       <th scope="col">Archive Reason</th>
-                      <th scope="col">Status</th>
                       <th scope="col" className="text-right">
                         Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {records.map((record) => (
-                      <tr key={record.id}>
-                        <td className="archives-td-title">
-                          <button
-                            type="button"
-                            className="archives-title-btn"
-                            onClick={() => {
-                              setSelectedRecord(record);
-                              setIsDetailsModalOpen(true);
-                            }}
-                            title="Click to view full record details"
-                          >
-                            {record.title}
-                          </button>
-                        </td>
-                        <td>
-                          <span className={`archives-badge archives-badge-${record.type?.toLowerCase()}`}>
-                            {record.type}
-                          </span>
-                        </td>
-                        <td className="archives-td-muted">{record.author || record.office || 'System'}</td>
-                        <td className="archives-td-muted">{formatDate(record.archivedAt)}</td>
-                        <td className="archives-td-muted">{record.archivedBy || 'Automated System'}</td>
-                        <td>
-                          <span className="archives-reason-tag">{record.archiveReason || 'Standard Expiration'}</span>
-                        </td>
-                        <td>
-                          <span className="archives-badge archives-badge-archived">Archived</span>
-                        </td>
-                        <td className="text-right">
-                          <div className="archives-row-actions">
+                    {records.map((record) => {
+                      const recordTypeUpper = String(record.type || '').toUpperCase();
+                      const isRestorable = ['ANNOUNCEMENT', 'EVENT', 'PAGE'].includes(recordTypeUpper);
+                      const ownerLabel =
+                        record.author && record.office && record.author !== record.office
+                          ? `${record.author} (${record.office})`
+                          : record.author || record.office || 'System';
+
+                      return (
+                        <tr key={record.uid || `${record.type}-${record.id}`}>
+                          <td className="archives-td-title">
                             <button
                               type="button"
-                              className="archives-action-btn"
-                              title="Inspect Record"
+                              className="archives-title-btn"
                               onClick={() => {
                                 setSelectedRecord(record);
                                 setIsDetailsModalOpen(true);
                               }}
+                              title="Click to view full record details"
                             >
-                              <i className="fa-solid fa-eye"></i>
+                              {record.title}
                             </button>
-                            <button
-                              type="button"
-                              className="archives-action-btn archives-action-restore"
-                              title="Restore Record"
-                              onClick={() => {
-                                setRecordToRestore(record);
-                                setIsRestoreModalOpen(true);
-                              }}
-                            >
-                              <i className="fa-solid fa-rotate-left"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td>
+                            <span className={`archives-badge archives-badge-${record.type?.toLowerCase()}`}>
+                              {record.type}
+                            </span>
+                          </td>
+                          <td className="archives-td-muted">{ownerLabel}</td>
+                          <td className="archives-td-muted">{formatDate(record.archivedAt)}</td>
+                          <td>
+                            <span className="archives-reason-tag">{record.archiveReason || 'Standard Expiration'}</span>
+                          </td>
+                          <td className="text-right">
+                            <div className="archives-row-actions">
+                              <button
+                                type="button"
+                                className="archives-action-btn"
+                                title="View Details"
+                                onClick={() => {
+                                  setSelectedRecord(record);
+                                  setIsDetailsModalOpen(true);
+                                }}
+                              >
+                                <i className="fa-solid fa-eye"></i>
+                              </button>
+                              {isRestorable && (
+                                <button
+                                  type="button"
+                                  className="archives-action-btn archives-action-restore"
+                                  title="Restore Record"
+                                  onClick={() => {
+                                    setRecordToRestore(record);
+                                    setIsRestoreModalOpen(true);
+                                  }}
+                                >
+                                  <i className="fa-solid fa-rotate-left"></i>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
 
-              {/* Mobile Card Layout */}
-              <div className="archives-mobile-cards">
-                {records.map((record) => (
-                  <div key={record.id} className="archives-mobile-card">
-                    <div className="archives-mobile-card-header">
-                      <span className={`archives-badge archives-badge-${record.type?.toLowerCase()}`}>
-                        {record.type}
-                      </span>
-                      <span className="archives-mobile-date">{formatDate(record.archivedAt)}</span>
-                    </div>
-                    <h4
-                      className="archives-mobile-title"
-                      onClick={() => {
-                        setSelectedRecord(record);
-                        setIsDetailsModalOpen(true);
-                      }}
-                    >
-                      {record.title}
-                    </h4>
-                    <div className="archives-mobile-meta">
-                      <div>
-                        <strong>Author:</strong> {record.author || record.office || 'System'}
-                      </div>
-                      <div>
-                        <strong>Reason:</strong> {record.archiveReason || 'Standard Expiration'}
-                      </div>
-                    </div>
-                    <div className="archives-mobile-actions">
-                      <button
-                        type="button"
-                        className="archives-btn archives-btn-secondary archives-btn-sm"
-                        onClick={() => {
-                          setSelectedRecord(record);
-                          setIsDetailsModalOpen(true);
-                        }}
-                      >
-                        <i className="fa-solid fa-eye"></i> View
-                      </button>
-                      <button
-                        type="button"
-                        className="archives-btn archives-btn-primary archives-btn-sm"
-                        onClick={() => {
-                          setRecordToRestore(record);
-                          setIsRestoreModalOpen(true);
-                        }}
-                      >
-                        <i className="fa-solid fa-rotate-left"></i> Restore
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
               {/* Pagination Controls */}
-              {pagination.totalPages > 1 && (
-                <footer className="archives-pagination">
-                  <span className="archives-pagination-info">
-                    Page <strong>{pagination.currentPage}</strong> of <strong>{pagination.totalPages}</strong>
-                  </span>
-                  <div className="archives-pagination-buttons">
-                    <button
-                      type="button"
-                      className="archives-btn archives-btn-secondary"
-                      disabled={pagination.currentPage === 1 || recordsLoading}
-                      onClick={() => fetchArchivedRecords(pagination.currentPage - 1)}
-                    >
-                      <i className="fa-solid fa-chevron-left"></i> Previous
-                    </button>
-                    <button
-                      type="button"
-                      className="archives-btn archives-btn-secondary"
-                      disabled={pagination.currentPage === pagination.totalPages || recordsLoading}
-                      onClick={() => fetchArchivedRecords(pagination.currentPage + 1)}
-                    >
-                      Next <i className="fa-solid fa-chevron-right"></i>
-                    </button>
-                  </div>
-                </footer>
-              )}
+              <Pagination
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                totalRecords={pagination.totalRecords}
+                rowsPerPage={pagination.limit}
+                onPageChange={(page) => fetchArchivedRecords(page)}
+                onRowsPerPageChange={(limit) => {
+                  setPagination((prev) => ({ ...prev, limit, currentPage: 1 }));
+                  fetchArchivedRecords(1, limit);
+                }}
+              />
             </>
           )}
         </section>
@@ -785,71 +776,21 @@ const Archives = () => {
         )}
 
         {/* Restore Safe Confirmation Dialog */}
-        {isRestoreModalOpen && recordToRestore && (
-          <div className="archives-modal-overlay" onClick={() => !isRestoring && setIsRestoreModalOpen(false)}>
-            <div
-              className="archives-modal-container archives-modal-sm"
-              onClick={(e) => e.stopPropagation()}
-              role="dialog"
-              aria-labelledby="restore-modal-title"
-              aria-modal="true"
-            >
-              <header className="archives-modal-header">
-                <h3 id="restore-modal-title" className="archives-modal-title">
-                  Confirm Record Restoration
-                </h3>
-                <button
-                  onClick={() => !isRestoring && setIsRestoreModalOpen(false)}
-                  className="archives-modal-close"
-                  disabled={isRestoring}
-                >
-                  &times;
-                </button>
-              </header>
-
-              <div className="archives-modal-body">
-                <p>
-                  Are you sure you want to restore <strong>"{recordToRestore.title}"</strong>?
-                </p>
-                <blockquote className="archives-notice-box">
-                  <i className="fa-solid fa-shield-halved"></i>
-                  <div>
-                    <strong>Publication Policy Notice:</strong>
-                    <br />
-                    Restoring this item will safely return it to its respective administration module for review or
-                    management. It will <strong>NOT</strong> automatically re-publish old or expired content live onto
-                    student feeds.
-                  </div>
-                </blockquote>
-              </div>
-
-              <footer className="archives-modal-footer">
-                <button
-                  type="button"
-                  className="archives-btn archives-btn-secondary"
-                  onClick={() => setIsRestoreModalOpen(false)}
-                  disabled={isRestoring}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="archives-btn archives-btn-primary"
-                  onClick={confirmRestore}
-                  disabled={isRestoring}
-                >
-                  {isRestoring ? (
-                    <>
-                      <i className="fa-solid fa-spinner fa-spin"></i> Restoring...
-                    </>
-                  ) : (
-                    'Confirm Restore'
-                  )}
-                </button>
-              </footer>
-            </div>
-          </div>
-        )}
+        <ConfirmationModal
+          isOpen={isRestoreModalOpen && Boolean(recordToRestore)}
+          title="Confirm Record Restoration"
+          message={
+            recordToRestore
+              ? `Are you sure you want to restore "${recordToRestore.title}"? Restoring this item safely returns it to its administration module without force-publishing expired content onto student feeds.`
+              : ''
+          }
+          variant="primary"
+          confirmText="Confirm Restore"
+          cancelText="Cancel"
+          loading={isRestoring}
+          onCancel={() => !isRestoring && setIsRestoreModalOpen(false)}
+          onConfirm={confirmRestore}
+        />
       </div>
     </AdminLayout>
   );

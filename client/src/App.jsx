@@ -120,6 +120,7 @@ function App() {
         <Route path="/admin/content-feed" element={<ContentFeed />} />
         <Route path="/admin/users" element={<UserManagement />} />
         <Route path="/admin/pages" element={<PageManagement />} />
+        <Route path="/admin/pages/:tab" element={<PageManagement />} />
         <Route path="/admin/posts" element={<PostApproval />} />
         <Route path="/admin/post-approval" element={<PostApproval />} />
         <Route path="/admin/archives" element={<Archives />} />

@@ -1,20 +1,34 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
+import Pagination from '../../assets/components/Pagination';
+import ConfirmationModal from '../../assets/components/ConfirmationModal';
+import SearchableUserSelect from '../../assets/components/SearchableUserSelect';
 import '../styles/PageManagement.css';
+
+const VALID_PAGE_TABS = ['all', 'pending', 'active', 'suspended', 'archived', 'rejected'];
 
 const PageManagement = () => {
   const navigate = useNavigate();
+  const { tab: routeTab } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const resolveTab = useCallback((rawTab) => {
+    const normalized = String(rawTab || '').toLowerCase();
+    return VALID_PAGE_TABS.includes(normalized) ? normalized : 'all';
+  }, []);
+
   // Tab & Filter States ('all', 'pending', 'active', 'suspended', 'archived', 'rejected')
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'all');
+  const [activeTab, setActiveTab] = useState(() => resolveTab(routeTab || searchParams.get('tab')));
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('newest');
 
   // Operational Data States
   const [pagesList, setPagesList] = useState([]);
+  const [departmentsList, setDepartmentsList] = useState([]);
   const [summaryCounts, setSummaryCounts] = useState({ total: 0, pending: 0, active: 0, suspended: 0, archived: 0 });
   const [eligibleStaffUsers, setEligibleStaffUsers] = useState([]);
 
@@ -47,12 +61,32 @@ const PageManagement = () => {
     roleScope: 'page_editor'
   });
 
-  // Synchronize Tab with Search Query Params
-  const handleTabSelect = (tabId) => {
-    setActiveTab(tabId);
-    setSearchQuery('');
+  // Sync activeTab when route param (/admin/pages/:tab) or query param (?tab=...) changes
+  useEffect(() => {
+    const incoming = routeTab || searchParams.get('tab');
+    const resolved = resolveTab(incoming);
+    setActiveTab(resolved);
     setPagination(prev => ({ ...prev, page: 1 }));
-    setSearchParams({ tab: tabId });
+  }, [routeTab, searchParams, resolveTab]);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Synchronize Tab with Search Query Params (always stays on /admin/pages?tab=...)
+  const handleTabSelect = (tabId) => {
+    const resolved = resolveTab(tabId);
+    setActiveTab(resolved);
+    setPagination(prev => ({ ...prev, page: 1 }));
+    if (routeTab) {
+      navigate(`/admin/pages?tab=${resolved}`);
+    } else {
+      setSearchParams({ tab: resolved });
+    }
   };
 
   // Fetch Page Management Data from API
@@ -63,15 +97,16 @@ const PageManagement = () => {
 
     const params = new URLSearchParams({
       tab: activeTab,
-      search: searchQuery,
+      search: debouncedSearch,
       category: categoryFilter,
+      department: departmentFilter,
       sort: sortOrder,
       page: pagination.page,
       limit: pagination.limit
     });
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/pages?${params.toString()}`, {
+      const response = await fetch(`/api/admin/pages?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -90,6 +125,9 @@ const PageManagement = () => {
 
       if (response.ok) {
         setPagesList(data.pages || []);
+        if (data.departments) {
+          setDepartmentsList(data.departments);
+        }
         if (data.counts) {
           setSummaryCounts(data.counts);
         }
@@ -107,7 +145,7 @@ const PageManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery, categoryFilter, sortOrder, pagination.page, pagination.limit, navigate]);
+  }, [activeTab, debouncedSearch, categoryFilter, departmentFilter, sortOrder, pagination.page, pagination.limit, navigate]);
 
   useEffect(() => {
     fetchPagesData();
@@ -117,7 +155,7 @@ const PageManagement = () => {
   const fetchPageStaff = async (pageId) => {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/pages/${pageId}/staff`, {
+      const response = await fetch(`/api/admin/pages/${pageId}/staff`, {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
       const data = await response.json();
@@ -138,9 +176,11 @@ const PageManagement = () => {
   };
 
   // Submit Status Lifecycle Action (Approve, Reject, Suspend, Reactivate, Archive)
-  const handleExecuteStatusChange = async () => {
-    if (!selectedPage || !pendingActionType) return;
-    if ((pendingActionType === 'reject' || pendingActionType === 'suspend') && !actionReason.trim()) {
+  const handleExecuteStatusChange = async (overrideAction, overrideReason) => {
+    const actionToRun = overrideAction || pendingActionType;
+    const reasonToUse = overrideReason !== undefined ? overrideReason : actionReason;
+    if (!selectedPage || !actionToRun) return;
+    if ((actionToRun === 'reject' || actionToRun === 'suspend') && !String(reasonToUse || '').trim()) {
       setFeedback({ type: 'error', message: 'A valid explanation or reason is required for this action.' });
       return;
     }
@@ -149,15 +189,15 @@ const PageManagement = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/pages/${selectedPage.id}/status`, {
+      const response = await fetch(`/api/admin/pages/${selectedPage.id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : ''
         },
         body: JSON.stringify({
-          action: pendingActionType,
-          reason: actionReason
+          action: actionToRun,
+          reason: reasonToUse
         })
       });
 
@@ -188,7 +228,7 @@ const PageManagement = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/pages', {
+      const response = await fetch('/api/admin/pages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -224,7 +264,7 @@ const PageManagement = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/pages/${selectedPage.id}/staff`, {
+      const response = await fetch(`/api/admin/pages/${selectedPage.id}/staff`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -257,7 +297,7 @@ const PageManagement = () => {
     const token = localStorage.getItem('token');
 
     try {
-      const response = await fetch(`http://localhost:5000/api/admin/pages/staff/${staffId}`, {
+      const response = await fetch(`/api/admin/pages/staff/${staffId}`, {
         method: 'DELETE',
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
@@ -446,13 +486,53 @@ const PageManagement = () => {
               </select>
             </div>
 
-            {(searchQuery || categoryFilter !== 'all') && (
+            <div className="pm-filter-item">
+              <select 
+                className="pm-select"
+                value={departmentFilter}
+                onChange={(e) => {
+                  setDepartmentFilter(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+              >
+                <option value="all">All Colleges / Units</option>
+                {departmentsList.map((dept, idx) => {
+                  const deptName = typeof dept === 'string' ? dept : dept.name;
+                  const deptCode = typeof dept === 'string' ? '' : dept.code;
+                  return (
+                    <option key={dept.id || idx} value={deptName}>
+                      {deptCode ? `${deptCode} — ${deptName}` : deptName}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="pm-filter-item">
+              <select
+                className="pm-select"
+                value={sortOrder}
+                onChange={(e) => {
+                  setSortOrder(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                aria-label="Sort pages"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
+
+            {(searchQuery || categoryFilter !== 'all' || departmentFilter !== 'all' || sortOrder !== 'newest') && (
               <button 
                 type="button" 
                 className="btn-pm-link"
                 onClick={() => {
                   setSearchQuery('');
                   setCategoryFilter('all');
+                  setDepartmentFilter('all');
+                  setSortOrder('newest');
+                  setPagination(prev => ({ ...prev, page: 1 }));
                 }}
               >
                 Clear Filters
@@ -532,69 +612,101 @@ const PageManagement = () => {
                         </button>
                       </td>
                       <td>
-                        <span className={`status-pill status-${page.status}`}>
+                        <span className={`status-pill status-${String(page.status || '').toLowerCase()}`}>
                           {page.status}
                         </span>
                       </td>
                       <td className="text-slate-500">{new Date(page.created_at).toLocaleDateString()}</td>
                       <td className="text-right">
                         <div className="table-action-group">
-                          
-                          {/* Pending Requests: Review Action */}
-                          {page.status === 'pending' && (
-                            <button 
-                              type="button" 
-                              className="btn-table-action primary"
-                              onClick={() => {
-                                setSelectedPage(page);
-                                setActiveModal('review');
-                              }}
-                            >
-                              Review Request
-                            </button>
-                          )}
+                          {(() => {
+                            const st = String(page.status || '').toLowerCase();
+                            return (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn-table-action secondary"
+                                  title="View Page Details"
+                                  onClick={() => {
+                                    setSelectedPage(page);
+                                    setActiveModal('review');
+                                  }}
+                                >
+                                  <i className="fa-solid fa-eye"></i>
+                                  <span>View</span>
+                                </button>
 
-                          {/* Staff Access Management */}
-                          {page.status === 'approved' || page.status === 'active' ? (
-                            <button 
-                              type="button" 
-                              className="btn-table-action secondary"
-                              onClick={() => handleOpenStaffModal(page)}
-                              title="Manage Assigned Staff"
-                            >
-                              <i className="fa-solid fa-user-gear"></i>
-                            </button>
-                          ) : null}
+                                {st === 'pending' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="btn-table-action success"
+                                      title="Approve Page Request"
+                                      onClick={() => {
+                                        setSelectedPage(page);
+                                        setPendingActionType('approve');
+                                        setActiveModal('status_change');
+                                      }}
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn-table-action danger"
+                                      title="Reject Page Request"
+                                      onClick={() => {
+                                        setSelectedPage(page);
+                                        setPendingActionType('reject');
+                                        setActiveModal('status_change');
+                                      }}
+                                    >
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
 
-                          {/* Suspend / Reactivate Controls */}
-                          {page.status === 'active' || page.status === 'approved' ? (
-                            <button 
-                              type="button" 
-                              className="btn-table-action danger"
-                              title="Suspend Page"
-                              onClick={() => {
-                                setSelectedPage(page);
-                                setPendingActionType('suspend');
-                                setActiveModal('status_change');
-                              }}
-                            >
-                              <i className="fa-solid fa-ban"></i>
-                            </button>
-                          ) : page.status === 'suspended' ? (
-                            <button 
-                              type="button" 
-                              className="btn-table-action success"
-                              title="Reactivate Page"
-                              onClick={() => {
-                                setSelectedPage(page);
-                                setPendingActionType('reactivate');
-                                setActiveModal('status_change');
-                              }}
-                            >
-                              <i className="fa-solid fa-circle-check"></i>
-                            </button>
-                          ) : null}
+                                {(st === 'approved' || st === 'active') && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="btn-table-action secondary"
+                                      onClick={() => handleOpenStaffModal(page)}
+                                      title="Manage Assigned Staff"
+                                    >
+                                      <i className="fa-solid fa-user-gear"></i>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn-table-action danger"
+                                      title="Suspend Page"
+                                      onClick={() => {
+                                        setSelectedPage(page);
+                                        setPendingActionType('suspend');
+                                        setActiveModal('status_change');
+                                      }}
+                                    >
+                                      Suspend
+                                    </button>
+                                  </>
+                                )}
 
+                                {st === 'suspended' && (
+                                  <button
+                                    type="button"
+                                    className="btn-table-action success"
+                                    title="Reactivate Page"
+                                    onClick={() => {
+                                      setSelectedPage(page);
+                                      setPendingActionType('reactivate');
+                                      setActiveModal('status_change');
+                                    }}
+                                  >
+                                    Reactivate
+                                  </button>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -607,29 +719,16 @@ const PageManagement = () => {
 
         {/* ================= PAGINATION BAR ================= */}
         {!loading && pagesList.length > 0 && (
-          <div className="pm-pagination-bar">
-            <span className="pagination-info">
-              Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} records)
-            </span>
-            <div className="pagination-actions">
-              <button 
-                type="button" 
-                className="btn-pagination"
-                disabled={pagination.page <= 1}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              >
-                Previous
-              </button>
-              <button 
-                type="button" 
-                className="btn-pagination"
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.totalPages}
+            totalRecords={pagination.total}
+            pageSize={pagination.limit}
+            onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+            onPageSizeChange={(limit) => setPagination(prev => ({ ...prev, limit, page: 1 }))}
+            loading={loading}
+            itemLabel="pages"
+          />
         )}
 
         {/* ================= MODALS & DRAWERS ================= */}
@@ -639,7 +738,11 @@ const PageManagement = () => {
           <div className="pm-modal-backdrop">
             <div className="pm-modal-card large-modal">
               <div className="modal-header">
-                <h2>Review Page Approval Request</h2>
+                <h2>
+                  {String(selectedPage.status || '').toLowerCase() === 'pending'
+                    ? 'Review Page Approval Request'
+                    : 'Page Profile Details'}
+                </h2>
                 <button type="button" className="close-btn" onClick={() => setActiveModal(null)}>
                   <i className="fa-solid fa-xmark"></i>
                 </button>
@@ -647,14 +750,17 @@ const PageManagement = () => {
 
               <div className="modal-body split-view">
                 <div className="details-col">
-                  <h3 className="sub-heading">Submitted Page Details</h3>
+                  <h3 className="sub-heading">Page Information</h3>
                   <div className="info-grid">
-                    <div><strong>Requested Page Name:</strong> {selectedPage.name}</div>
+                    <div><strong>Page Name:</strong> {selectedPage.name}</div>
                     <div><strong>Category:</strong> {selectedPage.category}</div>
+                    <div><strong>Status:</strong> {selectedPage.status}</div>
                     <div><strong>College / Unit:</strong> {selectedPage.college || 'N/A'}</div>
                     <div><strong>Department:</strong> {selectedPage.department || 'N/A'}</div>
                     <div><strong>Submitted By:</strong> {selectedPage.creator_name || 'Staff User'} ({selectedPage.creator_email || 'N/A'})</div>
-                    <div><strong>Submission Date:</strong> {new Date(selectedPage.created_at).toLocaleString()}</div>
+                    <div><strong>Assigned Staff:</strong> {selectedPage.staff_count || 0}</div>
+                    <div><strong>Followers:</strong> {selectedPage.followers_count || 0}</div>
+                    <div><strong>Created Date:</strong> {new Date(selectedPage.created_at).toLocaleString()}</div>
                   </div>
 
                   <div className="margin-top-12">
@@ -662,48 +768,52 @@ const PageManagement = () => {
                     <p className="description-box">{selectedPage.description || 'No detailed description provided.'}</p>
                   </div>
 
-                  <div className="form-group margin-top-16">
-                    <label htmlFor="review-reason">Review Comment / Rejection Reason (Required if declining)</label>
-                    <textarea 
-                      id="review-reason"
-                      rows="3"
-                      value={actionReason}
-                      onChange={(e) => setActionReason(e.target.value)}
-                      placeholder="Specify reasons if declining this request..."
-                      className="pm-textarea"
-                    ></textarea>
-                  </div>
+                  {String(selectedPage.status || '').toLowerCase() === 'pending' && (
+                    <div className="form-group margin-top-16">
+                      <label htmlFor="review-reason">Review Comment / Rejection Reason (Required if declining)</label>
+                      <textarea 
+                        id="review-reason"
+                        rows="3"
+                        value={actionReason}
+                        onChange={(e) => setActionReason(e.target.value)}
+                        placeholder="Specify reasons if declining this request..."
+                        className="pm-textarea"
+                      ></textarea>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="modal-footer flex-between">
                 <button type="button" className="btn-pm-secondary" onClick={() => setActiveModal(null)}>
-                  Cancel
+                  Close
                 </button>
-                <div className="action-button-group">
-                  <button 
-                    type="button" 
-                    className="btn-pm-rose" 
-                    disabled={submitting}
-                    onClick={() => {
-                      setPendingActionType('reject');
-                      handleExecuteStatusChange();
-                    }}
-                  >
-                    Reject Request
-                  </button>
-                  <button 
-                    type="button" 
-                    className="btn-pm-emerald" 
-                    disabled={submitting}
-                    onClick={() => {
-                      setPendingActionType('approve');
-                      handleExecuteStatusChange();
-                    }}
-                  >
-                    Approve Page
-                  </button>
-                </div>
+                {String(selectedPage.status || '').toLowerCase() === 'pending' && (
+                  <div className="action-button-group">
+                    <button 
+                      type="button" 
+                      className="btn-pm-rose" 
+                      disabled={submitting}
+                      onClick={() => {
+                        setPendingActionType('reject');
+                        handleExecuteStatusChange('reject', actionReason);
+                      }}
+                    >
+                      Reject Request
+                    </button>
+                    <button 
+                      type="button" 
+                      className="btn-pm-emerald" 
+                      disabled={submitting}
+                      onClick={() => {
+                        setPendingActionType('approve');
+                        handleExecuteStatusChange('approve', actionReason);
+                      }}
+                    >
+                      Approve Page
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -801,21 +911,16 @@ const PageManagement = () => {
                 {/* Form to Assign New Staff */}
                 <form onSubmit={handleAssignStaffSubmit} className="assign-staff-bar">
                   <div className="flex-1">
-                    <label htmlFor="staff-user">Grant Staff Access to User</label>
-                    <select 
-                      id="staff-user"
+                    <SearchableUserSelect
+                      label="Grant Staff Access to User"
                       required
-                      className="pm-select"
+                      disabled={submitting}
+                      users={eligibleStaffUsers}
                       value={staffFormData.userId}
-                      onChange={(e) => setStaffFormData(prev => ({ ...prev, userId: e.target.value }))}
-                    >
-                      <option value="">-- Choose User --</option>
-                      {eligibleStaffUsers.map(u => (
-                        <option key={u.id} value={u.id}>
-                          {u.first_name} {u.last_name} ({u.email})
-                        </option>
-                      ))}
-                    </select>
+                      excludeUserIds={pageStaffMembers.map((st) => st.user_id)}
+                      onChange={(userId) => setStaffFormData(prev => ({ ...prev, userId }))}
+                      placeholder="Search user by name, WMSU email, or ID..."
+                    />
                   </div>
 
                   <div>
@@ -885,54 +990,25 @@ const PageManagement = () => {
           </div>
         )}
 
-        {/* 4. LIFECYCLE CONFIRMATION MODAL (Suspend / Reactivate) */}
-        {activeModal === 'status_change' && selectedPage && (
-          <div className="pm-modal-backdrop">
-            <div className="pm-modal-card small-modal">
-              <div className="modal-header">
-                <h2>Confirm Page {pendingActionType}</h2>
-                <button type="button" className="close-btn" onClick={() => setActiveModal(null)}>
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
-              </div>
-
-              <div className="modal-body">
-                <p>
-                  Are you sure you want to <strong>{pendingActionType}</strong> the page <strong>"{selectedPage.name}"</strong>?
-                </p>
-
-                {pendingActionType === 'suspend' && (
-                  <div className="form-group margin-top-12">
-                    <label htmlFor="suspend-reason">Reason for Suspension *</label>
-                    <textarea 
-                      id="suspend-reason"
-                      rows="3"
-                      required
-                      value={actionReason}
-                      onChange={(e) => setActionReason(e.target.value)}
-                      placeholder="State reason for restricting this page's operation..."
-                      className="pm-textarea"
-                    ></textarea>
-                  </div>
-                )}
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn-pm-secondary" onClick={() => setActiveModal(null)}>
-                  Cancel
-                </button>
-                <button 
-                  type="button" 
-                  className={`btn-pm-primary ${pendingActionType === 'suspend' ? 'danger-btn' : ''}`}
-                  disabled={submitting}
-                  onClick={handleExecuteStatusChange}
-                >
-                  {submitting ? 'Processing...' : `Confirm ${pendingActionType}`}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 4. LIFECYCLE CONFIRMATION MODAL (Suspend / Reactivate / Archive) */}
+        <ConfirmationModal
+          isOpen={activeModal === 'status_change' && Boolean(selectedPage)}
+          title={`Confirm Page ${pendingActionType ? pendingActionType.charAt(0).toUpperCase() + pendingActionType.slice(1) : 'Action'}?`}
+          message={
+            selectedPage
+              ? `Are you sure you want to ${pendingActionType} the official page "${selectedPage.name}"?`
+              : ''
+          }
+          variant={pendingActionType === 'suspend' || pendingActionType === 'reject' ? 'danger' : pendingActionType === 'reactivate' ? 'success' : 'warning'}
+          confirmText={`Confirm ${pendingActionType ? pendingActionType.charAt(0).toUpperCase() + pendingActionType.slice(1) : 'Action'}`}
+          cancelText="Cancel"
+          requireReason={pendingActionType === 'suspend' || pendingActionType === 'reject'}
+          reasonLabel="Reason for Action *"
+          reasonPlaceholder="State reason for restricting or modifying this page's status..."
+          loading={submitting}
+          onCancel={() => setActiveModal(null)}
+          onConfirm={(reasonText) => handleExecuteStatusChange(pendingActionType, reasonText)}
+        />
 
       </div>
     </AdminLayout>
