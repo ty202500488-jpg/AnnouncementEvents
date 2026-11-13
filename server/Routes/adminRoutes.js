@@ -457,8 +457,14 @@ router.get('/users', async (req, res) => {
                         d.department_name AS college,
                         pr.program_name AS program,
                         sp.year_level,
-                        sp.cor_url,
-                        sp.student_id_url,
+                        (sp.cor_image IS NOT NULL) AS has_cor_image,
+                        (sp.student_id_image IS NOT NULL) AS has_student_id_image,
+                        CASE WHEN sp.cor_image IS NOT NULL
+                             THEN 'data:' || COALESCE(sp.cor_mime_type, 'image/jpeg') || ';base64,' || encode(sp.cor_image, 'base64')
+                             ELSE NULL END AS cor_image_data,
+                        CASE WHEN sp.student_id_image IS NOT NULL
+                             THEN 'data:' || COALESCE(sp.student_id_mime_type, 'image/jpeg') || ';base64,' || encode(sp.student_id_image, 'base64')
+                             ELSE NULL END AS student_id_image_data,
                         sp.verification_status AS status,
                         sp.verification_remarks,
                         sp.verified_at,
@@ -565,8 +571,14 @@ router.get('/users', async (req, res) => {
                     sp.student_number AS student_id,
                     sp.year_level,
                     sp.verification_status,
-                    sp.cor_url,
-                    sp.student_id_url,
+                    (sp.cor_image IS NOT NULL) AS has_cor_image,
+                    (sp.student_id_image IS NOT NULL) AS has_student_id_image,
+                    CASE WHEN sp.cor_image IS NOT NULL
+                         THEN 'data:' || COALESCE(sp.cor_mime_type, 'image/jpeg') || ';base64,' || encode(sp.cor_image, 'base64')
+                         ELSE NULL END AS cor_image_data,
+                    CASE WHEN sp.student_id_image IS NOT NULL
+                         THEN 'data:' || COALESCE(sp.student_id_mime_type, 'image/jpeg') || ';base64,' || encode(sp.student_id_image, 'base64')
+                         ELSE NULL END AS student_id_image_data,
                     d.department_name AS college,
                     pr.program_name AS program
              FROM users u
@@ -701,13 +713,32 @@ router.delete('/staff-access/:id', async (req, res) => {
     }
 });
 
-router.get('/documents/view', (req, res) => {
-    const docPath = req.query.path;
-    if (!docPath) return res.status(400).send('Document path missing.');
-    if (docPath.startsWith('http://') || docPath.startsWith('https://')) {
-        return res.redirect(docPath);
+router.get('/documents/view', async (req, res) => {
+    try {
+        const userId = Number(req.query.userId);
+        const docType = String(req.query.type || '').toLowerCase();
+        if (!userId || !['cor', 'id'].includes(docType)) {
+            return res.status(400).send('Valid userId and type (cor or id) are required.');
+        }
+
+        const colImage = docType === 'cor' ? 'cor_image' : 'student_id_image';
+        const colMime = docType === 'cor' ? 'cor_mime_type' : 'student_id_mime_type';
+        const result = await pool.query(
+            `SELECT ${colImage} AS img, ${colMime} AS mime FROM student_profiles WHERE user_id = $1 LIMIT 1`,
+            [userId]
+        );
+
+        if (result.rowCount === 0 || !result.rows[0].img) {
+            return res.status(404).send('Document image not found in database.');
+        }
+
+        res.setHeader('Content-Type', result.rows[0].mime || 'image/jpeg');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.send(result.rows[0].img);
+    } catch (error) {
+        console.error('Admin document view error:', error);
+        return res.status(500).send('Failed to load document from database.');
     }
-    return res.status(200).send(`Document preview placeholder for: ${docPath}`);
 });
 
 // ============================================================================

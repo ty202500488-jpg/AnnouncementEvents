@@ -54,6 +54,49 @@ async function resolveUserId(req) {
     return null;
 }
 
+function parseBase64Image(dataUrl) {
+    if (!dataUrl || typeof dataUrl !== 'string') return null;
+    const match = dataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) return null;
+    const mimeType = match[1] === 'image/jpg' ? 'image/jpeg' : match[1];
+    const buffer = Buffer.from(match[2], 'base64');
+    if (!buffer.length || buffer.length > 5 * 1024 * 1024) return null; // max 5MB per photo
+    return { mimeType, buffer };
+}
+
+async function sendVerificationEmail(toEmail, firstName, confirmUrl) {
+    const autoConfirmInDev = process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true';
+    try {
+        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+            await transporter.sendMail({
+                from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
+                to: toEmail,
+                subject: 'CRIMSON - Confirm Your Email Address',
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
+                        <h2 style="color: #800000;">Welcome to CRIMSON, ${firstName}!</h2>
+                        <p>Please confirm your institutional email address by clicking the button below:</p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
+                        </div>
+                    </div>
+                `
+            });
+            return { sent: true };
+        } else if (autoConfirmInDev) {
+            console.log('🔗 [DEV FALLBACK] CONFIRMATION LINK:', confirmUrl);
+            return { sent: true, fallback: true };
+        }
+        return { sent: false };
+    } catch (emailErr) {
+        if (autoConfirmInDev) {
+            console.log('🔗 [DEV FALLBACK] CONFIRMATION LINK:', confirmUrl);
+            return { sent: true, fallback: true };
+        }
+        throw emailErr;
+    }
+}
+
 // -------- HEALTH / TEST -------- //
 router.get('/test', (req, res) => {
     res.json({ message: 'User routes active on normalized 3NF PostgreSQL schema.' });
@@ -76,11 +119,21 @@ router.post('/', registerLimiter, async (req, res) => {
             email,
             password,
             confirm_password,
-            terms_accepted
+            terms_accepted,
+            cor_photo,
+            student_id_photo
         } = req.body;
 
         if (!student_id || !first_name || !last_name || !department_id || !year_level || !email || !password) {
             return res.status(400).json({ message: 'Please complete all required fields.' });
+        }
+
+        const parsedCor = parseBase64Image(cor_photo);
+        const parsedId = parseBase64Image(student_id_photo);
+        if (!parsedCor || !parsedId) {
+            return res.status(400).json({
+                message: 'Valid live camera photos of both your Certificate of Registration (COR) and Student ID are required.'
+            });
         }
 
         if (terms_accepted !== true) {
@@ -163,14 +216,13 @@ router.post('/', registerLimiter, async (req, res) => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
-        const autoConfirmInDev = process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true';
 
-        // 1. Insert into users (Normalized Core Identity)
+        // 1. Insert into users (Normalized Core Identity - stays Pending until Gmail confirmation)
         const userIns = await client.query(
             `INSERT INTO users (
                 role_id, first_name, middle_initial, last_name, email, password_hash,
                 is_email_verified, account_status
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             ) VALUES ($1, $2, $3, $4, $5, $6, FALSE, 'Pending')
              RETURNING user_id, first_name, last_name, email`,
             [
                 studentRoleId,
@@ -178,24 +230,28 @@ router.post('/', registerLimiter, async (req, res) => {
                 middle_initial ? middle_initial.trim() : null,
                 last_name.trim(),
                 normalizedEmail,
-                hashedPassword,
-                autoConfirmInDev,
-                autoConfirmInDev ? 'Active' : 'Pending'
+                hashedPassword
             ]
         );
         const newUserId = userIns.rows[0].user_id;
 
-        // 2. Insert into student_profiles (Normalized 1:1 Student Subtype)
+        // 2. Insert into student_profiles (Normalized 1:1 Student Subtype with BYTEA Photos)
         await client.query(
             `INSERT INTO student_profiles (
-                user_id, student_number, department_id, program_id, year_level, verification_status
-             ) VALUES ($1, $2, $3, $4, $5, 'Pending')`,
+                user_id, student_number, department_id, program_id, year_level,
+                cor_image, cor_mime_type, student_id_image, student_id_mime_type,
+                verification_status
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending')`,
             [
                 newUserId,
                 student_id.trim(),
                 Number(department_id),
                 program_id ? Number(program_id) : null,
-                year_level
+                year_level,
+                parsedCor.buffer,
+                parsedCor.mimeType,
+                parsedId.buffer,
+                parsedId.mimeType
             ]
         );
 
@@ -213,32 +269,11 @@ router.post('/', registerLimiter, async (req, res) => {
         const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
 
         try {
-            if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-                await transporter.sendMail({
-                    from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
-                    to: normalizedEmail,
-                    subject: 'CRIMSON - Confirm Your Email Address',
-                    html: `
-                        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
-                            <h2 style="color: #800000;">Welcome to CRIMSON, ${first_name}!</h2>
-                            <p>Please confirm your institutional email address by clicking the button below:</p>
-                            <div style="text-align: center; margin: 30px 0;">
-                                <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
-                            </div>
-                        </div>
-                    `
-                });
-            } else if (autoConfirmInDev) {
-                console.log('🔗 [DEV FALLBACK] CONFIRMATION LINK:', confirmUrl);
-            }
+            await sendVerificationEmail(normalizedEmail, first_name.trim(), confirmUrl);
         } catch (emailErr) {
-            if (autoConfirmInDev) {
-                console.log('🔗 [DEV FALLBACK] CONFIRMATION LINK:', confirmUrl);
-            } else {
-                await client.query('ROLLBACK');
-                tx = false;
-                return res.status(502).json({ message: 'Failed to send verification email.' });
-            }
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(502).json({ message: 'Failed to send verification email.' });
         }
 
         await client.query('COMMIT');
@@ -255,7 +290,9 @@ router.post('/', registerLimiter, async (req, res) => {
         });
 
         return res.status(201).json({
-            message: 'Registration submitted successfully! You can now sign in.'
+            message: 'Registration submitted! Please check your Gmail to confirm your email address.',
+            email: normalizedEmail,
+            requiresEmailConfirmation: true
         });
     } catch (error) {
         if (client && tx) {
@@ -338,6 +375,106 @@ router.get('/confirm-email', async (req, res) => {
     }
 });
 
+// -------- CHECK EMAIL VERIFICATION STATUS -------- //
+router.get('/verification-status', async (req, res) => {
+    try {
+        const email = String(req.query.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required.' });
+        }
+        const result = await pool.query(
+            `SELECT is_email_verified, account_status FROM users WHERE LOWER(email) = $1 LIMIT 1`,
+            [email]
+        );
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: 'Account not found.' });
+        }
+        return res.json({
+            is_email_verified: result.rows[0].is_email_verified,
+            account_status: result.rows[0].account_status
+        });
+    } catch (error) {
+        console.error('Verification status error:', error);
+        return res.status(500).json({ message: 'Failed to check verification status.' });
+    }
+});
+
+// -------- RESEND EMAIL CONFIRMATION -------- //
+router.post('/resend-confirmation', registerLimiter, async (req, res) => {
+    let client;
+    let tx = false;
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ message: 'Email is required.' });
+        }
+        client = await pool.connect();
+        await client.query('BEGIN');
+        tx = true;
+
+        const userRes = await client.query(
+            `SELECT user_id, first_name, email, is_email_verified
+             FROM users WHERE LOWER(email) = $1 LIMIT 1`,
+            [email]
+        );
+        if (userRes.rowCount === 0) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(404).json({ message: 'Account not found.' });
+        }
+
+        const user = userRes.rows[0];
+        if (user.is_email_verified) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(200).json({
+                message: 'Email is already confirmed. You can sign in now.',
+                alreadyVerified: true
+            });
+        }
+
+        await client.query(
+            `DELETE FROM auth_tokens WHERE user_id = $1 AND token_type = 'email_verification'`,
+            [user.user_id]
+        );
+
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        await client.query(
+            `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at)
+             VALUES ($1, 'email_verification', $2, $3)`,
+            [user.user_id, tokenHash, expiresAt]
+        );
+
+        const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
+
+        try {
+            await sendVerificationEmail(user.email, user.first_name, confirmUrl);
+        } catch (emailErr) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(502).json({ message: 'Failed to resend verification email.' });
+        }
+
+        await client.query('COMMIT');
+        tx = false;
+
+        return res.status(200).json({
+            message: 'Confirmation email resent! Please check your Gmail inbox.'
+        });
+    } catch (error) {
+        if (client && tx) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
+        }
+        console.error('Resend confirmation error:', error);
+        return res.status(500).json({ message: 'Server error while resending confirmation email.' });
+    } finally {
+        client?.release();
+    }
+});
+
 // -------- LOGIN -------- //
 router.post('/login', loginLimiter, async (req, res) => {
     try {
@@ -348,7 +485,7 @@ router.post('/login', loginLimiter, async (req, res) => {
 
         const result = await pool.query(
             `SELECT u.user_id, u.first_name, u.middle_initial, u.last_name, u.email,
-                    u.password_hash, u.role_id, u.account_status AS status, r.role_name,
+                    u.password_hash, u.role_id, u.is_email_verified, u.account_status AS status, r.role_name,
                     sp.student_number AS student_id, sp.department_id, sp.program_id,
                     sp.year_level, sp.verification_status,
                     d.department_name, pr.program_name
@@ -376,6 +513,14 @@ router.post('/login', loginLimiter, async (req, res) => {
 
         if (String(user.status).toLowerCase() === 'suspended' || String(user.status).toLowerCase() === 'archived') {
             return res.status(403).json({ message: `Your account is currently ${user.status}.` });
+        }
+
+        if (!user.is_email_verified || String(user.status).toLowerCase() === 'pending') {
+            return res.status(403).json({
+                message: 'Please confirm your email address via the link sent to your Gmail before signing in.',
+                requiresEmailConfirmation: true,
+                email: user.email
+            });
         }
 
         const passwordMatch = await bcrypt.compare(password, user.password_hash);

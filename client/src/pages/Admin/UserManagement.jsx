@@ -156,6 +156,31 @@ const UserManagement = () => {
     }
   };
 
+  // Fetch binary image from PostgreSQL via authenticated admin endpoint and open in new tab
+  const handleOpenFullDocument = async (userId, docType) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/admin/documents/view?userId=${encodeURIComponent(userId)}&type=${encodeURIComponent(docType)}`,
+        {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : ''
+          }
+        }
+      );
+      if (!response.ok) {
+        throw new Error('Could not load document image from database.');
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    } catch (err) {
+      console.error('Open Document Error:', err);
+      setFeedback({ type: 'error', message: err.message || 'Failed to open document.' });
+    }
+  };
+
   // Grant Staff Access Submit
   const handleGrantStaffAccess = async (e) => {
     e.preventDefault();
@@ -657,20 +682,28 @@ const UserManagement = () => {
                   
                   <div className="doc-preview-box">
                     <div className="doc-header">
-                      <i className="fa-solid fa-file-pdf icon-pdf"></i>
+                      <i className="fa-solid fa-camera icon-pdf"></i>
                       <span>Certificate of Registration (COR)</span>
                     </div>
-                    {selectedUser.cor_url ? (
-                      <a 
-                        href={`http://localhost:5000/api/admin/documents/view?path=${encodeURIComponent(selectedUser.cor_url)}`} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="btn-doc-view"
-                      >
-                        Secure View COR
-                      </a>
+                    {selectedUser.has_cor_image || selectedUser.cor_image_data ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        {selectedUser.cor_image_data && (
+                          <img
+                            src={selectedUser.cor_image_data}
+                            alt="Captured COR"
+                            style={{ width: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#0f172a' }}
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFullDocument(selectedUser.id, 'cor')}
+                          className="btn-doc-view"
+                        >
+                          Open Full Image (From DB)
+                        </button>
+                      </div>
                     ) : (
-                      <span className="no-doc-text">No COR file uploaded</span>
+                      <span className="no-doc-text">No COR photo stored in database</span>
                     )}
                   </div>
 
@@ -679,17 +712,25 @@ const UserManagement = () => {
                       <i className="fa-solid fa-id-card icon-id"></i>
                       <span>WMSU Student ID Card</span>
                     </div>
-                    {selectedUser.student_id_url ? (
-                      <a 
-                        href={`http://localhost:5000/api/admin/documents/view?path=${encodeURIComponent(selectedUser.student_id_url)}`} 
-                        target="_blank" 
-                        rel="noreferrer" 
-                        className="btn-doc-view"
-                      >
-                        Secure View Student ID
-                      </a>
+                    {selectedUser.has_student_id_image || selectedUser.student_id_image_data ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        {selectedUser.student_id_image_data && (
+                          <img
+                            src={selectedUser.student_id_image_data}
+                            alt="Captured Student ID"
+                            style={{ width: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#0f172a' }}
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenFullDocument(selectedUser.id, 'id')}
+                          className="btn-doc-view"
+                        >
+                          Open Full Image (From DB)
+                        </button>
+                      </div>
                     ) : (
-                      <span className="no-doc-text">No ID document uploaded</span>
+                      <span className="no-doc-text">No Student ID photo stored in database</span>
                     )}
                   </div>
                 </div>

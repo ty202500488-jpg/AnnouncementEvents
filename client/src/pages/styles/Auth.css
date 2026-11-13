@@ -717,6 +717,293 @@
 }
 
 /* ====================================================
+   MULTI-STEP REGISTRATION, LIVE CAMERA & EMAIL WAIT
+   ==================================================== */
+.auth-page-root .reg-stepper {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.auth-page-root .reg-step-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 9px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(199, 183, 163, 0.05);
+  color: var(--color-muted-beige);
+  font-size: 0.74rem;
+  font-weight: 600;
+  opacity: 0.65;
+  transition: all 0.25s ease;
+}
+
+.auth-page-root .reg-step-pill.active {
+  opacity: 1;
+  background: rgba(109, 41, 50, 0.55);
+  border-color: var(--border-glow);
+  color: var(--color-light-cream);
+  box-shadow: 0 4px 12px rgba(86, 28, 36, 0.35);
+}
+
+.auth-page-root .reg-step-pill.completed {
+  opacity: 0.95;
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.12);
+  color: #a7f3d0;
+}
+
+.auth-page-root .reg-step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(232, 216, 196, 0.15);
+}
+
+.auth-page-root .reg-step-pill.active .reg-step-num {
+  background: var(--color-light-cream);
+  color: var(--bg-deep);
+}
+
+.auth-page-root .reg-step-pill.completed .reg-step-num {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.auth-page-root .reg-step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.05rem;
+  animation: formFade 0.25s ease-in-out;
+}
+
+.auth-page-root .step-helper-text {
+  font-size: 0.8rem;
+  color: var(--color-muted-beige);
+  opacity: 0.85;
+  line-height: 1.4;
+}
+
+.auth-page-root .step-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.auth-page-root .btn-auth-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.85rem 1.25rem;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  background: rgba(199, 183, 163, 0.08);
+  color: var(--color-light-cream);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin-top: 0.4rem;
+}
+
+.auth-page-root .btn-auth-secondary:hover:not(:disabled) {
+  background: rgba(199, 183, 163, 0.16);
+  border-color: var(--border-glow);
+}
+
+.auth-page-root .btn-auth-secondary:disabled,
+.auth-page-root .btn-auth-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-page-root .btn-compact {
+  padding: 0.6rem 0.9rem;
+  font-size: 0.82rem;
+  margin-top: 0;
+}
+
+.auth-page-root .camera-viewfinder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-glow);
+  background: rgba(15, 4, 7, 0.75);
+}
+
+.auth-page-root .camera-viewfinder-header {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-light-cream);
+  letter-spacing: 0.02em;
+}
+
+.auth-page-root .camera-video-el {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #000;
+  border: 1px solid var(--border-subtle);
+}
+
+.auth-page-root .camera-controls-bar {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  gap: 0.5rem;
+}
+
+.auth-page-root .camera-capture-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+.auth-page-root .camera-doc-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.95rem;
+  border-radius: 12px;
+  background: rgba(199, 183, 163, 0.06);
+  border: 1px dashed var(--border-subtle);
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+
+.auth-page-root .camera-doc-card.captured {
+  border-style: solid;
+  border-color: rgba(16, 185, 129, 0.45);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.auth-page-root .camera-doc-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-light-cream);
+  text-align: center;
+}
+
+.auth-page-root .camera-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.auth-page-root .camera-placeholder-icon {
+  width: 34px;
+  height: 34px;
+  color: var(--color-muted-beige);
+  opacity: 0.75;
+}
+
+.auth-page-root .camera-empty-hint {
+  font-size: 0.74rem;
+  color: var(--color-muted-beige);
+  opacity: 0.75;
+}
+
+.auth-page-root .captured-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.auth-page-root .captured-preview-img {
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: #0f0407;
+}
+
+.auth-page-root .awaiting-gmail-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+  padding: 0.75rem 0.25rem;
+  animation: formFade 0.3s ease-in-out;
+}
+
+.auth-page-root .awaiting-pulse-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(109, 41, 50, 0.45);
+  border: 1px solid var(--border-glow);
+  color: var(--color-light-cream);
+  box-shadow: 0 0 24px rgba(232, 216, 196, 0.18);
+}
+
+.auth-page-root .awaiting-pulse-icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.auth-page-root .awaiting-gmail-panel h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-light-cream);
+}
+
+.auth-page-root .awaiting-gmail-panel p {
+  font-size: 0.85rem;
+  color: var(--color-muted-beige);
+  line-height: 1.5;
+  max-width: 440px;
+}
+
+.auth-page-root .awaiting-gmail-panel strong {
+  color: var(--color-light-cream);
+}
+
+.auth-page-root .awaiting-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fcd34d;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.auth-page-root .awaiting-status-pill .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fbbf24;
+  animation: starGlow 1.2s infinite alternate ease-in-out;
+}
+
+.auth-page-root .awaiting-gmail-panel .step-actions-row {
+  width: 100%;
+}
+
+/* ====================================================
    RESPONSIVENESS & ACCESSIBILITY
    ==================================================== */
 @media (max-width: 580px) {
@@ -724,8 +1011,14 @@
     padding: 2rem 1.25rem; 
   }
   .auth-page-root .form-row.two-cols,
-  .auth-page-root .form-row.grid-name-row {
+  .auth-page-root .form-row.grid-name-row,
+  .auth-page-root .camera-capture-grid,
+  .auth-page-root .step-actions-row,
+  .auth-page-root .camera-controls-bar {
     grid-template-columns: 1fr;
+  }
+  .auth-page-root .reg-stepper {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

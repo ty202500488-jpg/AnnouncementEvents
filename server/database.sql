@@ -75,8 +75,10 @@ CREATE TABLE IF NOT EXISTS student_profiles (
     program_id INTEGER REFERENCES programs(program_id) ON DELETE SET NULL,
     year_level VARCHAR(30) NOT NULL
         CHECK (year_level IN ('1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year')),
-    cor_url TEXT,
-    student_id_url TEXT,
+    cor_image BYTEA,
+    cor_mime_type VARCHAR(50),
+    student_id_image BYTEA,
+    student_id_mime_type VARCHAR(50),
     verification_status VARCHAR(30) DEFAULT 'Pending' NOT NULL
         CHECK (verification_status IN ('Unsubmitted', 'Pending', 'Verified', 'Rejected')),
     verified_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
@@ -84,6 +86,14 @@ CREATE TABLE IF NOT EXISTS student_profiles (
     verification_remarks TEXT,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+ALTER TABLE student_profiles
+    DROP COLUMN IF EXISTS cor_url,
+    DROP COLUMN IF EXISTS student_id_url,
+    ADD COLUMN IF NOT EXISTS cor_image BYTEA,
+    ADD COLUMN IF NOT EXISTS cor_mime_type VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS student_id_image BYTEA,
+    ADD COLUMN IF NOT EXISTS student_id_mime_type VARCHAR(50);
 
 -- 6. AUTH_TOKENS (Unified Email Confirmation & Password Reset Tokens)
 CREATE TABLE IF NOT EXISTS auth_tokens (
