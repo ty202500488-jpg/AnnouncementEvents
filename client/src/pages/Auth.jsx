@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../pages/styles/Auth.css';
 
 const collegeDepartments = {
@@ -121,7 +121,8 @@ const INITIAL_REG_DATA = {
 
 export default function Auth() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('login');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => (searchParams.get('tab') === 'register' ? 'register' : 'login'));
   const [selectedCollege, setSelectedCollege] = useState('');
   const [availableCourses, setAvailableCourses] = useState([]);
   
@@ -318,11 +319,22 @@ export default function Auth() {
     return () => clearInterval(intervalId);
   }, [activeTab, regStep, regData.email, resetRegistrationFlow]);
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     if (regStep === 1) {
-      if (!regData.studentId.trim() || !regData.firstName.trim() || !regData.lastName.trim()) {
+      const trimmedId = regData.studentId.trim();
+      if (!trimmedId || !regData.firstName.trim() || !regData.lastName.trim()) {
         showAlert('Required Fields', 'Please enter your Student ID, First Name, and Last Name to continue.', 'warning');
         return;
+      }
+      try {
+        const res = await fetch(`http://localhost:5000/api/users/check-availability?student_id=${encodeURIComponent(trimmedId)}`);
+        if (res.status === 409) {
+          const data = await res.json();
+          showAlert('Student ID Already Registered', data.message || 'This Student ID is already registered to a verified account.', 'warning');
+          return;
+        }
+      } catch (_) {
+        // Proceed if pre-check is temporarily unreachable; registration endpoint validates authoritatively
       }
       setRegStep(2);
       return;
@@ -428,6 +440,16 @@ export default function Auth() {
         } else {
           navigate('/student/dashboard');
         }
+      } else if (response.status === 403 && data.requiresEmailConfirmation) {
+        const targetEmail = data.email || loginData.email.trim().toLowerCase();
+        setRegData((prev) => ({ ...prev, email: targetEmail }));
+        setActiveTab('register');
+        setRegStep('awaiting_confirmation');
+        showAlert(
+          'Email Confirmation Required',
+          data.message || 'Please confirm your email address via the link sent to your Gmail before signing in.',
+          'warning'
+        );
       } else {
         showAlert('Authentication Failed', data.message || 'Incorrect email or password. Please try again.', 'error');
       }

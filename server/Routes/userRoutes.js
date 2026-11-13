@@ -102,6 +102,60 @@ router.get('/test', (req, res) => {
     res.json({ message: 'User routes active on normalized 3NF PostgreSQL schema.' });
 });
 
+// -------- CHECK REGISTRATION AVAILABILITY (Verified Accounts Only) -------- //
+router.get('/check-availability', async (req, res) => {
+    try {
+        const studentId = String(req.query.student_id || '').trim();
+        const email = String(req.query.email || '').trim().toLowerCase();
+
+        if (!studentId && !email) {
+            return res.status(400).json({ message: 'student_id or email query parameter is required.' });
+        }
+
+        if (studentId) {
+            const idRes = await pool.query(
+                `SELECT 1
+                 FROM student_profiles sp
+                 JOIN users u ON sp.user_id = u.user_id
+                 WHERE sp.student_number = $1
+                   AND (u.is_email_verified = TRUE OR u.account_status <> 'Pending')
+                 LIMIT 1`,
+                [studentId]
+            );
+            if (idRes.rowCount > 0) {
+                return res.status(409).json({
+                    available: false,
+                    field: 'student_id',
+                    message: 'This Student ID is already registered to an existing verified account.'
+                });
+            }
+        }
+
+        if (email) {
+            const emailRes = await pool.query(
+                `SELECT 1
+                 FROM users u
+                 WHERE LOWER(u.email) = $1
+                   AND (u.is_email_verified = TRUE OR u.account_status <> 'Pending')
+                 LIMIT 1`,
+                [email]
+            );
+            if (emailRes.rowCount > 0) {
+                return res.status(409).json({
+                    available: false,
+                    field: 'email',
+                    message: 'An account with this email address already exists.'
+                });
+            }
+        }
+
+        return res.json({ available: true });
+    } catch (error) {
+        console.error('Availability check error:', error);
+        return res.status(500).json({ message: 'Failed to check registration availability.' });
+    }
+});
+
 // -------- STUDENT REGISTRATION -------- //
 router.post('/', registerLimiter, async (req, res) => {
     let client;
@@ -156,27 +210,17 @@ router.post('/', registerLimiter, async (req, res) => {
         await client.query('BEGIN');
         tx = true;
 
-        // Purge expired unverified accounts so student can re-register if token expired
-        await client.query(
-            `DELETE FROM users u
-             USING auth_tokens at
-             WHERE u.user_id = at.user_id
-               AND u.is_email_verified = FALSE
-               AND u.account_status = 'Pending'
-               AND at.token_type = 'email_verification'
-               AND at.expires_at < NOW()
-               AND (LOWER(u.email) = $1 OR EXISTS (
-                   SELECT 1 FROM student_profiles sp WHERE sp.user_id = u.user_id AND sp.student_number = $2
-               ))`,
-            [normalizedEmail, student_id.trim()]
-        );
+        // Purge expired staging rows & any legacy unverified Pending user rows
+        await client.query(`DELETE FROM pending_registrations WHERE expires_at < NOW()`);
+        await client.query(`DELETE FROM users WHERE is_email_verified = FALSE AND account_status = 'Pending'`);
 
-        // Check duplicate email or student_number
+        // Check duplicate email or student_number against verified/active accounts only
         const dupRes = await client.query(
             `SELECT u.user_id
              FROM users u
              LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
-             WHERE LOWER(u.email) = $1 OR sp.student_number = $2`,
+             WHERE (LOWER(u.email) = $1 OR sp.student_number = $2)
+               AND (u.is_email_verified = TRUE OR u.account_status <> 'Pending')`,
             [normalizedEmail, student_id.trim()]
         );
 
@@ -187,10 +231,6 @@ router.post('/', registerLimiter, async (req, res) => {
                 message: 'An account with this email or Student ID already exists.'
             });
         }
-
-        // Student Role ID
-        const roleRes = await client.query(`SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1`);
-        const studentRoleId = roleRes.rows[0]?.role_id || 3;
 
         // Validate Department & Program
         const deptRes = await client.query(
@@ -217,33 +257,32 @@ router.post('/', registerLimiter, async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 12);
 
-        // 1. Insert into users (Normalized Core Identity - stays Pending until Gmail confirmation)
-        const userIns = await client.query(
-            `INSERT INTO users (
-                role_id, first_name, middle_initial, last_name, email, password_hash,
-                is_email_verified, account_status
-             ) VALUES ($1, $2, $3, $4, $5, $6, FALSE, 'Pending')
-             RETURNING user_id, first_name, last_name, email`,
+        // Overwrite any prior unverified staging entry for the same email or student_number
+        await client.query(
+            `DELETE FROM pending_registrations
+             WHERE LOWER(email) = $1 OR student_number = $2`,
+            [normalizedEmail, student_id.trim()]
+        );
+
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        // Stage registration in pending_registrations (do NOT insert into users until Gmail confirmation)
+        const pendingIns = await client.query(
+            `INSERT INTO pending_registrations (
+                first_name, middle_initial, last_name, email, password_hash,
+                student_number, department_id, program_id, year_level,
+                cor_image, cor_mime_type, student_id_image, student_id_mime_type,
+                token_hash, expires_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+             RETURNING pending_id`,
             [
-                studentRoleId,
                 first_name.trim(),
                 middle_initial ? middle_initial.trim() : null,
                 last_name.trim(),
                 normalizedEmail,
-                hashedPassword
-            ]
-        );
-        const newUserId = userIns.rows[0].user_id;
-
-        // 2. Insert into student_profiles (Normalized 1:1 Student Subtype with BYTEA Photos)
-        await client.query(
-            `INSERT INTO student_profiles (
-                user_id, student_number, department_id, program_id, year_level,
-                cor_image, cor_mime_type, student_id_image, student_id_mime_type,
-                verification_status
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending')`,
-            [
-                newUserId,
+                hashedPassword,
                 student_id.trim(),
                 Number(department_id),
                 program_id ? Number(program_id) : null,
@@ -251,20 +290,12 @@ router.post('/', registerLimiter, async (req, res) => {
                 parsedCor.buffer,
                 parsedCor.mimeType,
                 parsedId.buffer,
-                parsedId.mimeType
+                parsedId.mimeType,
+                tokenHash,
+                expiresAt
             ]
         );
-
-        // 3. Insert into auth_tokens
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-        await client.query(
-            `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at)
-             VALUES ($1, 'email_verification', $2, $3)`,
-            [newUserId, tokenHash, expiresAt]
-        );
+        const pendingId = pendingIns.rows[0].pending_id;
 
         const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
 
@@ -280,11 +311,10 @@ router.post('/', registerLimiter, async (req, res) => {
         tx = false;
 
         await logAudit(req, {
-            action: 'Student Registration',
+            action: 'Student Registration Staged',
             module: 'auth',
-            targetType: 'user',
-            targetId: newUserId,
-            actorUserId: newUserId,
+            targetType: 'pending_registration',
+            targetId: pendingId,
             actorRole: 'student',
             details: { email: normalizedEmail, student_id: student_id.trim() }
         });
@@ -323,6 +353,117 @@ router.get('/confirm-email', async (req, res) => {
         await client.query('BEGIN');
         tx = true;
 
+        // 1. Primary path: Check staged registration in pending_registrations
+        const pendingRes = await client.query(
+            `SELECT *
+             FROM pending_registrations
+             WHERE token_hash = $1
+             FOR UPDATE`,
+            [tokenHash]
+        );
+
+        if (pendingRes.rowCount > 0) {
+            const pending = pendingRes.rows[0];
+
+            if (new Date() > new Date(pending.expires_at)) {
+                await client.query('ROLLBACK');
+                tx = false;
+                return res.status(400).json({
+                    code: 'TOKEN_EXPIRED',
+                    message: 'Verification link has expired. Please register again to receive a new confirmation link.'
+                });
+            }
+
+            // Ensure no verified account claimed this email or student_number concurrently
+            const conflictRes = await client.query(
+                `SELECT u.user_id
+                 FROM users u
+                 LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+                 WHERE LOWER(u.email) = LOWER($1) OR sp.student_number = $2
+                 LIMIT 1`,
+                [pending.email, pending.student_number]
+            );
+            if (conflictRes.rowCount > 0) {
+                await client.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
+                await client.query('COMMIT');
+                tx = false;
+                return res.status(409).json({
+                    message: 'An account with this email or Student ID has already been verified.'
+                });
+            }
+
+            const roleRes = await client.query(`SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1`);
+            const studentRoleId = roleRes.rows[0]?.role_id || 3;
+
+            const userIns = await client.query(
+                `INSERT INTO users (
+                    role_id, first_name, middle_initial, last_name, email, password_hash,
+                    is_email_verified, account_status
+                 ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, 'Active')
+                 RETURNING user_id, first_name, last_name, email, account_status AS status`,
+                [
+                    studentRoleId,
+                    pending.first_name,
+                    pending.middle_initial,
+                    pending.last_name,
+                    pending.email,
+                    pending.password_hash
+                ]
+            );
+            const newUserId = userIns.rows[0].user_id;
+
+            await client.query(
+                `INSERT INTO student_profiles (
+                    user_id, student_number, department_id, program_id, year_level,
+                    cor_image, cor_mime_type, student_id_image, student_id_mime_type,
+                    verification_status
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending')`,
+                [
+                    newUserId,
+                    pending.student_number,
+                    pending.department_id,
+                    pending.program_id,
+                    pending.year_level,
+                    pending.cor_image,
+                    pending.cor_mime_type,
+                    pending.student_id_image,
+                    pending.student_id_mime_type
+                ]
+            );
+
+            // Record used verification token for idempotent repeat requests (e.g. StrictMode or double-click)
+            await client.query(
+                `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at, used_at)
+                 VALUES ($1, 'email_verification', $2, $3, NOW())`,
+                [newUserId, tokenHash, pending.expires_at]
+            );
+
+            await client.query(
+                `DELETE FROM pending_registrations
+                 WHERE pending_id = $1 OR LOWER(email) = LOWER($2) OR student_number = $3`,
+                [pending.pending_id, pending.email, pending.student_number]
+            );
+
+            await client.query('COMMIT');
+            tx = false;
+
+            await logAudit(req, {
+                action: 'Student Email Confirmed & Account Created',
+                module: 'auth',
+                targetType: 'user',
+                targetId: newUserId,
+                actorUserId: newUserId,
+                actorRole: 'student',
+                details: { email: pending.email, student_id: pending.student_number }
+            });
+
+            return res.status(200).json({
+                message: 'Email confirmed successfully! Your account is now active.',
+                user: userIns.rows[0]
+            });
+        }
+
+        // 2. Secondary path: Check auth_tokens for idempotent double-confirm or legacy tokens
         const tokRes = await client.query(
             `SELECT token_id, user_id, expires_at, used_at
              FROM auth_tokens
@@ -334,14 +475,29 @@ router.get('/confirm-email', async (req, res) => {
         if (tokRes.rowCount === 0) {
             await client.query('ROLLBACK');
             tx = false;
-            return res.status(400).json({ message: 'Invalid or already-used verification token.' });
+            return res.status(400).json({
+                code: 'TOKEN_INVALID',
+                message: 'Invalid verification link.'
+            });
         }
 
         const tok = tokRes.rows[0];
-        if (tok.used_at || new Date() > new Date(tok.expires_at)) {
+        if (tok.used_at) {
             await client.query('ROLLBACK');
             tx = false;
-            return res.status(400).json({ message: 'Verification token has expired or already been used.' });
+            return res.status(200).json({
+                message: 'Email is already confirmed! You can now sign in.',
+                alreadyConfirmed: true
+            });
+        }
+
+        if (new Date() > new Date(tok.expires_at)) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(400).json({
+                code: 'TOKEN_EXPIRED',
+                message: 'Verification link has expired. Please register again.'
+            });
         }
 
         const userUpd = await client.query(
@@ -386,13 +542,26 @@ router.get('/verification-status', async (req, res) => {
             `SELECT is_email_verified, account_status FROM users WHERE LOWER(email) = $1 LIMIT 1`,
             [email]
         );
-        if (result.rowCount === 0) {
-            return res.status(404).json({ message: 'Account not found.' });
+        if (result.rowCount > 0) {
+            return res.json({
+                is_email_verified: result.rows[0].is_email_verified,
+                account_status: result.rows[0].account_status
+            });
         }
-        return res.json({
-            is_email_verified: result.rows[0].is_email_verified,
-            account_status: result.rows[0].account_status
-        });
+
+        const pendingRes = await pool.query(
+            `SELECT expires_at FROM pending_registrations WHERE LOWER(email) = $1 LIMIT 1`,
+            [email]
+        );
+        if (pendingRes.rowCount > 0) {
+            return res.json({
+                is_email_verified: false,
+                account_status: 'Pending',
+                expired: new Date() > new Date(pendingRes.rows[0].expires_at)
+            });
+        }
+
+        return res.status(404).json({ message: 'Account not found.' });
     } catch (error) {
         console.error('Verification status error:', error);
         return res.status(500).json({ message: 'Failed to check verification status.' });
@@ -417,41 +586,82 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
              FROM users WHERE LOWER(email) = $1 LIMIT 1`,
             [email]
         );
-        if (userRes.rowCount === 0) {
-            await client.query('ROLLBACK');
-            tx = false;
-            return res.status(404).json({ message: 'Account not found.' });
-        }
+        if (userRes.rowCount > 0) {
+            const user = userRes.rows[0];
+            if (user.is_email_verified) {
+                await client.query('ROLLBACK');
+                tx = false;
+                return res.status(200).json({
+                    message: 'Email is already confirmed. You can sign in now.',
+                    alreadyVerified: true
+                });
+            }
 
-        const user = userRes.rows[0];
-        if (user.is_email_verified) {
-            await client.query('ROLLBACK');
+            await client.query(
+                `DELETE FROM auth_tokens WHERE user_id = $1 AND token_type = 'email_verification'`,
+                [user.user_id]
+            );
+
+            const rawToken = crypto.randomBytes(32).toString('hex');
+            const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+            await client.query(
+                `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at)
+                 VALUES ($1, 'email_verification', $2, $3)`,
+                [user.user_id, tokenHash, expiresAt]
+            );
+
+            const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
+
+            try {
+                await sendVerificationEmail(user.email, user.first_name, confirmUrl);
+            } catch (emailErr) {
+                await client.query('ROLLBACK');
+                tx = false;
+                return res.status(502).json({ message: 'Failed to resend verification email.' });
+            }
+
+            await client.query('COMMIT');
             tx = false;
+
             return res.status(200).json({
-                message: 'Email is already confirmed. You can sign in now.',
-                alreadyVerified: true
+                message: 'Confirmation email resent! Please check your Gmail inbox.'
             });
         }
 
-        await client.query(
-            `DELETE FROM auth_tokens WHERE user_id = $1 AND token_type = 'email_verification'`,
-            [user.user_id]
+        const pendingRes = await client.query(
+            `SELECT pending_id, first_name, email
+             FROM pending_registrations
+             WHERE LOWER(email) = $1
+             FOR UPDATE`,
+            [email]
         );
 
+        if (pendingRes.rowCount === 0) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(404).json({
+                message: 'No pending registration found for this email. Please register again.'
+            });
+        }
+
+        const pending = pendingRes.rows[0];
         const rawToken = crypto.randomBytes(32).toString('hex');
         const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
         await client.query(
-            `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at)
-             VALUES ($1, 'email_verification', $2, $3)`,
-            [user.user_id, tokenHash, expiresAt]
+            `UPDATE pending_registrations
+             SET token_hash = $1, expires_at = $2
+             WHERE pending_id = $3`,
+            [tokenHash, expiresAt, pending.pending_id]
         );
 
         const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
 
         try {
-            await sendVerificationEmail(user.email, user.first_name, confirmUrl);
+            await sendVerificationEmail(pending.email, pending.first_name, confirmUrl);
         } catch (emailErr) {
             await client.query('ROLLBACK');
             tx = false;
@@ -499,6 +709,33 @@ router.post('/login', loginLimiter, async (req, res) => {
         );
 
         if (result.rowCount === 0) {
+            const pendingRes = await pool.query(
+                `SELECT pending_id, email, expires_at
+                 FROM pending_registrations
+                 WHERE LOWER(email) = LOWER($1)
+                 LIMIT 1`,
+                [email.trim()]
+            );
+
+            if (pendingRes.rowCount > 0) {
+                const pending = pendingRes.rows[0];
+                if (new Date() <= new Date(pending.expires_at)) {
+                    await logAudit(req, {
+                        action: 'Failed Login Attempt',
+                        module: 'auth',
+                        outcome: 'FAILURE',
+                        isSecurityEvent: true,
+                        details: { email: email.trim(), reason: 'Pending email verification' }
+                    });
+                    return res.status(403).json({
+                        message: 'Please confirm your email address via the link sent to your Gmail before signing in.',
+                        requiresEmailConfirmation: true,
+                        email: pending.email
+                    });
+                }
+                await pool.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
+            }
+
             await logAudit(req, {
                 action: 'Failed Login Attempt',
                 module: 'auth',
