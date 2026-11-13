@@ -74,14 +74,27 @@ async function getOrCreateAdminPageId(adminUserId) {
 function computeKpiComparison(currentVal, previousVal, hasBaseline, comparisonLabel) {
     const current = Number(currentVal) || 0;
     const previous = Number(previousVal) || 0;
+    const delta = current - previous;
 
-    if (!hasBaseline || previous === 0) {
+    if (!hasBaseline) {
         return {
             current,
             previous,
+            delta,
             percentageChange: null,
             trend: 'neutral',
-            comparisonLabel: hasBaseline && previous === 0 ? 'No prior records' : (comparisonLabel || 'First period')
+            comparisonLabel: comparisonLabel || 'No prior period'
+        };
+    }
+
+    if (previous === 0) {
+        return {
+            current,
+            previous: 0,
+            delta,
+            percentageChange: current === 0 ? 0 : null,
+            trend: current > 0 ? 'up' : 'neutral',
+            comparisonLabel: comparisonLabel || 'vs prior period'
         };
     }
 
@@ -92,6 +105,7 @@ function computeKpiComparison(currentVal, previousVal, hasBaseline, comparisonLa
     return {
         current,
         previous,
+        delta,
         percentageChange: roundedPct,
         trend,
         comparisonLabel
@@ -108,6 +122,18 @@ function addDaysIso(isoStr, days) {
     const d = new Date(`${isoStr}T00:00:00.000Z`);
     d.setUTCDate(d.getUTCDate() + days);
     return d.toISOString().slice(0, 10);
+}
+
+function formatShortIsoLabel(isoStr) {
+    if (!isoStr) return '';
+    const d = new Date(`${isoStr}T00:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) return isoStr;
+    return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC'
+    });
 }
 
 router.get('/overview', async (req, res) => {
@@ -140,14 +166,14 @@ router.get('/overview', async (req, res) => {
             }
         }
 
-        // Load all academic years to resolve active/selected and preceding year
+        // Load all academic years with timezone-safe YYYY-MM-DD strings
         const academicYearsRes = await pool.query(
             `SELECT academic_year_id AS id,
                     start_year,
                     end_year,
                     semester,
-                    start_date,
-                    end_date,
+                    to_char(COALESCE(start_date, make_date(start_year::int, 8, 1)), 'YYYY-MM-DD') AS start_date,
+                    to_char(COALESCE(end_date, make_date(end_year::int, 5, 31)), 'YYYY-MM-DD') AS end_date,
                     is_active,
                     COALESCE(status, CASE WHEN is_active THEN 'Active' ELSE 'Archived' END) AS status,
                     start_year || '–' || end_year || ' (' || semester || ')' AS label
@@ -175,150 +201,108 @@ router.get('/overview', async (req, res) => {
         const isCustomDateRange = Boolean(validStart && validEnd);
         const syId = selectedAcademicYear ? selectedAcademicYear.id : null;
         const prevSyId = precedingAcademicYear ? precedingAcademicYear.id : null;
+        const isSyActive = Boolean(selectedAcademicYear?.is_active);
 
-        let prevStart = null;
-        let prevEnd = null;
-        let durationDays = 180;
-        let comparisonLabel = precedingAcademicYear
-            ? `vs SY ${precedingAcademicYear.start_year}–${precedingAcademicYear.end_year}`
-            : 'No prior school year';
+        // Resolve unified applied date boundaries (seriesStart .. seriesEnd)
+        let seriesStart = isCustomDateRange
+            ? validStart
+            : (selectedAcademicYear?.start_date || (selectedAcademicYear ? `${selectedAcademicYear.start_year}-08-01` : addDaysIso(new Date().toISOString().slice(0, 10), -180)));
+        let seriesEnd = isCustomDateRange
+            ? validEnd
+            : (selectedAcademicYear?.end_date || (selectedAcademicYear ? `${selectedAcademicYear.end_year}-05-31` : new Date().toISOString().slice(0, 10)));
+
+        if (seriesStart > seriesEnd) {
+            const tmp = seriesStart;
+            seriesStart = seriesEnd;
+            seriesEnd = tmp;
+        }
+
+        const sMs = new Date(`${seriesStart}T00:00:00.000Z`).getTime();
+        const eMs = new Date(`${seriesEnd}T00:00:00.000Z`).getTime();
+        const durationDays = Math.max(1, Math.round((eMs - sMs) / 86400000) + 1);
+
+        // Resolve equivalent preceding period boundaries (prevStart .. prevEnd)
+        let prevStart = addDaysIso(seriesStart, -durationDays);
+        let prevEnd = addDaysIso(seriesStart, -1);
+        let comparisonLabel = '';
 
         if (isCustomDateRange) {
-            const sMs = new Date(`${validStart}T00:00:00.000Z`).getTime();
-            const eMs = new Date(`${validEnd}T00:00:00.000Z`).getTime();
-            durationDays = Math.max(1, Math.round((eMs - sMs) / 86400000) + 1);
-            prevEnd = addDaysIso(validStart, -1);
-            prevStart = addDaysIso(prevEnd, -(durationDays - 1));
-            comparisonLabel = `vs ${prevStart} to ${prevEnd}`;
-        } else if (selectedAcademicYear) {
-            const syStart = selectedAcademicYear.start_date
-                ? new Date(selectedAcademicYear.start_date).toISOString().slice(0, 10)
-                : `${selectedAcademicYear.start_year}-08-01`;
-            const syEnd = selectedAcademicYear.end_date
-                ? new Date(selectedAcademicYear.end_date).toISOString().slice(0, 10)
-                : `${selectedAcademicYear.end_year}-05-31`;
-            const sMs = new Date(`${syStart}T00:00:00.000Z`).getTime();
-            const eMs = new Date(`${syEnd}T00:00:00.000Z`).getTime();
-            durationDays = Math.max(30, Math.round((eMs - sMs) / 86400000) + 1);
+            comparisonLabel = prevStart === prevEnd
+                ? `vs ${formatShortIsoLabel(prevStart)}`
+                : `vs ${formatShortIsoLabel(prevStart)} – ${formatShortIsoLabel(prevEnd)}`;
+        } else if (precedingAcademicYear) {
+            prevStart = precedingAcademicYear.start_date || `${precedingAcademicYear.start_year}-08-01`;
+            prevEnd = precedingAcademicYear.end_date || `${precedingAcademicYear.end_year}-05-31`;
+            comparisonLabel = `vs SY ${precedingAcademicYear.start_year}–${precedingAcademicYear.end_year}`;
+        } else {
+            comparisonLabel = `vs prior ${durationDays}d`;
         }
 
         // Timezone-safe inclusive timestamp filter builder
         const buildTzRange = (col, startParamIdx, endParamIdx) =>
             `${col} >= ($${startParamIdx}::date::timestamp AT TIME ZONE 'Asia/Manila') AND ${col} < (($${endParamIdx}::date + INTERVAL '1 day')::timestamp AT TIME ZONE 'Asia/Manila')`;
 
-        // 1. KPI Queries (Current Period vs Previous Period)
-        let kpiCurrentPromise;
-        let kpiPrevPromise;
-        let statusDistPromise;
+        // 1. KPI Queries (Current Period vs Equivalent Previous Period)
+        const syFilterCur = syId
+            ? (isSyActive ? 'AND (p.academic_year_id = $3 OR p.academic_year_id IS NULL)' : 'AND p.academic_year_id = $3')
+            : '';
+        const curParams = syId ? [seriesStart, seriesEnd, syId] : [seriesStart, seriesEnd];
 
-        const isSyActive = Boolean(selectedAcademicYear?.is_active);
-        if (isCustomDateRange) {
-            const syFilter = syId
-                ? (isSyActive ? 'AND (p.academic_year_id = $3 OR p.academic_year_id IS NULL)' : 'AND p.academic_year_id = $3')
-                : '';
-            const curParams = syId ? [validStart, validEnd, syId] : [validStart, validEnd];
-            const prvParams = syId ? [prevStart, prevEnd, syId] : [prevStart, prevEnd];
+        const prvSyTarget = (!isCustomDateRange && prevSyId) ? prevSyId : syId;
+        const syFilterPrv = prvSyTarget
+            ? ((!isCustomDateRange && prevSyId)
+                ? 'AND p.academic_year_id = $3'
+                : (isSyActive ? 'AND (p.academic_year_id = $3 OR p.academic_year_id IS NULL)' : 'AND p.academic_year_id = $3'))
+            : '';
+        const prvParams = prvSyTarget ? [prevStart, prevEnd, prvSyTarget] : [prevStart, prevEnd];
 
-            kpiCurrentPromise = pool.query(
-                `SELECT
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}) AS total_announcements,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' AND p.is_archived = FALSE AND LOWER(p.status) = 'published' AND LOWER(p.moderation_status) = 'approved' ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}) AS published_announcements,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}) AS total_events,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' AND p.is_archived = FALSE AND LOWER(p.moderation_status) = 'approved' AND LOWER(p.status) IN ('upcoming', 'published') ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}) AS upcoming_events,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending' ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}) AS pending_posts,
-                    (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) = 'pending' AND ${buildTzRange('pg.created_at', 1, 2)}) AS pending_pages,
-                    (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) IN ('approved', 'active') AND ${buildTzRange('pg.created_at', 1, 2)}) AS approved_pages`,
-                curParams
-            );
+        const kpiCurrentPromise = pool.query(
+            `SELECT
+                (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' ${syFilterCur} AND ${buildTzRange('p.created_at', 1, 2)}) AS total_announcements,
+                (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' AND p.is_archived = FALSE AND LOWER(p.status) = 'published' AND LOWER(p.moderation_status) = 'approved' ${syFilterCur} AND ${buildTzRange('p.created_at', 1, 2)}) AS published_announcements,
+                (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' ${syFilterCur} AND ${buildTzRange('p.created_at', 1, 2)}) AS total_events,
+                (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' AND p.is_archived = FALSE AND LOWER(p.moderation_status) = 'approved' AND LOWER(p.status) IN ('upcoming', 'published', 'ongoing') ${syFilterCur} AND ${buildTzRange('p.created_at', 1, 2)}) AS upcoming_events,
+                (SELECT COUNT(*)::int FROM posts p WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending' ${syFilterCur} AND ${buildTzRange('p.created_at', 1, 2)}) AS pending_posts,
+                (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) = 'pending' AND ${buildTzRange('pg.created_at', 1, 2)}) AS pending_pages,
+                (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) IN ('approved', 'active') AND ${buildTzRange('pg.created_at', 1, 2)}) AS approved_pages,
+                (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) IN ('approved', 'active')) AS total_active_pages`,
+            curParams
+        );
 
-            kpiPrevPromise = pool.query(
-                `SELECT
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}) AS total_announcements,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}) AS total_events,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending' ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}) AS pending_posts,
-                    (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) = 'pending' AND ${buildTzRange('pg.created_at', 1, 2)}) AS pending_pages,
-                    (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) IN ('approved', 'active') AND ${buildTzRange('pg.created_at', 1, 2)}) AS approved_pages`,
-                prvParams
-            );
+        const kpiPrevPromise = pool.query(
+            `SELECT
+                (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' ${syFilterPrv} AND ${buildTzRange('p.created_at', 1, 2)}) AS total_announcements,
+                (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' ${syFilterPrv} AND ${buildTzRange('p.created_at', 1, 2)}) AS total_events,
+                (SELECT COUNT(*)::int FROM posts p WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending' ${syFilterPrv} AND ${buildTzRange('p.created_at', 1, 2)}) AS pending_posts,
+                (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) = 'pending' AND ${buildTzRange('pg.created_at', 1, 2)}) AS pending_pages,
+                (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) IN ('approved', 'active') AND ${buildTzRange('pg.created_at', 1, 2)}) AS approved_pages`,
+            prvParams
+        );
 
-            statusDistPromise = pool.query(
-                `SELECT
-                    COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.status) = 'published' AND LOWER(p.moderation_status) = 'approved')::int AS published,
-                    COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending')::int AS pending,
-                    COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'rejected')::int AS rejected,
-                    COUNT(*) FILTER (WHERE p.is_archived = TRUE OR LOWER(p.status) = 'archived')::int AS archived
-                 FROM posts p
-                 WHERE p.post_type = 'announcement' ${syFilter} AND ${buildTzRange('p.created_at', 1, 2)}`,
-                curParams
-            );
-        } else {
-            const syFilter = syId
-                ? (isSyActive ? 'AND (p.academic_year_id = $1 OR p.academic_year_id IS NULL)' : 'AND p.academic_year_id = $1')
-                : '';
-            const curParams = syId ? [syId] : [];
-            const syEndDate = selectedAcademicYear?.end_date
-                ? new Date(selectedAcademicYear.end_date).toISOString().slice(0, 10)
-                : (selectedAcademicYear ? `${selectedAcademicYear.end_year}-05-31` : null);
+        const statusDistPromise = pool.query(
+            `SELECT
+                COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.status) = 'published' AND LOWER(p.moderation_status) = 'approved')::int AS published,
+                COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending')::int AS pending,
+                COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'rejected')::int AS rejected,
+                COUNT(*) FILTER (WHERE p.is_archived = TRUE OR LOWER(p.status) = 'archived')::int AS archived
+             FROM posts p
+             WHERE p.post_type = 'announcement' ${syFilterCur} AND ${buildTzRange('p.created_at', 1, 2)}`,
+            curParams
+        );
 
-            kpiCurrentPromise = pool.query(
-                `SELECT
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' ${syFilter}) AS total_announcements,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' AND p.is_archived = FALSE AND LOWER(p.status) = 'published' AND LOWER(p.moderation_status) = 'approved' ${syFilter}) AS published_announcements,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' ${syFilter}) AS total_events,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' AND p.is_archived = FALSE AND LOWER(p.moderation_status) = 'approved' AND LOWER(p.status) IN ('upcoming', 'published') ${syFilter}) AS upcoming_events,
-                    (SELECT COUNT(*)::int FROM posts p WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending' ${syFilter}) AS pending_posts,
-                    (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) = 'pending') AS pending_pages,
-                    (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) IN ('approved', 'active') ${syEndDate ? `AND pg.created_at < ((('${syEndDate}'::date + INTERVAL '1 day')::timestamp) AT TIME ZONE 'Asia/Manila')` : ''}) AS approved_pages`,
-                curParams
-            );
-
-            if (prevSyId) {
-                const prevEndDate = precedingAcademicYear?.end_date
-                    ? new Date(precedingAcademicYear.end_date).toISOString().slice(0, 10)
-                    : `${precedingAcademicYear.end_year}-05-31`;
-                kpiPrevPromise = pool.query(
-                    `SELECT
-                        (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'announcement' AND p.academic_year_id = $1) AS total_announcements,
-                        (SELECT COUNT(*)::int FROM posts p WHERE p.post_type = 'event' AND p.academic_year_id = $1) AS total_events,
-                        (SELECT COUNT(*)::int FROM posts p WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending' AND p.academic_year_id = $1) AS pending_posts,
-                        0::int AS pending_pages,
-                        (SELECT COUNT(*)::int FROM pages pg WHERE LOWER(pg.status) IN ('approved', 'active') AND pg.created_at < ((('${prevEndDate}'::date + INTERVAL '1 day')::timestamp) AT TIME ZONE 'Asia/Manila')) AS approved_pages`,
-                    [prevSyId]
-                );
-            } else {
-                kpiPrevPromise = Promise.resolve({ rows: [null] });
-            }
-
-            statusDistPromise = pool.query(
-                `SELECT
-                    COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.status) = 'published' AND LOWER(p.moderation_status) = 'approved')::int AS published,
-                    COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'pending')::int AS pending,
-                    COUNT(*) FILTER (WHERE p.is_archived = FALSE AND LOWER(p.moderation_status) = 'rejected')::int AS rejected,
-                    COUNT(*) FILTER (WHERE p.is_archived = TRUE OR LOWER(p.status) = 'archived')::int AS archived
-                 FROM posts p
-                 WHERE p.post_type = 'announcement' ${syFilter}`,
-                curParams
-            );
-        }
-
-        // 2. Publishing Activity Line Chart (Auto-grouped: daily <= 31d, weekly <= 120d, monthly > 120d)
+        // 2. Analytics Charts (Auto-grouped: hourly == 1d, daily <= 31d, weekly <= 120d, monthly > 120d)
         let grouping = 'monthly';
-        if (durationDays <= 31) grouping = 'daily';
+        if (durationDays === 1) grouping = 'hourly';
+        else if (durationDays <= 31) grouping = 'daily';
         else if (durationDays <= 120) grouping = 'weekly';
 
-        const seriesStart = isCustomDateRange
-            ? validStart
-            : (selectedAcademicYear?.start_date
-                ? new Date(selectedAcademicYear.start_date).toISOString().slice(0, 10)
-                : (selectedAcademicYear ? `${selectedAcademicYear.start_year}-08-01` : addDaysIso(new Date().toISOString().slice(0, 10), -180)));
-        const seriesEnd = isCustomDateRange
-            ? validEnd
-            : (selectedAcademicYear?.end_date
-                ? new Date(selectedAcademicYear.end_date).toISOString().slice(0, 10)
-                : (selectedAcademicYear ? `${selectedAcademicYear.end_year}-05-31` : new Date().toISOString().slice(0, 10)));
+        const truncUnit = grouping === 'hourly' ? 'hour' : grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : 'month';
+        const stepInterval = grouping === 'hourly' ? '1 hour' : grouping === 'daily' ? '1 day' : grouping === 'weekly' ? '1 week' : '1 month';
+        const bucketEndExpr = grouping === 'hourly'
+            ? `($2::date::timestamp + INTERVAL '23 hours')`
+            : `date_trunc('${truncUnit}', $2::date::timestamp)`;
+        const keyFormat = grouping === 'hourly' ? 'YYYY-MM-DD HH24:00' : 'YYYY-MM-DD';
 
-        const truncUnit = grouping === 'daily' ? 'day' : grouping === 'weekly' ? 'week' : 'month';
-        const stepInterval = grouping === 'daily' ? '1 day' : grouping === 'weekly' ? '1 week' : '1 month';
         const pubParams = syId ? [seriesStart, seriesEnd, syId] : [seriesStart, seriesEnd];
         const pubSyClause = syId
             ? (isSyActive ? 'AND (p.academic_year_id = $3 OR p.academic_year_id IS NULL)' : 'AND p.academic_year_id = $3')
@@ -328,32 +312,31 @@ router.get('/overview', async (req, res) => {
             `WITH buckets AS (
                 SELECT generate_series(
                     date_trunc('${truncUnit}', $1::date::timestamp),
-                    date_trunc('${truncUnit}', $2::date::timestamp),
+                    ${bucketEndExpr},
                     '${stepInterval}'::interval
                 ) AS bucket_start
             )
             SELECT
-                to_char(b.bucket_start, 'YYYY-MM-DD') AS key,
+                to_char(b.bucket_start, '${keyFormat}') AS key,
                 CASE
+                    WHEN '${grouping}' = 'hourly' THEN to_char(b.bucket_start, 'FMHH12 AM')
                     WHEN '${grouping}' = 'daily' THEN to_char(b.bucket_start, 'Mon DD')
                     WHEN '${grouping}' = 'weekly' THEN 'Wk of ' || to_char(b.bucket_start, 'Mon DD')
                     ELSE to_char(b.bucket_start, 'Mon YYYY')
                 END AS label,
                 COUNT(p.post_id) FILTER (
                     WHERE p.post_type = 'announcement'
-                      AND COALESCE(p.published_at, p.created_at) IS NOT NULL
                       ${pubSyClause}
                 )::int AS announcements,
                 COUNT(p.post_id) FILTER (
                     WHERE p.post_type = 'event'
-                      AND COALESCE(p.published_at, p.created_at) IS NOT NULL
                       ${pubSyClause}
                 )::int AS events
             FROM buckets b
             LEFT JOIN posts p
-              ON date_trunc('${truncUnit}', COALESCE(p.published_at, p.created_at) AT TIME ZONE 'Asia/Manila') = b.bucket_start
-             AND COALESCE(p.published_at, p.created_at) >= ($1::date::timestamp AT TIME ZONE 'Asia/Manila')
-             AND COALESCE(p.published_at, p.created_at) < (($2::date + INTERVAL '1 day')::timestamp AT TIME ZONE 'Asia/Manila')
+              ON date_trunc('${truncUnit}', p.created_at AT TIME ZONE 'Asia/Manila') = b.bucket_start
+             AND p.created_at >= ($1::date::timestamp AT TIME ZONE 'Asia/Manila')
+             AND p.created_at < (($2::date + INTERVAL '1 day')::timestamp AT TIME ZONE 'Asia/Manila')
             GROUP BY b.bucket_start
             ORDER BY b.bucket_start ASC`,
             pubParams
@@ -364,7 +347,7 @@ router.get('/overview', async (req, res) => {
             `WITH buckets AS (
                 SELECT generate_series(
                     date_trunc('${truncUnit}', $1::date::timestamp),
-                    date_trunc('${truncUnit}', $2::date::timestamp),
+                    ${bucketEndExpr},
                     '${stepInterval}'::interval
                 ) AS bucket_start
             ),
@@ -395,8 +378,9 @@ router.get('/overview', async (req, res) => {
                 GROUP BY 1
             )
             SELECT
-                to_char(b.bucket_start, 'YYYY-MM-DD') AS key,
+                to_char(b.bucket_start, '${keyFormat}') AS key,
                 CASE
+                    WHEN '${grouping}' = 'hourly' THEN to_char(b.bucket_start, 'FMHH12 AM')
                     WHEN '${grouping}' = 'daily' THEN to_char(b.bucket_start, 'Mon DD')
                     WHEN '${grouping}' = 'weekly' THEN 'Wk of ' || to_char(b.bucket_start, 'Mon DD')
                     ELSE to_char(b.bucket_start, 'Mon YYYY')
@@ -412,28 +396,13 @@ router.get('/overview', async (req, res) => {
             [seriesStart, seriesEnd]
         );
 
-        // 3. Combined Recent Administrative Activity Table (Strictly from audit_logs)
+        // 3. Combined Recent Administrative Activity Table (Strictly from audit_logs, filtered by the global date range)
         const actPageNum = Math.max(1, parseInt(activityPage, 10) || 1);
-        const actLimitNum = Math.min(50, Math.max(5, parseInt(activityLimit, 10) || 10));
+        const actLimitNum = Math.min(100, Math.max(5, parseInt(activityLimit, 10) || 10));
         const actOffset = (actPageNum - 1) * actLimitNum;
 
-        const actParams = [];
-        const actClauses = [];
-
-        if (isCustomDateRange) {
-            actParams.push(validStart, validEnd);
-            actClauses.push(buildTzRange('l.created_at', actParams.length - 1, actParams.length));
-        } else if (selectedAcademicYear && !selectedAcademicYear.is_active) {
-            // Historical school year scope: filter audit logs within that school year's date bounds
-            const syS = selectedAcademicYear.start_date
-                ? new Date(selectedAcademicYear.start_date).toISOString().slice(0, 10)
-                : `${selectedAcademicYear.start_year}-08-01`;
-            const syE = selectedAcademicYear.end_date
-                ? new Date(selectedAcademicYear.end_date).toISOString().slice(0, 10)
-                : `${selectedAcademicYear.end_year}-05-31`;
-            actParams.push(syS, syE);
-            actClauses.push(buildTzRange('l.created_at', actParams.length - 1, actParams.length));
-        }
+        const actParams = [seriesStart, seriesEnd];
+        const actClauses = [buildTzRange('l.created_at', 1, 2)];
 
         if (activitySearch && String(activitySearch).trim()) {
             actParams.push(`%${String(activitySearch).trim()}%`);
@@ -446,7 +415,7 @@ router.get('/overview', async (req, res) => {
             );
         }
 
-        const actWhere = actClauses.length ? `WHERE ${actClauses.join(' AND ')}` : '';
+        const actWhere = `WHERE ${actClauses.join(' AND ')}`;
         const actCountPromise = pool.query(
             `SELECT COUNT(*)::int AS total
              FROM audit_logs l
@@ -466,11 +435,32 @@ router.get('/overview', async (req, res) => {
                     l.details,
                     l.created_at,
                     COALESCE(u.first_name || ' ' || u.last_name, 'System') AS performed_by,
-                    COALESCE(l.actor_role, 'system') AS actor_role
+                    COALESCE(l.actor_role, 'system') AS actor_role,
+                    tp.title AS target_post_title,
+                    tp.post_type AS target_post_type,
+                    tpg.page_name AS target_page_name,
+                    tu.first_name || ' ' || tu.last_name AS target_user_name,
+                    tu.email AS target_user_email,
+                    CASE WHEN tay.academic_year_id IS NOT NULL
+                         THEN 'SY ' || tay.start_year || '–' || tay.end_year || ' (' || tay.semester || ')'
+                         ELSE NULL
+                    END AS target_sy_label
              FROM audit_logs l
              LEFT JOIN users u ON l.actor_user_id = u.user_id
+             LEFT JOIN posts tp ON LOWER(COALESCE(l.target_type, '')) IN ('post', 'announcement', 'event')
+                               AND l.target_id ~ '^[0-9]+$'
+                               AND l.target_id::int = tp.post_id
+             LEFT JOIN pages tpg ON LOWER(COALESCE(l.target_type, '')) = 'page'
+                                AND l.target_id ~ '^[0-9]+$'
+                                AND l.target_id::int = tpg.page_id
+             LEFT JOIN users tu ON LOWER(COALESCE(l.target_type, '')) IN ('user', 'student', 'staff')
+                               AND l.target_id ~ '^[0-9]+$'
+                               AND l.target_id::int = tu.user_id
+             LEFT JOIN academic_years tay ON LOWER(COALESCE(l.target_type, '')) = 'academic_year'
+                                         AND l.target_id ~ '^[0-9]+$'
+                                         AND l.target_id::int = tay.academic_year_id
              ${actWhere}
-             ORDER BY l.created_at DESC
+             ORDER BY l.created_at DESC, l.log_id DESC
              LIMIT $${actDataParams.length - 1} OFFSET $${actDataParams.length}`,
             actDataParams
         );
@@ -495,7 +485,7 @@ router.get('/overview', async (req, res) => {
 
         const cur = kpiCurRes.rows[0] || {};
         const prv = kpiPrvRes.rows[0] || null;
-        const hasBaseline = isCustomDateRange || Boolean(prevSyId);
+        const hasBaseline = true;
 
         const curPendingTotal = (cur.pending_posts || 0) + (cur.pending_pages || 0);
         const prvPendingTotal = prv ? ((prv.pending_posts || 0) + (prv.pending_pages || 0)) : 0;
@@ -514,7 +504,10 @@ router.get('/overview', async (req, res) => {
                 pendingPosts: cur.pending_posts || 0,
                 pendingPages: cur.pending_pages || 0
             },
-            approvedPages: computeKpiComparison(cur.approved_pages, prv?.approved_pages, hasBaseline, comparisonLabel)
+            approvedPages: {
+                ...computeKpiComparison(cur.approved_pages, prv?.approved_pages, hasBaseline, comparisonLabel),
+                totalActivePages: cur.total_active_pages || 0
+            }
         };
 
         const sd = statusDistRes.rows[0] || { published: 0, pending: 0, rejected: 0, archived: 0 };
@@ -526,25 +519,49 @@ router.get('/overview', async (req, res) => {
             { status: 'Archived', count: sd.archived || 0, percentage: sdTotal ? Math.round(((sd.archived || 0) / sdTotal) * 1000) / 10 : 0 }
         ];
 
-        const mapActivityRecordType = (l) => {
+        const mapActivityCategory = (l) => {
             const tt = String(l.target_type || '').toLowerCase();
             const mod = String(l.module || '').toLowerCase();
-            if (tt.includes('event') || mod.includes('event')) return 'Event';
-            if (tt.includes('post') || tt.includes('announcement') || mod.includes('moderation') || mod.includes('content')) return 'Announcement';
+            if (mod === 'auth' || l.action.toLowerCase().includes('login')) return 'Authentication';
+            if (tt.includes('event') || mod.includes('event') || String(l.target_post_type || '').toLowerCase() === 'event') return 'Event';
+            if (tt.includes('post') || tt.includes('announcement') || mod.includes('moderation') || mod.includes('content') || mod.includes('archive')) return 'Announcement';
             if (tt.includes('page') || mod.includes('page')) return 'Page';
             if (tt.includes('user') || tt.includes('student') || mod.includes('user')) return 'User';
             if (tt.includes('academic_year') || mod.includes('setting')) return 'School Year';
             return 'System';
         };
 
-        const mapActivityRoute = (recordType) => {
-            switch (recordType) {
+        const mapAffectedResource = (l) => {
+            const d = l.details && typeof l.details === 'object' ? l.details : {};
+            if (d.title) return d.title;
+            if (l.target_post_title) return l.target_post_title;
+            if (l.target_page_name) return l.target_page_name;
+            if (l.target_sy_label) return l.target_sy_label;
+            if (l.target_user_name) {
+                return l.target_user_email ? `${l.target_user_name} (${l.target_user_email})` : l.target_user_name;
+            }
+            if (d.page_name) return d.page_name;
+            if (d.email) return `Account (${d.email})`;
+            if (l.target_type && l.target_id) {
+                const cleanType = String(l.target_type).replace(/_/g, ' ');
+                return `${cleanType.charAt(0).toUpperCase() + cleanType.slice(1)} #${l.target_id}`;
+            }
+            if (l.target_type) {
+                const cleanType = String(l.target_type).replace(/_/g, ' ');
+                return cleanType.charAt(0).toUpperCase() + cleanType.slice(1);
+            }
+            return 'System Portal';
+        };
+
+        const mapActivityRoute = (category) => {
+            switch (category) {
                 case 'Announcement':
                 case 'Event':
                     return '/admin/content-feed';
                 case 'Page':
                     return '/admin/pages';
                 case 'User':
+                case 'Authentication':
                     return '/admin/users';
                 case 'School Year':
                     return '/admin/settings?tab=academic-year';
@@ -554,32 +571,38 @@ router.get('/overview', async (req, res) => {
         };
 
         const recentActivityItems = actDataRes.rows.map(l => {
-            const recordType = mapActivityRecordType(l);
-            const titleHint = l.details && typeof l.details === 'object' && l.details.title ? ` — "${l.details.title}"` : '';
+            const category = mapActivityCategory(l);
+            const affectedResource = mapAffectedResource(l);
             return {
                 id: l.id,
-                activity: `${l.action}${titleHint}`,
-                recordType,
+                activity: l.action,
+                actor: l.performed_by,
                 performedBy: l.performed_by,
                 actorRole: l.actor_role,
+                category,
+                recordType: category,
+                affectedResource,
                 createdAt: l.created_at,
                 status: l.outcome === 'SUCCESS' ? 'Completed' : 'Failed',
                 outcome: l.outcome,
-                route: mapActivityRoute(recordType)
+                route: mapActivityRoute(category)
             };
         });
 
         const actTotal = actCountRes.rows[0]?.total || 0;
+        const actTotalPages = Math.max(1, Math.ceil(actTotal / actLimitNum));
 
         return res.json({
             reportingPeriod: {
                 isCustomDateRange,
-                startDate: isCustomDateRange ? validStart : seriesStart,
-                endDate: isCustomDateRange ? validEnd : seriesEnd,
+                startDate: seriesStart,
+                endDate: seriesEnd,
+                durationDays,
+                prevStartDate: prevStart,
+                prevEndDate: prevEnd,
                 comparisonLabel
             },
             kpis,
-            // Legacy-compatible summary counts
             counts: {
                 totalAnnouncements: kpis.totalAnnouncements.current,
                 totalEvents: kpis.totalEvents.current,
@@ -588,7 +611,7 @@ router.get('/overview', async (req, res) => {
             },
             publishingActivity: {
                 grouping,
-                timestampSource: 'published_or_created_at',
+                timestampSource: 'created_at',
                 series: pubActRes.rows
             },
             userAndPageActivity: {
@@ -599,10 +622,10 @@ router.get('/overview', async (req, res) => {
             recentActivity: {
                 items: recentActivityItems,
                 pagination: {
-                    page: actPageNum,
+                    page: Math.min(actPageNum, actTotalPages),
                     limit: actLimitNum,
                     total: actTotal,
-                    totalPages: Math.max(1, Math.ceil(actTotal / actLimitNum))
+                    totalPages: actTotalPages
                 }
             },
             academicYears,

@@ -1,359 +1,708 @@
-/* ==========================================
-WMSU ADMIN OVERVIEW DASHBOARD STYLESHEET
-Theme: WMSU Deep Maroon Palette (100% Strictly Scoped)
-========================================== */
+/* ==========================================================================
+   WMSU ADMINISTRATOR OVERVIEW DASHBOARD STYLESHEET
+   Palette:
+   - Primary Maroon: #7B0D1E
+   - Dark Maroon:    #5A0915
+   - Deep Maroon:    #3D0610
+   - Light Maroon:   #9E1A2E
+   - Gold Accent:    #F5B400
+   - Background:     #F0F2F5
+   - White:          #FFFFFF
+   Spacing Scale:
+   - 4px, 8px, 12px, 16px, 20px, 24px, 32px
+   ========================================================================== */
 
 .admin-overview-wrapper {
-  --wmsu-crimson: var(--admin-color-primary, #7B0D1E);
-  --wmsu-crimson-dark: var(--admin-color-dark, #5a0915);
-  --wmsu-crimson-light: var(--admin-brand-50, #fff1f2);
-  --wmsu-crimson-border: var(--admin-brand-200, #fecdd3);
+  --wmsu-primary: #7B0D1E;
+  --wmsu-dark: #5A0915;
+  --wmsu-deep: #3D0610;
+  --wmsu-light: #9E1A2E;
+  --wmsu-gold: #F5B400;
+  --wmsu-bg: #F0F2F5;
+  --wmsu-white: #FFFFFF;
+
+  --ov-border: #E2E8F0;
+  --ov-border-strong: #CBD5E1;
+  --ov-text-main: #0F172A;
+  --ov-text-secondary: #334155;
+  --ov-text-muted: #64748B;
+  --ov-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --ov-shadow-md: 0 6px 16px rgba(15, 23, 42, 0.07);
+  --ov-radius: 12px;
 
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 20px;
   width: 100%;
-  color: #1e293b;
+  max-width: 100%;
+  padding-bottom: 24px;
+  color: var(--ov-text-main);
   box-sizing: border-box;
 }
 
-/* Scoped reset for direct overview descendants only */
 .admin-overview-wrapper *,
 .admin-overview-wrapper *::before,
 .admin-overview-wrapper *::after {
   box-sizing: border-box;
 }
 
-/* Page Header Bar */
-.admin-overview-wrapper .overview-header-bar {
+/* ==========================================================================
+   BUTTON DESIGN SYSTEM (PRIMARY, SECONDARY, GHOST, ICON-ONLY)
+   ========================================================================== */
+.admin-overview-wrapper .ov-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.admin-overview-wrapper .ov-btn i {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.admin-overview-wrapper .ov-btn-sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.75rem;
+}
+
+.admin-overview-wrapper .ov-btn-primary {
+  background-color: var(--wmsu-primary);
+  border-color: var(--wmsu-primary);
+  color: var(--wmsu-white);
+}
+
+.admin-overview-wrapper .ov-btn-primary:hover:not(:disabled) {
+  background-color: var(--wmsu-dark);
+  border-color: var(--wmsu-dark);
+}
+
+.admin-overview-wrapper .ov-btn-primary:active:not(:disabled) {
+  background-color: var(--wmsu-deep);
+}
+
+.admin-overview-wrapper .ov-btn-secondary {
+  background-color: var(--wmsu-white);
+  border-color: var(--ov-border-strong);
+  color: var(--ov-text-secondary);
+}
+
+.admin-overview-wrapper .ov-btn-secondary:hover:not(:disabled) {
+  background-color: #FFF1F2;
+  border-color: var(--wmsu-light);
+  color: var(--wmsu-primary);
+}
+
+.admin-overview-wrapper .ov-btn-ghost {
+  background-color: transparent;
+  border-color: transparent;
+  color: var(--ov-text-secondary);
+}
+
+.admin-overview-wrapper .ov-btn-ghost:hover:not(:disabled) {
+  background-color: #F1F5F9;
+  color: var(--ov-text-main);
+}
+
+.admin-overview-wrapper .ov-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   1. PAGE HEADER & LIVE DATE-RANGE FILTER BAR
+   ========================================================================== */
+.admin-overview-wrapper .ov-header-card {
+  background-color: var(--wmsu-white);
+  border: 1px solid var(--ov-border);
+  border-radius: var(--ov-radius);
+  padding: 20px;
+  box-shadow: var(--ov-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-overview-wrapper .ov-header-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.admin-overview-wrapper .ov-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+  flex: 1 1 280px;
+}
+
+.admin-overview-wrapper .ov-title-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
   flex-wrap: wrap;
+  gap: 12px;
 }
 
 .admin-overview-wrapper .overview-title {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 800;
-  color: var(--wmsu-crimson);
-  margin: 0 0 0.25rem 0;
+  color: var(--wmsu-primary);
+  margin: 0;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
 .admin-overview-wrapper .overview-subtitle {
   font-size: 0.875rem;
-  color: #64748b;
+  color: var(--ov-text-muted);
   margin: 0;
   line-height: 1.4;
 }
 
-.admin-overview-wrapper .overview-header-actions {
-  display: flex;
+.admin-overview-wrapper .overview-sy-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  background-color: #FFF1F2;
+  border: 1px solid #FECDD3;
+  color: var(--wmsu-primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
 
-.admin-overview-wrapper .overview-date-badge {
-  padding: 0.5rem 0.875rem;
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 9999px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #475569;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+.admin-overview-wrapper .overview-sy-pill i {
+  font-size: 14px;
 }
 
-.admin-overview-wrapper .btn-overview-refresh {
+.admin-overview-wrapper .overview-sy-pill .ov-sy-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #059669;
+}
+
+.admin-overview-wrapper .overview-sy-pill.is-archived {
+  background-color: #F8FAFC;
+  border-color: var(--ov-border-strong);
+  color: var(--ov-text-secondary);
+}
+
+.admin-overview-wrapper .overview-sy-pill.is-archived .ov-sy-status-dot {
+  background-color: var(--ov-text-muted);
+}
+
+.admin-overview-wrapper .overview-sy-pill:hover {
+  background-color: var(--wmsu-primary);
+  border-color: var(--wmsu-primary);
+  color: var(--wmsu-white);
+}
+
+.admin-overview-wrapper .overview-sy-pill:hover .ov-sy-status-dot {
+  background-color: var(--wmsu-gold);
+}
+
+/* Filter Controls Row */
+.admin-overview-wrapper .ov-filter-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-overview-wrapper .ov-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-overview-wrapper .ov-control-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ov-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+}
+
+.admin-overview-wrapper .ov-select-wrap {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.9rem;
-  background-color: var(--wmsu-crimson);
-  color: #ffffff;
-  border: none;
-  border-radius: 9999px;
+}
+
+.admin-overview-wrapper .ov-select-icon {
+  position: absolute;
+  left: 12px;
+  font-size: 14px;
+  color: var(--wmsu-primary);
+  pointer-events: none;
+}
+
+.admin-overview-wrapper .ov-select {
+  height: 38px;
+  padding: 0 32px 0 34px;
+  border-radius: 8px;
+  border: 1px solid var(--ov-border-strong);
+  background-color: var(--wmsu-white);
+  color: var(--ov-text-main);
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(123, 13, 30, 0.2);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  min-width: 170px;
 }
 
-.admin-overview-wrapper .btn-overview-refresh:hover:not(:disabled) {
-  background-color: var(--wmsu-crimson-dark);
-  transform: translateY(-1px);
+.admin-overview-wrapper .ov-select:hover,
+.admin-overview-wrapper .ov-date-input:hover {
+  border-color: #94A3B8;
 }
 
-.admin-overview-wrapper .btn-overview-refresh:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+.admin-overview-wrapper .ov-select:focus,
+.admin-overview-wrapper .ov-date-input:focus {
+  outline: none;
+  border-color: var(--wmsu-primary);
+  box-shadow: 0 0 0 3px rgba(123, 13, 30, 0.12);
 }
 
-.admin-overview-wrapper .spin-icon {
-  animation: overviewSpin 1s linear infinite;
-  display: inline-block;
+.admin-overview-wrapper .ov-custom-dates-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
 }
 
-@keyframes overviewSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.admin-overview-wrapper .ov-date-input {
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ov-border-strong);
+  background-color: var(--wmsu-white);
+  color: var(--ov-text-main);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-family: inherit;
+  width: 152px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
-/* Alert Banner */
+/* Header Meta Sub-Bar */
+.admin-overview-wrapper .ov-header-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #F1F5F9;
+}
+
+.admin-overview-wrapper .ov-period-summary {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--ov-text-muted);
+}
+
+.admin-overview-wrapper .ov-period-summary i {
+  font-size: 14px;
+  color: var(--wmsu-primary);
+}
+
+.admin-overview-wrapper .ov-period-summary strong {
+  color: var(--ov-text-main);
+  font-weight: 700;
+}
+
+.admin-overview-wrapper .ov-live-updating-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background-color: #FFF1F2;
+  color: var(--wmsu-primary);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.admin-overview-wrapper .ov-inline-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background-color: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #B91C1C;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.admin-overview-wrapper .ov-inline-error i {
+  font-size: 14px;
+}
+
+/* Global Error Banner */
 .admin-overview-wrapper .overview-alert-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.875rem 1.25rem;
-  background-color: #fef2f2;
-  border: 1px solid var(--wmsu-crimson-border);
-  border-radius: 12px;
-  color: #9f1239;
-  font-size: 0.875rem;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: var(--ov-radius);
+  color: #991B1B;
+  font-size: 0.84rem;
 }
 
 .admin-overview-wrapper .alert-content {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 8px;
   font-weight: 600;
 }
 
 .admin-overview-wrapper .alert-icon {
-  font-size: 1.1rem;
+  font-size: 16px;
+  color: #DC2626;
 }
 
-.admin-overview-wrapper .btn-alert-retry {
-  background: #9f1239;
-  color: #ffffff;
-  border: none;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-/* ==========================================
-SUMMARY METRIC CARDS (STRICTLY SCOPED)
-========================================== */
-.admin-overview-wrapper .overview-summary-grid {
+/* ==========================================================================
+   2. FOUR KPI STATISTICS CARDS
+   ========================================================================== */
+.admin-overview-wrapper .ov-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
   width: 100%;
+  align-items: stretch;
 }
 
-.admin-overview-wrapper .summary-card {
-  position: relative;
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  padding: 1.35rem 5.5rem 1.35rem 1.5rem; /* Secures dedicated right clearance for icon */
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-  box-sizing: border-box;
+.admin-overview-wrapper .ov-kpi-card {
+  background-color: var(--wmsu-white);
+  border: 1px solid var(--ov-border);
+  border-radius: var(--ov-radius);
+  padding: 20px;
+  box-shadow: var(--ov-shadow-sm);
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  min-height: 128px;
-}
-
-.admin-overview-wrapper .pointer-card {
+  justify-content: space-between;
+  gap: 12px;
+  height: 100%;
+  min-height: 148px;
   cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
-.admin-overview-wrapper .pointer-card:hover {
+.admin-overview-wrapper .ov-kpi-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(123, 13, 30, 0.08);
-  border-color: var(--wmsu-crimson-border);
+  border-color: #FDA4AF;
+  box-shadow: var(--ov-shadow-md);
 }
 
-.admin-overview-wrapper .summary-card-body {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-.admin-overview-wrapper .card-label {
-  display: block;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0 0 0.35rem 0;
-  line-height: 1.2;
-}
-
-.admin-overview-wrapper .card-value {
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0 0 0.35rem 0;
-  line-height: 1;
-}
-
-.admin-overview-wrapper .card-subtext,
-.admin-overview-wrapper .card-subtitle,
-.admin-overview-wrapper .card-desc {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: #64748b;
-  margin: 0;
-  line-height: 1.3;
-}
-
-/* Subtitle text styles replacing badge bubbles */
-.admin-overview-wrapper .card-status-badge {
-  display: inline-block;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  line-height: 1.3;
-  margin: 0;
-  padding: 0;
-  border-radius: 0;
-  background-color: transparent !important;
-}
-
-.admin-overview-wrapper .status-amber,
-.admin-overview-wrapper .card-status-badge.status-amber { 
-  color: #b45309 !important; 
-  background-color: transparent !important;
-}
-
-.admin-overview-wrapper .status-green,
-.admin-overview-wrapper .card-status-badge.status-green { 
-  color: #64748b !important; /* Neutral muted text per your reference */
-  background-color: transparent !important;
-}
-
-.admin-overview-wrapper .status-blue,
-.admin-overview-wrapper .card-status-badge.status-blue { 
-  color: #64748b !important; 
-  background-color: transparent !important;
-}
-
-/* Icon Box Centered to the Right Edge */
-.admin-overview-wrapper .card-icon-box {
-  position: absolute;
-  right: 1.35rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.35rem;
-  flex-shrink: 0;
-  background-color: var(--wmsu-crimson-light);
-  color: var(--wmsu-crimson);
-  transition: transform 0.2s ease;
-}
-
-.admin-overview-wrapper .card-icon-box svg {
-  width: 24px;
-  height: 24px;
-}
-
-.admin-overview-wrapper .summary-card:hover .card-icon-box {
-  transform: translateY(-50%) scale(1.04);
-}
-
-/* Palette Variations for Metric Icon Boxes */
-.admin-overview-wrapper .amber-box,
-.admin-overview-wrapper .summary-card:has(.status-amber) .card-icon-box {
-  background-color: #fef3c7;
-  color: #b45309;
-}
-
-.admin-overview-wrapper .maroon-box,
-.admin-overview-wrapper .summary-card:has(.status-blue) .card-icon-box,
-.admin-overview-wrapper .summary-card:has(.status-green) .card-icon-box {
-  background-color: var(--wmsu-crimson-light);
-  color: var(--wmsu-crimson);
-}
-
-.admin-overview-wrapper .dark-maroon-box {
-  background-color: #3d0610;
-  color: #ffffff;
-}
-
-/* ==========================================
-MAIN SPLIT GRID
-========================================== */
-.admin-overview-wrapper .overview-main-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1.25rem;
-  width: 100%;
-}
-
-@media (max-width: 992px) {
-  .admin-overview-wrapper .overview-main-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.admin-overview-wrapper .overview-left-col, 
-.admin-overview-wrapper .overview-right-col {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  min-width: 0;
-}
-
-/* Section Card */
-.admin-overview-wrapper .overview-section-card {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 1.25rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
-  box-sizing: border-box;
-}
-
-.admin-overview-wrapper .section-card-header {
+.admin-overview-wrapper .ov-kpi-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  gap: 12px;
 }
 
-.admin-overview-wrapper .section-card-title {
-  font-size: 1rem;
+.admin-overview-wrapper .ov-kpi-label {
+  font-size: 0.8125rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--ov-text-secondary);
+  line-height: 1.3;
+}
+
+.admin-overview-wrapper .ov-kpi-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.admin-overview-wrapper .ov-icon-maroon {
+  background-color: rgba(123, 13, 30, 0.1);
+  color: var(--wmsu-primary);
+}
+
+.admin-overview-wrapper .ov-icon-gold {
+  background-color: rgba(245, 180, 0, 0.16);
+  color: #B45309;
+}
+
+.admin-overview-wrapper .ov-icon-amber {
+  background-color: #FEF3C7;
+  color: #D97706;
+}
+
+.admin-overview-wrapper .ov-icon-deep {
+  background-color: rgba(61, 6, 16, 0.1);
+  color: var(--wmsu-deep);
+}
+
+.admin-overview-wrapper .ov-kpi-value {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: var(--ov-text-main);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.admin-overview-wrapper .ov-kpi-comparison-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.75rem;
 }
 
-.admin-overview-wrapper .title-icon {
-  color: var(--wmsu-crimson);
-}
-
-.admin-overview-wrapper .section-link-btn {
-  background: none;
-  border: none;
-  color: var(--wmsu-crimson);
-  font-size: 0.78rem;
+.admin-overview-wrapper .ov-trend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 9999px;
   font-weight: 700;
-  cursor: pointer;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.admin-overview-wrapper .ov-trend-pill i {
+  font-size: 11px;
+}
+
+.admin-overview-wrapper .ov-trend-up {
+  background-color: #ECFDF5;
+  color: #047857;
+}
+
+.admin-overview-wrapper .ov-trend-down {
+  background-color: #FEF2F2;
+  color: #B91C1C;
+}
+
+.admin-overview-wrapper .ov-trend-neutral {
+  background-color: #F1F5F9;
+  color: var(--ov-text-secondary);
+}
+
+.admin-overview-wrapper .ov-kpi-compare {
+  color: var(--ov-text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.admin-overview-wrapper .ov-kpi-subtext {
+  font-size: 0.75rem;
+  color: var(--ov-text-muted);
+  font-weight: 500;
+  padding-top: 8px;
+  border-top: 1px solid #F1F5F9;
+  line-height: 1.3;
+}
+
+/* ==========================================================================
+   3. SHARED CARD & TWO ANALYTICS GRAPHS
+   ========================================================================== */
+.admin-overview-wrapper .ov-card {
+  background-color: var(--wmsu-white);
+  border: 1px solid var(--ov-border);
+  border-radius: var(--ov-radius);
+  box-shadow: var(--ov-shadow-sm);
+  padding: 20px;
+}
+
+.admin-overview-wrapper .ov-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  align-items: stretch;
+}
+
+.admin-overview-wrapper .ov-chart-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  height: 100%;
+}
+
+.admin-overview-wrapper .ov-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-overview-wrapper .ov-card-heading-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+  flex: 1 1 auto;
+}
+
+.admin-overview-wrapper .ov-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ov-text-main);
+  line-height: 1.3;
+}
+
+.admin-overview-wrapper .ov-card-desc {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ov-text-muted);
+  line-height: 1.4;
+}
+
+.admin-overview-wrapper .ov-legend-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ov-text-secondary);
+}
+
+.admin-overview-wrapper .ov-legend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background-color: #F8FAFC;
+  border: 1px solid var(--ov-border);
+}
+
+.admin-overview-wrapper .ov-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.admin-overview-wrapper .ov-chart-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 250px;
+}
+
+.admin-overview-wrapper .ov-line-chart-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.admin-overview-wrapper .ov-svg-chart {
+  width: 100%;
+  height: 250px;
+  display: block;
+  overflow: visible;
+}
+
+.admin-overview-wrapper .ov-chart-tooltip {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background-color: rgba(15, 23, 42, 0.95);
+  color: var(--wmsu-white);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+  z-index: 5;
+  min-width: 160px;
+}
+
+.admin-overview-wrapper .ov-tooltip-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  color: #F8FAFC;
+}
+
+.admin-overview-wrapper .ov-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #E2E8F0;
+  margin-top: 4px;
+}
+
+.admin-overview-wrapper .ov-tooltip-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-overview-wrapper .ov-tooltip-row strong {
+  color: var(--wmsu-white);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   4. RECENT ADMINISTRATIVE ACTIVITY TABLE
+   ========================================================================== */
+.admin-overview-wrapper .ov-activity-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   padding: 0;
+  overflow: hidden;
 }
 
-.admin-overview-wrapper .section-link-btn:hover {
-  text-decoration: underline;
+.admin-overview-wrapper .ov-activity-header {
+  padding: 20px 20px 0 20px;
+  align-items: center;
 }
 
-/* Overview Data Table */
+.admin-overview-wrapper .ov-activity-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .admin-overview-wrapper .table-responsive {
   width: 100%;
   overflow-x: auto;
@@ -367,1469 +716,376 @@ MAIN SPLIT GRID
 }
 
 .admin-overview-wrapper .table-responsive::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: #CBD5E1;
   border-radius: 4px;
 }
 
 .admin-overview-wrapper .table-responsive::-webkit-scrollbar-track {
-  background-color: #f8fafc;
+  background-color: #F8FAFC;
 }
 
-.admin-overview-wrapper .overview-data-table {
+.admin-overview-wrapper .ov-activity-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
   text-align: left;
 }
 
-.admin-overview-wrapper .overview-data-table th, 
-.admin-overview-wrapper .overview-data-table td {
-  padding: 0.75rem 0.5rem !important;
-  text-align: left;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: middle;
-}
-
-.admin-overview-wrapper .overview-data-table th {
-  color: #64748b;
+.admin-overview-wrapper .ov-activity-table th {
+  padding: 12px 20px;
+  background-color: #F8FAFC;
+  border-top: 1px solid var(--ov-border);
+  border-bottom: 1px solid var(--ov-border);
+  color: var(--ov-text-muted);
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   letter-spacing: 0.05em;
-  background-color: transparent;
+  white-space: nowrap;
 }
 
-.admin-overview-wrapper .task-type-pill {
+.admin-overview-wrapper .ov-activity-table td {
+  padding: 12px 20px;
+  border-bottom: 1px solid #F1F5F9;
+  vertical-align: middle;
+  color: var(--ov-text-secondary);
+}
+
+.admin-overview-wrapper .ov-activity-table tbody tr:hover {
+  background-color: #F8FAFC;
+}
+
+.admin-overview-wrapper .ov-activity-table .col-activity {
+  width: 24%;
+  min-width: 180px;
+}
+
+.admin-overview-wrapper .ov-activity-table .col-actor {
+  width: 18%;
+  min-width: 150px;
+}
+
+.admin-overview-wrapper .ov-activity-table .col-category {
+  width: 14%;
+  min-width: 120px;
+}
+
+.admin-overview-wrapper .ov-activity-table .col-resource {
+  width: 22%;
+  min-width: 160px;
+}
+
+.admin-overview-wrapper .ov-activity-table .col-datetime {
+  width: 14%;
+  min-width: 140px;
+}
+
+.admin-overview-wrapper .ov-activity-table .col-status {
+  width: 8%;
+  min-width: 110px;
+}
+
+.admin-overview-wrapper .ov-act-name {
   font-weight: 600;
-  font-size: 0.75rem;
-  color: var(--wmsu-crimson);
+  color: var(--ov-text-main);
 }
 
-.admin-overview-wrapper .table-action-btn {
-  padding: 0.3rem 0.65rem;
-  border-radius: 6px;
-  border: 1px solid var(--wmsu-crimson-border);
-  background-color: var(--wmsu-crimson-light);
-  color: var(--wmsu-crimson);
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.admin-overview-wrapper .table-action-btn:hover {
-  background-color: var(--wmsu-crimson);
-  color: #ffffff;
-}
-
-/* Empty State */
-.admin-overview-wrapper .overview-empty-state {
-  padding: 2.5rem 1rem;
-  text-align: center;
-}
-
-.admin-overview-wrapper .empty-icon {
-  font-size: 2rem;
-  color: #cbd5e1;
-  margin-bottom: 0.5rem;
-}
-
-.admin-overview-wrapper .empty-text {
-  font-size: 0.8125rem;
-  color: #64748b;
-  margin: 0;
-}
-
-/* Timeline */
-.admin-overview-wrapper .activity-timeline {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.admin-overview-wrapper .timeline-item {
-  display: flex;
-  gap: 0.85rem;
-  position: relative;
-}
-
-.admin-overview-wrapper .timeline-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--wmsu-crimson);
-  margin-top: 0.35rem;
-  flex-shrink: 0;
-}
-
-.admin-overview-wrapper .timeline-content {
-  flex: 1;
-}
-
-.admin-overview-wrapper .timeline-row {
+.admin-overview-wrapper .ov-actor-cell {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.2rem;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.admin-overview-wrapper .timeline-actor {
-  font-weight: 700;
-  font-size: 0.8125rem;
-  color: #0f172a;
-}
-
-.admin-overview-wrapper .timeline-time {
-  font-size: 0.72rem;
-  color: #94a3b8;
-}
-
-.admin-overview-wrapper .timeline-desc {
-  font-size: 0.78rem;
-  color: #475569;
-  margin: 0;
-}
-
-.admin-overview-wrapper .timeline-action {
+.admin-overview-wrapper .ov-actor-name {
   font-weight: 600;
-  color: var(--wmsu-crimson);
+  color: var(--ov-text-main);
 }
 
-/* Quick Actions List */
-.admin-overview-wrapper .quick-actions-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.admin-overview-wrapper .quick-action-btn {
-  display: flex;
+.admin-overview-wrapper .ov-actor-role {
+  display: inline-flex;
   align-items: center;
-  gap: 0.85rem;
-  padding: 0.75rem;
-  background-color: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: left;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.admin-overview-wrapper .quick-action-btn:hover {
-  background-color: var(--wmsu-crimson-light);
-  border-color: var(--wmsu-crimson-border);
-  transform: translateX(2px);
-}
-
-.admin-overview-wrapper .action-icon-circle {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-size: 0.95rem;
-  flex-shrink: 0;
-}
-
-.admin-overview-wrapper .maroon-bg { 
-  background-color: var(--wmsu-crimson); 
-}
-
-.admin-overview-wrapper .action-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.admin-overview-wrapper .action-title {
-  font-weight: 700;
-  font-size: 0.8125rem;
-  color: #1e293b;
-}
-
-.admin-overview-wrapper .action-sub {
-  font-size: 0.72rem;
-  color: #64748b;
-}
-
-.admin-overview-wrapper .action-arrow {
-  font-size: 0.75rem;
-  color: #cbd5e1;
-}
-
-.admin-overview-wrapper .quick-action-btn:hover .action-arrow {
-  color: var(--wmsu-crimson);
-}
-
-/* System Status Box */
-.admin-overview-wrapper .system-status-box {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background-color: #f8fafc;
-  border-radius: 12px;
-}
-
-.admin-overview-wrapper .status-indicator-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.admin-overview-wrapper .status-indicator-dot.online {
-  background-color: #10b981;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
-}
-
-.admin-overview-wrapper .status-text-title {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.admin-overview-wrapper .status-text-sub {
-  font-size: 0.72rem;
-  color: #64748b;
-}
-
-/* Skeleton Loading Helpers */
-.admin-overview-wrapper .skeleton-line {
-  background-color: #e2e8f0;
+  padding: 2px 6px;
   border-radius: 4px;
-  animation: overviewPulse 1.5s infinite;
+  background-color: #F1F5F9;
+  color: var(--ov-text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
-.admin-overview-wrapper .width-50 { width: 50%; height: 1.5rem; }
-.admin-overview-wrapper .width-100 { width: 100%; }
-.admin-overview-wrapper .height-30 { height: 1.8rem; margin-bottom: 0.5rem; }
-.admin-overview-wrapper .height-40 { height: 2.2rem; margin-bottom: 0.5rem; }
-
-@keyframes overviewPulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
-}
-
-/* ==========================================
-ENHANCED OVERVIEW ANALYTICS & 6-CARD LAYOUT
-========================================== */
-.admin-overview-wrapper .overview-sy-pill {
+.admin-overview-wrapper .ov-category-badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.32rem 0.78rem;
-  border-radius: 9999px;
-  background: var(--wmsu-crimson-light);
-  border: 1px solid var(--wmsu-crimson-border);
-  color: var(--wmsu-crimson);
-  font-size: 0.76rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
   font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  background-color: #F1F5F9;
+  color: var(--ov-text-secondary);
+  white-space: nowrap;
 }
 
-.admin-overview-wrapper .overview-sy-pill:hover {
-  background: var(--wmsu-crimson);
-  color: #ffffff;
+.admin-overview-wrapper .ov-category-badge.cat-announcement {
+  background-color: #FFF1F2;
+  color: var(--wmsu-primary);
 }
 
-.admin-overview-wrapper .overview-filter-select {
-  padding: 0.48rem 0.85rem;
-  border-radius: 9999px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #1e293b;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  outline: none;
+.admin-overview-wrapper .ov-category-badge.cat-event {
+  background-color: #FEF3C7;
+  color: #B45309;
 }
 
-.admin-overview-wrapper .overview-filter-select.compact {
-  padding: 0.32rem 0.65rem;
-  border-radius: 8px;
-  font-size: 0.74rem;
+.admin-overview-wrapper .ov-category-badge.cat-page {
+  background-color: #ECFDF5;
+  color: #047857;
 }
 
-.admin-overview-wrapper .six-cards-grid {
-  grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
+.admin-overview-wrapper .ov-category-badge.cat-user,
+.admin-overview-wrapper .ov-category-badge.cat-authentication {
+  background-color: #EFF6FF;
+  color: #1D4ED8;
 }
 
-.admin-overview-wrapper .overview-analytics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.25rem;
-  width: 100%;
+.admin-overview-wrapper .ov-category-badge.cat-school-year {
+  background-color: #F3E8FF;
+  color: #7E22CE;
 }
 
-.admin-overview-wrapper .analytics-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.admin-overview-wrapper .analytics-metric-row {
-  display: grid;
-  grid-template-columns: 105px 1fr 42px;
-  align-items: center;
-  gap: 0.65rem;
-  font-size: 0.8rem;
-}
-
-.admin-overview-wrapper .metric-label-group {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-weight: 600;
-  color: #334155;
-}
-
-.admin-overview-wrapper .metric-dot,
-.admin-overview-wrapper .legend-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+.admin-overview-wrapper .ov-resource-text {
   display: inline-block;
-  flex-shrink: 0;
-}
-
-.admin-overview-wrapper .dot-crimson { background: #7B0D1E; }
-.admin-overview-wrapper .dot-amber { background: #d97706; }
-.admin-overview-wrapper .dot-emerald { background: #059669; }
-.admin-overview-wrapper .dot-blue { background: #2563eb; }
-.admin-overview-wrapper .dot-slate { background: #64748b; }
-.admin-overview-wrapper .dot-dark { background: #1e293b; }
-
-.admin-overview-wrapper .metric-bar-track {
-  width: 100%;
-  height: 9px;
-  background: #f1f5f9;
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.admin-overview-wrapper .metric-bar-fill {
-  height: 100%;
-  border-radius: 9999px;
-  transition: width 0.4s ease;
-}
-
-.admin-overview-wrapper .fill-crimson { background: linear-gradient(90deg, #7B0D1E, #a4162c); }
-.admin-overview-wrapper .fill-amber { background: linear-gradient(90deg, #d97706, #f59e0b); }
-.admin-overview-wrapper .fill-emerald { background: linear-gradient(90deg, #059669, #10b981); }
-.admin-overview-wrapper .fill-blue { background: linear-gradient(90deg, #2563eb, #3b82f6); }
-.admin-overview-wrapper .fill-slate { background: #94a3b8; }
-
-.admin-overview-wrapper .metric-count {
-  text-align: right;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.admin-overview-wrapper .analytics-footer-note {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 0.65rem;
-  border-top: 1px dashed #e2e8f0;
-  font-size: 0.74rem;
-  color: #64748b;
-}
-
-.admin-overview-wrapper .user-ratio-bar {
-  display: flex;
-  width: 100%;
-  height: 12px;
-  border-radius: 9999px;
-  overflow: hidden;
-  background: #f1f5f9;
-  gap: 2px;
-}
-
-.admin-overview-wrapper .ratio-segment.seg-students {
-  background: #7B0D1E;
-}
-
-.admin-overview-wrapper .ratio-segment.seg-staff {
-  background: #1e293b;
-}
-
-.admin-overview-wrapper .user-stat-boxes {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.admin-overview-wrapper .user-stat-box {
-  padding: 0.75rem;
-  border-radius: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  transition: border-color 0.2s ease, transform 0.15s ease;
-}
-
-.admin-overview-wrapper .user-stat-box:hover {
-  border-color: var(--wmsu-crimson-border);
-  transform: translateY(-1px);
-}
-
-.admin-overview-wrapper .stat-box-title {
-  font-size: 0.73rem;
-  font-weight: 700;
-  color: #475569;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.admin-overview-wrapper .stat-box-val {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.admin-overview-wrapper .stat-box-sub {
-  font-size: 0.7rem;
-  color: #64748b;
-}
-
-/* Monthly Activity & College Distribution Row */
-.admin-overview-wrapper .overview-charts-row {
-  display: grid;
-  grid-template-columns: 1.25fr 1fr;
-  gap: 1.25rem;
-  width: 100%;
-}
-
-@media (max-width: 992px) {
-  .admin-overview-wrapper .overview-charts-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-.admin-overview-wrapper .chart-legend-inline {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: #475569;
-}
-
-.admin-overview-wrapper .chart-legend-inline span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.admin-overview-wrapper .monthly-chart-container {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-around;
-  gap: 0.5rem;
-  height: 195px;
-  padding: 1rem 0.5rem 0.25rem;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.admin-overview-wrapper .monthly-bar-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 42px;
-}
-
-.admin-overview-wrapper .monthly-bars-pair {
-  display: flex;
-  align-items: flex-end;
-  gap: 5px;
-  height: 150px;
-}
-
-.admin-overview-wrapper .v-bar-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-
-.admin-overview-wrapper .v-bar-num {
-  font-size: 0.66rem;
-  font-weight: 700;
-  color: #475569;
-}
-
-.admin-overview-wrapper .v-bar {
-  width: 15px;
-  border-radius: 5px 5px 2px 2px;
-  transition: height 0.35s ease;
-}
-
-.admin-overview-wrapper .v-bar.bar-crimson {
-  background: linear-gradient(180deg, #9b1328 0%, #7B0D1E 100%);
-}
-
-.admin-overview-wrapper .v-bar.bar-amber {
-  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
-}
-
-.admin-overview-wrapper .monthly-bar-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #64748b;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.admin-overview-wrapper .dept-activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-height: 205px;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.admin-overview-wrapper .dept-activity-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.admin-overview-wrapper .dept-activity-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.76rem;
-}
-
-.admin-overview-wrapper .dept-name-label {
-  color: #334155;
+  max-width: 260px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 72%;
-}
-
-.admin-overview-wrapper .dept-counts-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #64748b;
-}
-
-.admin-overview-wrapper .dept-stacked-track {
-  display: flex;
-  width: 100%;
-  height: 8px;
-  background: #f1f5f9;
-  border-radius: 9999px;
-  overflow: hidden;
-  gap: 2px;
-}
-
-.admin-overview-wrapper .dept-stacked-seg {
-  height: 100%;
-  border-radius: 9999px;
-}
-
-/* Dual Cards for Upcoming Events & Recent Announcements */
-.admin-overview-wrapper .overview-dual-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-}
-
-@media (max-width: 768px) {
-  .admin-overview-wrapper .overview-dual-cards {
-    grid-template-columns: 1fr;
-  }
-}
-
-.admin-overview-wrapper .overview-feed-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.admin-overview-wrapper .overview-feed-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid #f1f5f9;
-  background: #f8fafc;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.admin-overview-wrapper .overview-feed-item:hover {
-  border-color: var(--wmsu-crimson-border);
-  background: #fff1f2;
-}
-
-.admin-overview-wrapper .feed-item-date-box {
-  width: 42px;
-  height: 44px;
-  border-radius: 10px;
-  background: #7B0D1E;
-  color: #ffffff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  line-height: 1.1;
-}
-
-.admin-overview-wrapper .feed-item-date-box .date-month {
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  font-weight: 700;
-  opacity: 0.9;
-}
-
-.admin-overview-wrapper .feed-item-date-box .date-day {
-  font-size: 0.95rem;
-  font-weight: 800;
-}
-
-.admin-overview-wrapper .feed-item-icon-circle {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: var(--wmsu-crimson-light);
-  color: var(--wmsu-crimson);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.admin-overview-wrapper .feed-item-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.admin-overview-wrapper .feed-item-title {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 0.2rem;
-}
-
-.admin-overview-wrapper .feed-item-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  font-size: 0.72rem;
-  color: #64748b;
-}
-
-.admin-overview-wrapper .feed-cat-tag {
-  font-weight: 700;
-  color: var(--wmsu-crimson);
-}
-
-
-/* ============================================================================
-   RECONSTRUCTED OVERVIEW DASHBOARD STYLES (.ov-*)
-   ============================================================================ */
-
-.admin-overview-wrapper .ov-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.admin-overview-wrapper .ov-header-sy {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-}
-
-.admin-overview-wrapper .ov-sy-select {
-  appearance: auto;
-  height: 36px;
-  padding: 0 0.75rem;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.admin-overview-wrapper .ov-sy-select:focus {
-  outline: none;
-  border-color: #7B0D1E;
-  box-shadow: 0 0 0 3px rgba(123, 13, 30, 0.12);
-}
-
-/* Shared Card Container */
-.admin-overview-wrapper .ov-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  padding: 1.25rem;
-}
-
-/* Section 2: Global Search & Date Range Filters */
-.admin-overview-wrapper .ov-filter-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.admin-overview-wrapper .ov-filter-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.85rem;
-}
-
-.admin-overview-wrapper .ov-search-wrap {
-  position: relative;
-  flex: 1 1 300px;
-  min-width: 240px;
-}
-
-.admin-overview-wrapper .ov-search-icon {
-  position: absolute;
-  left: 0.85rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #64748b;
-  pointer-events: none;
-}
-
-.admin-overview-wrapper .ov-input {
-  width: 100%;
-  height: 40px;
-  padding: 0 0.85rem;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #0f172a;
-  font-size: 0.84rem;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.admin-overview-wrapper .ov-input:focus {
-  outline: none;
-  background: #ffffff;
-  border-color: #7B0D1E;
-  box-shadow: 0 0 0 3px rgba(123, 13, 30, 0.1);
-}
-
-.admin-overview-wrapper .ov-search-input {
-  padding-left: 2.35rem;
-  padding-right: 2.2rem;
-}
-
-.admin-overview-wrapper .ov-clear-btn {
-  position: absolute;
-  right: 0.55rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: none;
-  background: #e2e8f0;
-  color: #475569;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.admin-overview-wrapper .ov-clear-btn:hover {
-  background: #cbd5e1;
-  color: #0f172a;
-}
-
-.admin-overview-wrapper .ov-filter-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding-bottom: 0.65rem;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.admin-overview-wrapper .ov-preset-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.admin-overview-wrapper .ov-preset-btn {
-  padding: 0.35rem 0.7rem;
-  border-radius: 9999px;
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #334155;
-  font-size: 0.76rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-
-.admin-overview-wrapper .ov-preset-btn:hover {
-  border-color: #7B0D1E;
-  color: #7B0D1E;
-  background: #fff1f2;
-}
-
-.admin-overview-wrapper .ov-preset-btn.active {
-  background: #7B0D1E;
-  border-color: #7B0D1E;
-  color: #ffffff;
-}
-
-.admin-overview-wrapper .ov-reporting-period-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.38rem 0.75rem;
-  border-radius: 9999px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font-size: 0.78rem;
-  color: #334155;
-}
-
-.admin-overview-wrapper .ov-reporting-period-badge i {
-  color: #7B0D1E;
-}
-
-.admin-overview-wrapper .ov-date-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.75rem;
-}
-
-.admin-overview-wrapper .ov-date-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.admin-overview-wrapper .ov-date-field label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #475569;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.admin-overview-wrapper .ov-date-input {
-  width: 156px;
-}
-
-.admin-overview-wrapper .ov-filter-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.admin-overview-wrapper .ov-btn-primary,
-.admin-overview-wrapper .ov-btn-secondary,
-.admin-overview-wrapper .ov-btn-ghost {
-  height: 40px;
-  padding: 0 0.95rem;
-  border-radius: 10px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  white-space: nowrap;
-}
-
-.admin-overview-wrapper .ov-btn-primary {
-  background: #7B0D1E;
-  color: #ffffff;
-  border: 1px solid #7B0D1E;
-}
-
-.admin-overview-wrapper .ov-btn-primary:hover:not(:disabled) {
-  background: #5a0915;
-  border-color: #5a0915;
-}
-
-.admin-overview-wrapper .ov-btn-secondary {
-  background: #ffffff;
-  color: #334155;
-  border: 1px solid #cbd5e1;
-}
-
-.admin-overview-wrapper .ov-btn-secondary:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #94a3b8;
-}
-
-.admin-overview-wrapper .ov-btn-ghost {
-  height: 32px;
-  padding: 0 0.65rem;
-  background: transparent;
-  color: #475569;
-  border: 1px solid transparent;
-  font-size: 0.78rem;
-}
-
-.admin-overview-wrapper .ov-btn-ghost:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.admin-overview-wrapper .ov-validation-error {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.6rem 0.85rem;
-  border-radius: 10px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-/* Global Search Results Panel */
-.admin-overview-wrapper .ov-search-results-panel {
-  border-top: 1px solid #e2e8f0;
-  padding-top: 0.85rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.admin-overview-wrapper .ov-search-results-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  font-size: 0.82rem;
-  color: #334155;
-}
-
-.admin-overview-wrapper .ov-search-loading {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: #7B0D1E;
-  font-weight: 600;
-}
-
-.admin-overview-wrapper .ov-cat-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.22rem 0.55rem;
-  border-radius: 9999px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.admin-overview-wrapper .ov-cat-student { background: #eff6ff; color: #1d4ed8; }
-.admin-overview-wrapper .ov-cat-staff { background: #f3e8ff; color: #7e22ce; }
-.admin-overview-wrapper .ov-cat-announcement { background: #fef2f2; color: #7B0D1E; }
-.admin-overview-wrapper .ov-cat-event { background: #ecfdf5; color: #047857; }
-.admin-overview-wrapper .ov-cat-page { background: #fffbeb; color: #b45309; }
-.admin-overview-wrapper .ov-cat-organization { background: #f0f9ff; color: #0369a1; }
-.admin-overview-wrapper .ov-cat-approval { background: #fef3c7; color: #92400e; }
-
-.admin-overview-wrapper .ov-record-title {
-  font-weight: 700;
-  color: #0f172a;
-  font-size: 0.84rem;
-}
-
-.admin-overview-wrapper .ov-record-sub {
-  font-size: 0.74rem;
-  color: #64748b;
-  margin-top: 0.12rem;
-}
-
-.admin-overview-wrapper .ov-status-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.2rem 0.55rem;
-  border-radius: 9999px;
-  background: #f1f5f9;
-  color: #334155;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: capitalize;
+  color: var(--ov-text-secondary);
+  font-weight: 500;
 }
 
 .admin-overview-wrapper .ov-nowrap {
   white-space: nowrap;
 }
 
-/* Section 3: Key Statistics Cards (4-column desktop, 2-col tablet, 1-col mobile) */
-.admin-overview-wrapper .ov-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  width: 100%;
-}
-
-@media (max-width: 1100px) {
-  .admin-overview-wrapper .ov-kpi-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
-  .admin-overview-wrapper .ov-kpi-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.admin-overview-wrapper .ov-kpi-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 1.15rem 1.2rem;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-}
-
-.admin-overview-wrapper .ov-kpi-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(123, 13, 30, 0.35);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
-}
-
-.admin-overview-wrapper .ov-kpi-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.admin-overview-wrapper .ov-kpi-label {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #475569;
-}
-
-.admin-overview-wrapper .ov-kpi-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.admin-overview-wrapper .ov-icon-maroon { background: rgba(123, 13, 30, 0.1); color: #7B0D1E; }
-.admin-overview-wrapper .ov-icon-dark { background: rgba(30, 41, 59, 0.1); color: #1e293b; }
-.admin-overview-wrapper .ov-icon-amber { background: rgba(217, 119, 6, 0.12); color: #b45309; }
-.admin-overview-wrapper .ov-icon-emerald { background: rgba(5, 150, 105, 0.12); color: #047857; }
-
-.admin-overview-wrapper .ov-kpi-value {
-  font-size: 1.85rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.1;
-}
-
-.admin-overview-wrapper .ov-kpi-footer {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  font-size: 0.74rem;
-}
-
-.admin-overview-wrapper .ov-trend-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  padding: 0.15rem 0.45rem;
-  border-radius: 9999px;
-  font-weight: 700;
-  font-size: 0.72rem;
-}
-
-.admin-overview-wrapper .ov-trend-up { background: #ecfdf5; color: #047857; }
-.admin-overview-wrapper .ov-trend-down { background: #fef2f2; color: #b91c1c; }
-.admin-overview-wrapper .ov-trend-neutral { background: #f1f5f9; color: #475569; }
-
-.admin-overview-wrapper .ov-kpi-compare {
-  color: #64748b;
-  font-weight: 500;
-}
-
-.admin-overview-wrapper .ov-kpi-subtext {
-  font-size: 0.72rem;
-  color: #94a3b8;
-}
-
-/* Sections 4 & 5: Interactive Charts */
-.admin-overview-wrapper .ov-charts-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.15rem;
-  width: 100%;
-}
-
-@media (max-width: 1024px) {
-  .admin-overview-wrapper .ov-charts-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.admin-overview-wrapper .ov-chart-card {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  min-width: 0;
-}
-
-.admin-overview-wrapper .ov-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.admin-overview-wrapper .ov-card-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.admin-overview-wrapper .ov-card-desc {
-  margin: 0.2rem 0 0;
-  font-size: 0.78rem;
-  color: #64748b;
-}
-
-.admin-overview-wrapper .ov-legend-inline {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  font-size: 0.76rem;
-  font-weight: 600;
-  color: #334155;
-}
-
-.admin-overview-wrapper .ov-legend-inline span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.admin-overview-wrapper .ov-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-.admin-overview-wrapper .ov-line-chart-wrap {
-  position: relative;
-  width: 100%;
-}
-
-.admin-overview-wrapper .ov-svg-chart {
-  width: 100%;
-  height: auto;
-  display: block;
-  overflow: visible;
-}
-
-.admin-overview-wrapper .ov-chart-tooltip {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.75rem;
-  background: rgba(15, 23, 42, 0.94);
-  color: #ffffff;
-  padding: 0.55rem 0.75rem;
-  border-radius: 10px;
-  font-size: 0.75rem;
-  pointer-events: none;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.2);
-  z-index: 5;
-  min-width: 145px;
-}
-
-.admin-overview-wrapper .ov-tooltip-title {
-  font-weight: 700;
-  margin-bottom: 0.25rem;
-  color: #f8fafc;
-}
-
-.admin-overview-wrapper .ov-tooltip-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: #e2e8f0;
-  margin-top: 0.15rem;
-}
-
-/* Donut Chart */
-.admin-overview-wrapper .ov-donut-layout {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.25rem;
-  flex-wrap: wrap;
-}
-
-.admin-overview-wrapper .ov-donut-svg-wrap {
-  position: relative;
-  width: 196px;
-  height: 196px;
-  flex-shrink: 0;
-  margin: 0 auto;
-}
-
-.admin-overview-wrapper .ov-donut-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.admin-overview-wrapper .ov-donut-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  text-align: center;
-  padding: 0 1.4rem;
-}
-
-.admin-overview-wrapper .ov-donut-center-val {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.1;
-}
-
-.admin-overview-wrapper .ov-donut-center-lbl {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #64748b;
-  margin-top: 0.2rem;
-}
-
-.admin-overview-wrapper .ov-donut-legend {
-  flex: 1 1 180px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-.admin-overview-wrapper .ov-legend-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.45rem 0.65rem;
-  border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.admin-overview-wrapper .ov-legend-item:hover,
-.admin-overview-wrapper .ov-legend-item.active {
-  background: #ffffff;
-  border-color: #cbd5e1;
-}
-
-.admin-overview-wrapper .ov-legend-left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.admin-overview-wrapper .ov-legend-name {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-.admin-overview-wrapper .ov-legend-right {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  font-size: 0.82rem;
-  color: #0f172a;
-}
-
-.admin-overview-wrapper .ov-legend-pct {
-  font-size: 0.72rem;
-  color: #64748b;
-}
-
-/* Section 6: Recent Administrative Activity */
-.admin-overview-wrapper .ov-activity-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.85rem;
-  margin-bottom: 1rem;
-}
-
-.admin-overview-wrapper .ov-activity-tools {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-}
-
-.admin-overview-wrapper .ov-activity-search {
-  position: relative;
-  width: 260px;
-}
-
-@media (max-width: 640px) {
-  .admin-overview-wrapper .ov-activity-search {
-    width: 100%;
-  }
-}
-
-.admin-overview-wrapper .ov-activity-cell {
-  font-weight: 600;
-  color: #0f172a;
-  font-size: 0.83rem;
-}
-
 .admin-overview-wrapper .ov-act-status {
   display: inline-flex;
   align-items: center;
-  padding: 0.2rem 0.55rem;
+  gap: 6px;
+  padding: 4px 10px;
   border-radius: 9999px;
   font-size: 0.72rem;
   font-weight: 700;
-  text-transform: capitalize;
+  white-space: nowrap;
 }
 
-.admin-overview-wrapper .ov-act-success { background: #ecfdf5; color: #047857; }
-.admin-overview-wrapper .ov-act-failure { background: #fef2f2; color: #b91c1c; }
-
-/* Empty, Error, and Loading Skeleton States */
-.admin-overview-wrapper .ov-section-error {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 1.5rem;
-  border-radius: 12px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
-  font-size: 0.84rem;
-  font-weight: 600;
+.admin-overview-wrapper .ov-act-status i {
+  font-size: 12px;
 }
 
+.admin-overview-wrapper .ov-act-success {
+  background-color: #ECFDF5;
+  color: #047857;
+}
+
+.admin-overview-wrapper .ov-act-failure {
+  background-color: #FEF2F2;
+  color: #B91C1C;
+}
+
+/* Pagination inside Activity Card */
+.admin-overview-wrapper .ov-activity-card .admin-global-pagination {
+  padding: 12px 20px;
+  border-top: 1px solid var(--ov-border);
+  border-radius: 0 0 var(--ov-radius) var(--ov-radius);
+}
+
+/* ==========================================================================
+   EMPTY, ERROR, AND SKELETON LOADING STATES
+   ========================================================================== */
 .admin-overview-wrapper .ov-empty-box {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 0.45rem;
-  padding: 2rem 1rem;
-  color: #64748b;
-  font-size: 0.84rem;
-  background: #f8fafc;
-  border-radius: 12px;
-  border: 1px dashed #cbd5e1;
+  gap: 8px;
+  min-height: 230px;
+  padding: 24px 16px;
+  background-color: #F8FAFC;
+  border-radius: 10px;
+  border: 1px dashed var(--ov-border-strong);
 }
 
 .admin-overview-wrapper .ov-empty-box.compact {
-  padding: 1.25rem 1rem;
+  min-height: 180px;
+  margin: 0 20px 20px 20px;
+}
+
+.admin-overview-wrapper .ov-empty-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background-color: #FFF1F2;
+  color: var(--wmsu-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.admin-overview-wrapper .ov-empty-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ov-text-main);
+}
+
+.admin-overview-wrapper .ov-empty-desc {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ov-text-muted);
+  max-width: 380px;
+  line-height: 1.4;
+}
+
+.admin-overview-wrapper .ov-section-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 180px;
+  padding: 20px;
+  border-radius: 10px;
+  background-color: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #B91C1C;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.admin-overview-wrapper .ov-activity-card .ov-section-error,
+.admin-overview-wrapper .ov-activity-card .ov-table-skeleton {
+  margin: 0 20px 20px 20px;
 }
 
 .admin-overview-wrapper .ov-chart-skeleton,
 .admin-overview-wrapper .ov-table-skeleton {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 8px;
+  width: 100%;
 }
 
 .admin-overview-wrapper .ov-skeleton {
-  border-radius: 8px;
-  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  border-radius: 6px;
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
   background-size: 200% 100%;
-  animation: ov-shimmer 1.4s infinite;
+  animation: ovShimmer 1.4s infinite;
 }
 
 .admin-overview-wrapper .ov-skeleton-val {
-  height: 32px;
-  width: 55%;
+  height: 30px;
+  width: 50%;
 }
 
 .admin-overview-wrapper .ov-skeleton-sub {
+  height: 16px;
+  width: 75%;
+}
+
+.admin-overview-wrapper .ov-skeleton-meta {
   height: 14px;
-  width: 80%;
+  width: 65%;
 }
 
 .admin-overview-wrapper .ov-skeleton-chart {
-  height: 210px;
+  height: 230px;
   width: 100%;
 }
 
 .admin-overview-wrapper .ov-skeleton-row {
-  height: 38px;
+  height: 40px;
   width: 100%;
 }
 
-@keyframes ov-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes ovShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS (DESKTOP, TABLET, MOBILE)
+   ========================================================================== */
+@media (max-width: 1180px) {
+  .admin-overview-wrapper .ov-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .admin-overview-wrapper .ov-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-overview-wrapper .ov-header-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-overview-wrapper .ov-filter-controls {
+    width: 100%;
+  }
+
+  .admin-overview-wrapper .ov-control-group {
+    flex: 1 1 180px;
+  }
+
+  .admin-overview-wrapper .ov-select {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-overview-wrapper {
+    gap: 16px;
+  }
+
+  .admin-overview-wrapper .ov-header-card,
+  .admin-overview-wrapper .ov-card,
+  .admin-overview-wrapper .ov-kpi-card {
+    padding: 16px;
+  }
+
+  .admin-overview-wrapper .ov-activity-header {
+    padding: 16px 16px 0 16px;
+  }
+
+  .admin-overview-wrapper .ov-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-overview-wrapper .ov-filter-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-overview-wrapper .ov-control-group,
+  .admin-overview-wrapper .ov-custom-dates-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-overview-wrapper .ov-date-input,
+  .admin-overview-wrapper .ov-select {
+    width: 100%;
+  }
+
+  .admin-overview-wrapper .ov-svg-chart {
+    height: 210px;
+  }
 }
