@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import '../styles/StaffDashboard.css';
 
 export default function StaffAnnouncements() {
@@ -7,6 +8,7 @@ export default function StaffAnnouncements() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [followedDepts, setFollowedDepts] = useState({});
+  const highlightedPostId = useHighlightedPost(!loading && announcements.length > 0, () => setFilter('all'));
 
   useEffect(() => {
     const fetchAnnouncements = async () => {
@@ -121,9 +123,11 @@ export default function StaffAnnouncements() {
               const isFollowed = !!followedDepts[deptKey];
               const postDate = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
               const postImage = item.image_url || item.image || null;
+              const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
 
               return (
                 <article 
+                  id={domId}
                   key={item.id || index} 
                   className="card card-interactive" 
                   style={{ 
@@ -132,7 +136,8 @@ export default function StaffAnnouncements() {
                     border: '1px solid var(--slate-200, #e2e8f0)',
                     backgroundColor: '#ffffff',
                     boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    ...highlightStyle
                   }}
                 >
                   {/* Post Header */}

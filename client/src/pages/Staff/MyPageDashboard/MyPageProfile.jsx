@@ -26,6 +26,8 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
   const [postTitle, setPostTitle] = useState('');
   const [postType, setPostType] = useState('Announcement');
   const [postContent, setPostContent] = useState('');
+  const [postImagePreview, setPostImagePreview] = useState(null);
+  const [removePostImage, setRemovePostImage] = useState(false);
   const [submittingPost, setSubmittingPost] = useState(false);
 
   // Post Delete State
@@ -158,7 +160,49 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
     setPostTitle(post.title || '');
     setPostType(post.type || 'Announcement');
     setPostContent(post.content || post.description || '');
+    setPostImagePreview(post.image_url || post.image || null);
+    setRemovePostImage(false);
     setActiveMenuId(null);
+  };
+
+  const handlePostImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Selected image exceeds 10MB limit.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawDataUrl = reader.result;
+      if (file.type === 'image/gif') {
+        setPostImagePreview(rawDataUrl);
+        setRemovePostImage(false);
+        return;
+      }
+      const img = new Image();
+      img.onerror = () => {
+        setPostImagePreview(rawDataUrl);
+        setRemovePostImage(false);
+      };
+      img.onload = () => {
+        const maxDim = 1600;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        setPostImagePreview(ctx ? (ctx.drawImage(img, 0, 0, width, height), canvas.toDataURL('image/jpeg', 0.85)) : rawDataUrl);
+        setRemovePostImage(false);
+      };
+      img.src = rawDataUrl;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSavePostEdit = async (e) => {
@@ -178,10 +222,14 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
     try {
       const bodyData = isEvent ? {
         event_title: postTitle,
-        event_description: postContent
+        event_description: postContent,
+        image_data: postImagePreview,
+        remove_image: removePostImage
       } : {
         title: postTitle,
-        content: postContent
+        content: postContent,
+        image_data: postImagePreview,
+        remove_image: removePostImage
       };
 
       const res = await fetch(editEndpoint, {
@@ -194,9 +242,13 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
       });
 
       if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        const updatedImg = resData.announcement?.image_url ?? resData.event?.image_url ?? (removePostImage ? null : postImagePreview);
         setPosts(prev => prev.map(p => {
           const pId = isEvent ? (p.event_id || p.id) : (p.announcement_id || p.id);
-          return pId === targetId ? { ...p, title: postTitle, content: postContent, description: postContent } : p;
+          return pId === targetId
+            ? { ...p, title: postTitle, content: postContent, description: postContent, image_url: updatedImg }
+            : p;
         }));
       } else {
         alert('Failed to update post.');
@@ -661,6 +713,28 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
                     onChange={(e) => setPostContent(e.target.value)}
                     required
                   ></textarea>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-700, #334155)', marginBottom: '0.25rem' }}>Post Image (Stored in Database)</label>
+                  {postImagePreview && (
+                    <div style={{ position: 'relative', width: '100%', maxHeight: '220px', overflow: 'hidden', borderRadius: '0.5rem', border: '1px solid #e2e8f0', marginBottom: '0.5rem' }}>
+                      <img src={postImagePreview} alt="Post preview" style={{ width: '100%', height: 'auto', objectFit: 'cover', display: 'block' }} />
+                      <button
+                        type="button"
+                        onClick={() => { setPostImagePreview(null); setRemovePostImage(true); }}
+                        style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', backgroundColor: 'rgba(15, 23, 42, 0.8)', color: '#ffffff', border: 'none', borderRadius: '9999px', padding: '0.3rem 0.65rem', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Remove Photo
+                      </button>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePostImageSelect}
+                    style={{ fontSize: '0.8125rem', color: 'var(--slate-600, #475569)' }}
+                  />
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.25rem' }}>

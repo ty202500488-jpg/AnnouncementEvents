@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/StudentDashboard.css';
 import logo from '../../assets/images/logo.jpg';
 import useSessionGuard from './useSessionGuard';
+import UniversityWideSpotlight from './UniversityWideSpotlight';
 
 export default function DashboardLayout({ children, activePage }) {
   const navigate = useNavigate();
@@ -64,7 +65,7 @@ export default function DashboardLayout({ children, activePage }) {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/student/notifications', {
+      const response = await fetch('/api/student/notifications', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -88,7 +89,7 @@ export default function DashboardLayout({ children, activePage }) {
     const fetchApprovedPages = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/approved-pages', {
+        const response = await fetch('/api/approved-pages', {
           method: 'GET',
           headers: { 
             'Content-Type': 'application/json',
@@ -109,6 +110,11 @@ export default function DashboardLayout({ children, activePage }) {
     fetchApprovedPages();
     fetchNotifications();
 
+    const pollId = setInterval(fetchNotifications, 30000);
+    const onNotificationsUpdated = () => fetchNotifications();
+    window.addEventListener('notifications-updated', onNotificationsUpdated);
+    window.addEventListener('focus', onNotificationsUpdated);
+
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setShowDropdown(false);
@@ -123,6 +129,9 @@ export default function DashboardLayout({ children, activePage }) {
     document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
+      clearInterval(pollId);
+      window.removeEventListener('notifications-updated', onNotificationsUpdated);
+      window.removeEventListener('focus', onNotificationsUpdated);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
@@ -130,7 +139,7 @@ export default function DashboardLayout({ children, activePage }) {
   const handleMarkAllAsRead = async () => {
     const token = localStorage.getItem('token');
     try {
-      const response = await fetch('http://localhost:5000/api/student/notifications/read-all', {
+      const response = await fetch('/api/student/notifications/read-all', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -139,6 +148,7 @@ export default function DashboardLayout({ children, activePage }) {
       });
       if (response.ok) {
         setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+        window.dispatchEvent(new CustomEvent('notifications-updated'));
       }
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
@@ -149,7 +159,7 @@ export default function DashboardLayout({ children, activePage }) {
     if (!notif.is_read) {
       const token = localStorage.getItem('token');
       try {
-        const response = await fetch(`http://localhost:5000/api/student/notifications/${notif.id}/read`, {
+        const response = await fetch(`/api/student/notifications/${notif.id}/read`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -160,6 +170,7 @@ export default function DashboardLayout({ children, activePage }) {
           setNotifications(prev =>
             prev.map(n => (n.id === notif.id ? { ...n, is_read: true } : n))
           );
+          window.dispatchEvent(new CustomEvent('notifications-updated'));
         }
       } catch (err) {
         console.error('Failed to mark notification as read:', err);
@@ -675,11 +686,15 @@ export default function DashboardLayout({ children, activePage }) {
         </aside>
 
         {/* DYNAMIC CENTER CONTENT */}
+        <div className="mobile-spotlight-slot">
+          <UniversityWideSpotlight role="student" variant="mobile" />
+        </div>
         {children}
 
         {/* RIGHT SIDEBAR */}
         <aside className="lg-col-3 space-y-6 hidden lg-block">
-          <div className="card" style={{ padding: '1.25rem' }}>
+          <UniversityWideSpotlight role="student" variant="desktop" />
+          <div className="card dept-pages-card" style={{ padding: '1.25rem' }}>
             <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
               <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.975rem' }}>Department Pages</h3>
               <span style={{ color: '#881337', fontSize: '11px', fontWeight: 700, padding: '0.125rem 0.5rem', cursor: 'pointer' }}>View All</span>

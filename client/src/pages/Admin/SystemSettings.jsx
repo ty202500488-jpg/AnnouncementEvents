@@ -98,7 +98,7 @@ const SystemSettings = () => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [metadata, setMetadata] = useState({ updatedAt: null, updatedBy: null });
+  const [metadata, setMetadata] = useState({ updatedAt: null, updatedBy: null, emailConfigured: true });
   const [errors, setErrors] = useState({});
   const [toast, setToast] = useState(null);
   const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
@@ -154,6 +154,7 @@ const SystemSettings = () => {
           setMetadata({
             updatedAt: data.metadata?.updatedAt || data.updatedAt || new Date().toISOString(),
             updatedBy: data.metadata?.updatedBy || data.updatedBy || 'MISTO Administrator',
+            emailConfigured: data.metadata?.emailConfigured ?? false,
           });
         }
       }
@@ -1373,8 +1374,8 @@ const SystemSettings = () => {
                   <div className="toggle-info">
                     <label htmlFor="enable_email_notifications" className="toggle-label">Email Notifications</label>
                     <p className="toggle-desc">
-                      Send email broadcasts for critical announcements.
-                      {!settings.enable_email_notifications && <span className="warning-pill"> SMTP Server Unconfigured</span>}
+                      Send email broadcasts for critical announcements and opted-in page updates.
+                      {!metadata.emailConfigured && <span className="warning-pill"> SMTP Server Unconfigured</span>}
                     </p>
                   </div>
                   <label className="switch">

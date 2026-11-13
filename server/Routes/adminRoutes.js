@@ -2,6 +2,21 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { requireAdmin, logAudit } = require('../middleware/auth');
+const { isEmailConfigured, sendStudentVerificationDecisionEmail } = require('../utils/emailService');
+const { parseRequireStudentVerification } = require('../utils/verificationPolicy');
+const { ensureUniversityWideColumn } = require('../utils/universityWideHelper');
+const {
+    ensureNotificationSchema,
+    getGlobalNotificationSettings,
+    formatNotificationRow,
+    notifyPublishedPost,
+    notifyModerationOrPageDecision,
+    notifyEventUpdated
+} = require('../utils/notificationService');
+
+ensureNotificationSchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure notification schema:', err.message);
+});
 
 const DEFAULT_SETTINGS = {
     system_name: 'WMSU Campus Announcements & Events System',
@@ -923,7 +938,11 @@ router.get('/content-feed', async (req, res) => {
                     p.is_pinned,
                     p.is_archived,
                     p.archive_reason,
-                    p.image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
                     p.published_at AS scheduled_at,
                     p.expires_at,
                     p.created_at,
@@ -1115,6 +1134,11 @@ router.post('/content-feed', async (req, res) => {
 
         await client.query('COMMIT');
 
+        await notifyPublishedPost(pool, {
+            post: postRow,
+            actorUserId: req.user.user_id
+        });
+
         await logAudit(req, {
             action: `Admin Created ${postType}`,
             module: 'posts',
@@ -1200,6 +1224,15 @@ router.put('/content-feed/:id', async (req, res) => {
 
         await client.query('COMMIT');
 
+        if (postUpd.rows[0]?.post_type === 'event' && String(postUpd.rows[0]?.moderation_status || '').toLowerCase() === 'approved') {
+            await notifyEventUpdated(pool, {
+                postId,
+                title: postUpd.rows[0].title,
+                pageId: postUpd.rows[0].page_id,
+                actorUserId: req.user.user_id
+            });
+        }
+
         await logAudit(req, {
             action: `Admin Edited Post`,
             module: 'posts',
@@ -1224,8 +1257,10 @@ const handleContentStatus = async (req, res) => {
         const { status, action, reason } = req.body;
         const targetAction = String(action || status || '').toLowerCase();
 
+        let affectedPost = null;
+
         if (targetAction === 'archive' || targetAction === 'archived') {
-            await pool.query(
+            const upd = await pool.query(
                 `UPDATE posts
                  SET previous_status = CASE WHEN status != 'Archived' THEN status ELSE previous_status END,
                      is_archived = TRUE,
@@ -1234,42 +1269,70 @@ const handleContentStatus = async (req, res) => {
                      archived_by = $1,
                      archive_reason = $2,
                      updated_at = NOW()
-                 WHERE post_id = $3`,
+                 WHERE post_id = $3
+                 RETURNING *`,
                 [req.user.user_id, reason || 'Administrative Archive', postId]
             );
+            affectedPost = upd.rows[0];
         } else if (targetAction === 'takedown' || targetAction === 'rejected') {
-            await pool.query(
+            const upd = await pool.query(
                 `UPDATE posts
                  SET previous_status = CASE WHEN status != 'Rejected' THEN status ELSE previous_status END,
                      status = 'Rejected',
                      moderation_status = 'Rejected',
                      archive_reason = COALESCE($1, archive_reason),
                      updated_at = NOW()
-                 WHERE post_id = $2`,
+                 WHERE post_id = $2
+                 RETURNING *`,
                 [reason || 'Administrative Takedown', postId]
             );
+            affectedPost = upd.rows[0];
             await pool.query(
                 `INSERT INTO post_moderation_logs (post_id, reviewer_user_id, decision, reason)
                  VALUES ($1, $2, 'takedown', $3)`,
                 [postId, req.user.user_id, reason || 'Administrative Takedown']
             );
         } else if (targetAction === 'restore' || targetAction === 'published') {
-            await pool.query(
+            const upd = await pool.query(
                 `UPDATE posts
                  SET is_archived = FALSE,
                      status = COALESCE(NULLIF(previous_status, 'Archived'), CASE WHEN post_type = 'event' THEN 'Upcoming' ELSE 'Published' END),
                      moderation_status = 'Approved',
                      archived_at = NULL,
                      updated_at = NOW()
-                 WHERE post_id = $1`,
+                 WHERE post_id = $1
+                 RETURNING *`,
                 [postId]
             );
+            affectedPost = upd.rows[0];
         } else {
             const newStatus = status || 'Published';
-            await pool.query(
-                `UPDATE posts SET status = $1, is_archived = FALSE, updated_at = NOW() WHERE post_id = $2`,
+            const upd = await pool.query(
+                `UPDATE posts SET status = $1, is_archived = FALSE, updated_at = NOW() WHERE post_id = $2 RETURNING *`,
                 [newStatus, postId]
             );
+            affectedPost = upd.rows[0];
+        }
+
+        if (affectedPost) {
+            if (
+                affectedPost.post_type === 'event' &&
+                ['archive', 'archived', 'takedown', 'rejected', 'cancelled'].includes(targetAction)
+            ) {
+                await notifyEventUpdated(pool, {
+                    postId,
+                    title: affectedPost.title,
+                    pageId: affectedPost.page_id,
+                    actorUserId: req.user.user_id,
+                    isCancelled: true,
+                    changeReason: reason || undefined
+                });
+            } else if (targetAction === 'restore' || targetAction === 'published') {
+                await notifyPublishedPost(pool, {
+                    post: affectedPost,
+                    actorUserId: req.user.user_id
+                });
+            }
         }
 
         await logAudit(req, {
@@ -1626,6 +1689,13 @@ const handleVerifyStudent = async (req, res) => {
                 `UPDATE users SET account_status = 'Active', is_email_verified = TRUE, updated_at = NOW() WHERE user_id = $1`,
                 [targetUserId]
             );
+        } else {
+            await pool.query(
+                `UPDATE users
+                 SET account_status = 'Pending', updated_at = NOW()
+                 WHERE user_id = $1 AND account_status NOT IN ('Suspended', 'Archived')`,
+                [targetUserId]
+            );
         }
 
         const notifTitle =
@@ -1639,11 +1709,42 @@ const handleVerifyStudent = async (req, res) => {
                 ? 'Your student profile has been verified by the administration.'
                 : `Your student verification status was updated: ${reason || remarks || 'Please re-check your uploaded COR and Student ID documents.'}`;
 
-        await pool.query(
-            `INSERT INTO notifications (recipient_user_id, actor_user_id, notification_scope, type, title, message)
-             VALUES ($1, $2, 'student', 'verification', $3, $4)`,
-            [targetUserId, req.user.user_id, notifTitle, notifMsg]
-        );
+        const globalNotifSettings = await getGlobalNotificationSettings(pool);
+        if (globalNotifSettings.enable_in_app_notifications) {
+            await pool.query(
+                `INSERT INTO notifications (recipient_user_id, actor_user_id, notification_scope, type, title, message)
+                 VALUES ($1, $2, 'student', 'verification', $3, $4)`,
+                [targetUserId, req.user.user_id, notifTitle, notifMsg]
+            );
+        }
+
+        // Best-effort Gmail notification if notify_student_verification is enabled
+        try {
+            const [studentInfoRes, notifySettingRes] = await Promise.all([
+                pool.query(`SELECT email, first_name FROM users WHERE user_id = $1 LIMIT 1`, [targetUserId]),
+                pool.query(`SELECT setting_value FROM system_settings WHERE setting_key = 'notify_student_verification' LIMIT 1`)
+            ]);
+            const notifyEnabled =
+                notifySettingRes.rows.length === 0
+                    ? true
+                    : parseRequireStudentVerification(notifySettingRes.rows[0].setting_value);
+            if (notifyEnabled && studentInfoRes.rows.length > 0) {
+                const targetStudent = studentInfoRes.rows[0];
+                const emailDecision =
+                    finalVerifStatus === 'Pending' && normalizedDecision.includes('correction')
+                        ? 'Correction'
+                        : finalVerifStatus;
+                await sendStudentVerificationDecisionEmail({
+                    toEmail: targetStudent.email,
+                    firstName: targetStudent.first_name,
+                    decisionStatus: emailDecision,
+                    remarks: reason || remarks || null,
+                    portalUrl: process.env.CLIENT_URL || 'http://localhost:5173'
+                });
+            }
+        } catch (emailNotifyErr) {
+            console.warn('Non-fatal error sending verification decision email:', emailNotifyErr.message);
+        }
 
         await logAudit(req, {
             action: `Student Verification ${finalVerifStatus}`,
@@ -2013,6 +2114,18 @@ const handlePageStatus = async (req, res) => {
 
         await client.query('COMMIT');
 
+        if (upd.rows[0]?.created_by) {
+            await notifyModerationOrPageDecision(pool, {
+                recipientUserId: upd.rows[0].created_by,
+                actorUserId: req.user.user_id,
+                pageId,
+                targetKind: 'page',
+                title: upd.rows[0].page_name,
+                decisionLabel: newStatus,
+                reason: remarks || reason || null
+            });
+        }
+
         await logAudit(req, {
             action: `Page Status Updated to ${newStatus}`,
             module: 'pages',
@@ -2153,6 +2266,7 @@ router.get('/post-approval', async (req, res) => {
         const offset = (pageNum - 1) * limitNum;
 
         const params = [];
+        await ensureUniversityWideColumn(pool);
         const clauses = ['p.is_archived = FALSE'];
 
         const normTab = String(tab).toLowerCase();
@@ -2211,8 +2325,14 @@ router.get('/post-approval', async (req, res) => {
                     p.title,
                     p.content AS description,
                     p.content AS body,
-                    p.image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
                     p.audience,
+                    p.is_university_wide,
+                    p.expires_at,
                     p.moderation_status AS status,
                     p.moderation_status,
                     p.created_at,
@@ -2281,11 +2401,17 @@ const handlePostDecision = async (req, res) => {
 
         await client.query('BEGIN');
 
+        const existingRes = await client.query(
+            `SELECT moderation_status FROM posts WHERE post_id = $1 LIMIT 1`,
+            [postId]
+        );
+        const prevModStatus = String(existingRes.rows[0]?.moderation_status || '').toLowerCase();
+
         const upd = await client.query(
             `UPDATE posts
-             SET moderation_status = $1,
-                 status = CASE WHEN post_type = 'event' AND $2 = 'Published' THEN 'Upcoming' ELSE $2 END,
-                 published_at = CASE WHEN $1 = 'Approved' THEN COALESCE(published_at, NOW()) ELSE published_at END,
+             SET moderation_status = $1::text,
+                 status = CASE WHEN post_type = 'event' AND $2::text = 'Published' THEN 'Upcoming' ELSE $2::text END,
+                 published_at = CASE WHEN $1::text = 'Approved' THEN COALESCE(published_at, NOW()) ELSE published_at END,
                  updated_at = NOW()
              WHERE post_id = $3
              RETURNING *`,
@@ -2306,20 +2432,27 @@ const handlePostDecision = async (req, res) => {
         );
 
         const notifLabel = logDecision === 'correction' ? 'Correction Requested' : modStatus;
-        await client.query(
-            `INSERT INTO notifications (recipient_user_id, actor_user_id, page_id, post_id, notification_scope, type, title, message)
-             VALUES ($1, $2, $3, $4, 'mypage', 'moderation', $5, $6)`,
-            [
-                post.creator_user_id,
-                req.user.user_id,
-                post.page_id,
-                postId,
-                `Post ${notifLabel}: ${post.title}`,
-                reason || `Your ${post.post_type} "${post.title}" was marked as ${notifLabel}.`
-            ]
-        );
 
         await client.query('COMMIT');
+
+        await notifyModerationOrPageDecision(pool, {
+            recipientUserId: post.creator_user_id,
+            actorUserId: req.user.user_id,
+            pageId: post.page_id,
+            postId,
+            postType: post.post_type,
+            targetKind: 'post',
+            title: post.title,
+            decisionLabel: notifLabel,
+            reason: reason || null
+        });
+
+        if (logDecision === 'approve' && prevModStatus !== 'approved') {
+            await notifyPublishedPost(pool, {
+                post,
+                actorUserId: req.user.user_id
+            });
+        }
 
         await logAudit(req, {
             action: `Post Moderation Decision (${notifLabel})`,
@@ -3867,7 +4000,11 @@ router.get('/settings', async (req, res) => {
 
         return res.json({
             settings: merged,
-            metadata: { updatedAt: latestAt, updatedBy: latestBy }
+            metadata: {
+                updatedAt: latestAt,
+                updatedBy: latestBy,
+                emailConfigured: isEmailConfigured()
+            }
         });
     } catch (error) {
         return res.status(500).json({ message: 'Failed to load system settings.' });
@@ -4530,6 +4667,106 @@ router.put('/departments/:id', async (req, res) => {
         return res.json({ message: 'College/Department updated.', department: upd.rows[0] });
     } catch (error) {
         return res.status(500).json({ message: 'Failed to update college/department.' });
+    }
+});
+
+// ============================================================================
+// 10. ADMIN NOTIFICATIONS (/api/admin/notifications)
+// ============================================================================
+router.get('/notifications', async (req, res) => {
+    try {
+        await ensureNotificationSchema(pool);
+        const includeArchived = req.query.includeArchived === 'true';
+        const { rows } = await pool.query(
+            `SELECT n.notification_id, n.recipient_user_id, n.actor_user_id,
+                    n.page_id, n.post_id, n.notification_scope, n.type,
+                    n.title, n.message, n.is_read, n.read_at, n.is_archived, n.created_at,
+                    pg.page_name, po.post_type
+             FROM notifications n
+             LEFT JOIN pages pg ON n.page_id = pg.page_id
+             LEFT JOIN posts po ON n.post_id = po.post_id
+             WHERE n.recipient_user_id = $1
+               AND LOWER(n.notification_scope) = 'admin'
+               AND ($2::boolean = TRUE OR n.is_archived = FALSE)
+             ORDER BY n.created_at DESC
+             LIMIT 100`,
+            [req.user.user_id, includeArchived]
+        );
+        const notifications = rows.map(formatNotificationRow);
+        const unreadCount = notifications.filter((n) => !n.is_read && !n.is_archived).length;
+        return res.json({ notifications, unreadCount });
+    } catch (error) {
+        console.error('Admin notifications fetch error:', error);
+        return res.status(500).json({ message: 'Failed to fetch admin notifications.' });
+    }
+});
+
+const markAdminNotifRead = async (req, res) => {
+    try {
+        const notifId = Number(req.params.id);
+        await pool.query(
+            `UPDATE notifications
+             SET is_read = TRUE, read_at = COALESCE(read_at, NOW())
+             WHERE notification_id = $1 AND recipient_user_id = $2`,
+            [notifId, req.user.user_id]
+        );
+        return res.json({ message: 'Notification marked as read.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to mark notification as read.' });
+    }
+};
+router.put('/notifications/:id/read', markAdminNotifRead);
+router.patch('/notifications/:id/read', markAdminNotifRead);
+router.post('/notifications/:id/read', markAdminNotifRead);
+
+const markAllAdminNotifsRead = async (req, res) => {
+    try {
+        await pool.query(
+            `UPDATE notifications
+             SET is_read = TRUE, read_at = COALESCE(read_at, NOW())
+             WHERE recipient_user_id = $1
+               AND LOWER(notification_scope) = 'admin'
+               AND is_read = FALSE`,
+            [req.user.user_id]
+        );
+        return res.json({ message: 'All admin notifications marked as read.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to mark notifications as read.' });
+    }
+};
+router.put('/notifications/read-all', markAllAdminNotifsRead);
+router.patch('/notifications/read-all', markAllAdminNotifsRead);
+router.post('/notifications/read-all', markAllAdminNotifsRead);
+
+const archiveAdminNotif = async (req, res) => {
+    try {
+        const notifId = Number(req.params.id);
+        const isArchived = req.body?.is_archived !== undefined ? Boolean(req.body.is_archived) : true;
+        await pool.query(
+            `UPDATE notifications
+             SET is_archived = $1
+             WHERE notification_id = $2 AND recipient_user_id = $3`,
+            [isArchived, notifId, req.user.user_id]
+        );
+        return res.json({ message: 'Notification archive state updated.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to update archive status.' });
+    }
+};
+router.put('/notifications/:id/archive', archiveAdminNotif);
+router.patch('/notifications/:id/archive', archiveAdminNotif);
+router.post('/notifications/:id/archive', archiveAdminNotif);
+
+router.delete('/notifications/:id', async (req, res) => {
+    try {
+        const notifId = Number(req.params.id);
+        await pool.query(
+            `DELETE FROM notifications WHERE notification_id = $1 AND recipient_user_id = $2`,
+            [notifId, req.user.user_id]
+        );
+        return res.json({ message: 'Notification deleted.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to delete notification.' });
     }
 });
 

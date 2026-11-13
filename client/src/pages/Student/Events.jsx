@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../assets/components/DashboardLayout';
+import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import '../styles/StudentDashboard.css';
 
 export default function Events() {
@@ -9,6 +10,7 @@ export default function Events() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [followedDepts, setFollowedDepts] = useState({});
+  const highlightedPostId = useHighlightedPost(!loading && events.length > 0, () => setFilter('all'));
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -126,9 +128,11 @@ export default function Events() {
               const currentRegistered = item.registered_count ?? item.current_registered ?? 0;
               const maxCapacity = item.max_capacity || item.capacity || 'Unlimited';
               const locationText = item.location || 'University Campus';
+              const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
 
               return (
                 <article 
+                  id={domId}
                   key={item.id || index} 
                   className="card card-interactive" 
                   style={{ 
@@ -137,7 +141,8 @@ export default function Events() {
                     border: '1px solid var(--slate-200, #e2e8f0)',
                     backgroundColor: '#ffffff',
                     boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    ...highlightStyle
                   }}
                 >
                   {/* Post Header */}

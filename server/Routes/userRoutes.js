@@ -3,18 +3,32 @@ const router = express.Router();
 const pool = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { authenticateUser, logAudit } = require('../middleware/auth');
+const { sendVerificationEmail } = require('../utils/emailService');
+const {
+    getRequireStudentVerification,
+    evaluatePrePasswordGate,
+    evaluatePostPasswordGate
+} = require('../utils/verificationPolicy');
+const { ensureUniversityWideColumn } = require('../utils/universityWideHelper');
+const {
+    ensureNotificationSchema,
+    getUserNotificationPreferences,
+    updateUserNotificationPreferences,
+    formatNotificationRow,
+    notifyAdminsStudentVerification,
+    notifyEventRegistrationChange,
+    ensureUpcomingEventReminders
+} = require('../utils/notificationService');
 
-const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
+ensureNotificationSchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure notification schema:', err.message);
 });
+
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+const RESUBMIT_TOKEN_SECRET = `${JWT_SECRET}:cor_resubmit`;
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -45,7 +59,8 @@ async function resolveUserId(req) {
     const authHeader = req.headers.authorization || req.headers.Authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
-            const decoded = jwt.verify(authHeader.slice(7).trim(), process.env.JWT_SECRET || 'fallback_secret');
+            const decoded = jwt.verify(authHeader.slice(7).trim(), JWT_SECRET);
+            if (decoded.purpose) return null;
             return Number(decoded.userId ?? decoded.id ?? decoded.user_id);
         } catch (_) {
             return null;
@@ -62,39 +77,6 @@ function parseBase64Image(dataUrl) {
     const buffer = Buffer.from(match[2], 'base64');
     if (!buffer.length || buffer.length > 5 * 1024 * 1024) return null; // max 5MB per photo
     return { mimeType, buffer };
-}
-
-async function sendVerificationEmail(toEmail, firstName, confirmUrl) {
-    const autoConfirmInDev = process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true';
-    try {
-        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-            await transporter.sendMail({
-                from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
-                to: toEmail,
-                subject: 'CRIMSON - Confirm Your Email Address',
-                html: `
-                    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
-                        <h2 style="color: #800000;">Welcome to CRIMSON, ${firstName}!</h2>
-                        <p>Please confirm your institutional email address by clicking the button below:</p>
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="${confirmUrl}" style="background-color: #800000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirm Email Address</a>
-                        </div>
-                    </div>
-                `
-            });
-            return { sent: true };
-        } else if (autoConfirmInDev) {
-            console.log('🔗 [DEV FALLBACK] CONFIRMATION LINK:', confirmUrl);
-            return { sent: true, fallback: true };
-        }
-        return { sent: false };
-    } catch (emailErr) {
-        if (autoConfirmInDev) {
-            console.log('🔗 [DEV FALLBACK] CONFIRMATION LINK:', confirmUrl);
-            return { sent: true, fallback: true };
-        }
-        throw emailErr;
-    }
 }
 
 // -------- HEALTH / TEST -------- //
@@ -394,12 +376,15 @@ router.get('/confirm-email', async (req, res) => {
 
             const roleRes = await client.query(`SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1`);
             const studentRoleId = roleRes.rows[0]?.role_id || 3;
+            const requireAdminVerification = await getRequireStudentVerification(client);
+            const initialAccountStatus = requireAdminVerification ? 'Pending' : 'Active';
+            const initialVerifStatus = requireAdminVerification ? 'Pending' : 'Verified';
 
             const userIns = await client.query(
                 `INSERT INTO users (
                     role_id, first_name, middle_initial, last_name, email, password_hash,
                     is_email_verified, account_status
-                 ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, 'Active')
+                 ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7)
                  RETURNING user_id, first_name, last_name, email, account_status AS status`,
                 [
                     studentRoleId,
@@ -407,7 +392,8 @@ router.get('/confirm-email', async (req, res) => {
                     pending.middle_initial,
                     pending.last_name,
                     pending.email,
-                    pending.password_hash
+                    pending.password_hash,
+                    initialAccountStatus
                 ]
             );
             const newUserId = userIns.rows[0].user_id;
@@ -417,7 +403,7 @@ router.get('/confirm-email', async (req, res) => {
                     user_id, student_number, department_id, program_id, year_level,
                     cor_image, cor_mime_type, student_id_image, student_id_mime_type,
                     verification_status
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending')`,
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
                 [
                     newUserId,
                     pending.student_number,
@@ -427,7 +413,8 @@ router.get('/confirm-email', async (req, res) => {
                     pending.cor_image,
                     pending.cor_mime_type,
                     pending.student_id_image,
-                    pending.student_id_mime_type
+                    pending.student_id_mime_type,
+                    initialVerifStatus
                 ]
             );
 
@@ -447,6 +434,16 @@ router.get('/confirm-email', async (req, res) => {
             await client.query('COMMIT');
             tx = false;
 
+            if (requireAdminVerification && userIns.rows[0]) {
+                const uRow = userIns.rows[0];
+                await notifyAdminsStudentVerification(pool, {
+                    studentUserId: newUserId,
+                    studentName: `${uRow.first_name || ''} ${uRow.last_name || ''}`.trim() || uRow.email,
+                    studentNumber: pending.student_number || '',
+                    isResubmission: false
+                });
+            }
+
             await logAudit(req, {
                 action: 'Student Email Confirmed & Account Created',
                 module: 'auth',
@@ -458,7 +455,10 @@ router.get('/confirm-email', async (req, res) => {
             });
 
             return res.status(200).json({
-                message: 'Email confirmed successfully! Your account is now active.',
+                message: requireAdminVerification
+                    ? 'Email confirmed! Your account is now awaiting Administrator verification of your COR and Student ID before you can sign in.'
+                    : 'Email confirmed successfully! Your account is now active.',
+                requiresAdminVerification: requireAdminVerification,
                 user: userIns.rows[0]
             });
         }
@@ -483,11 +483,30 @@ router.get('/confirm-email', async (req, res) => {
 
         const tok = tokRes.rows[0];
         if (tok.used_at) {
+            const verifCheck = await client.query(
+                `SELECT r.role_name, sp.verification_status
+                 FROM users u
+                 JOIN roles r ON u.role_id = r.role_id
+                 LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+                 WHERE u.user_id = $1
+                 LIMIT 1`,
+                [tok.user_id]
+            );
+            const requireAdminVerification = await getRequireStudentVerification(client);
+            const row = verifCheck.rows[0];
+            const needsAdminVerif =
+                requireAdminVerification &&
+                String(row?.role_name || '').toLowerCase() === 'student' &&
+                String(row?.verification_status || '').toLowerCase() !== 'verified';
+
             await client.query('ROLLBACK');
             tx = false;
             return res.status(200).json({
-                message: 'Email is already confirmed! You can now sign in.',
-                alreadyConfirmed: true
+                message: needsAdminVerif
+                    ? 'Email is already confirmed! Your COR and Student ID are awaiting Administrator verification before you can sign in.'
+                    : 'Email is already confirmed! You can now sign in.',
+                alreadyConfirmed: true,
+                requiresAdminVerification: needsAdminVerif
             });
         }
 
@@ -500,12 +519,29 @@ router.get('/confirm-email', async (req, res) => {
             });
         }
 
+        const legacyCheck = await client.query(
+            `SELECT r.role_name, sp.verification_status
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+             WHERE u.user_id = $1
+             LIMIT 1`,
+            [tok.user_id]
+        );
+        const requireAdminVerification = await getRequireStudentVerification(client);
+        const legacyRow = legacyCheck.rows[0];
+        const needsAdminVerif =
+            requireAdminVerification &&
+            String(legacyRow?.role_name || '').toLowerCase() === 'student' &&
+            String(legacyRow?.verification_status || '').toLowerCase() !== 'verified';
+        const nextStatus = needsAdminVerif ? 'Pending' : 'Active';
+
         const userUpd = await client.query(
             `UPDATE users
-             SET is_email_verified = TRUE, account_status = 'Active'
+             SET is_email_verified = TRUE, account_status = $2
              WHERE user_id = $1
              RETURNING user_id, first_name, last_name, email, account_status AS status`,
-            [tok.user_id]
+            [tok.user_id, nextStatus]
         );
 
         await client.query(
@@ -516,8 +552,18 @@ router.get('/confirm-email', async (req, res) => {
         await client.query('COMMIT');
         tx = false;
 
+        if (needsAdminVerif && userUpd.rows[0]) {
+            const uRow = userUpd.rows[0];
+            await notifyAdminsStudentVerification(pool, {
+                studentUserId: uRow.user_id,
+                studentName: `${uRow.first_name || ''} ${uRow.last_name || ''}`.trim() || uRow.email,
+                isResubmission: false
+            });
+        }
+
         return res.status(200).json({
-            message: 'Email confirmed successfully! Your account is now active.',
+            message: needsAdminVerificationMessage(needsAdminVerif),
+            requiresAdminVerification: needsAdminVerif,
             user: userUpd.rows[0]
         });
     } catch (error) {
@@ -531,6 +577,12 @@ router.get('/confirm-email', async (req, res) => {
     }
 });
 
+function needsAdminVerificationMessage(needsAdminVerif) {
+    return needsAdminVerif
+        ? 'Email confirmed! Your account is now awaiting Administrator verification of your COR and Student ID before you can sign in.'
+        : 'Email confirmed successfully! Your account is now active.';
+}
+
 // -------- CHECK EMAIL VERIFICATION STATUS -------- //
 router.get('/verification-status', async (req, res) => {
     try {
@@ -538,14 +590,21 @@ router.get('/verification-status', async (req, res) => {
         if (!email) {
             return res.status(400).json({ message: 'Email is required.' });
         }
+        const requireAdminVerification = await getRequireStudentVerification(pool);
         const result = await pool.query(
-            `SELECT is_email_verified, account_status FROM users WHERE LOWER(email) = $1 LIMIT 1`,
+            `SELECT u.is_email_verified, u.account_status, sp.verification_status
+             FROM users u
+             LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+             WHERE LOWER(u.email) = $1
+             LIMIT 1`,
             [email]
         );
         if (result.rowCount > 0) {
             return res.json({
                 is_email_verified: result.rows[0].is_email_verified,
-                account_status: result.rows[0].account_status
+                account_status: result.rows[0].account_status,
+                verification_status: result.rows[0].verification_status || null,
+                require_admin_verification: requireAdminVerification
             });
         }
 
@@ -697,7 +756,7 @@ router.post('/login', loginLimiter, async (req, res) => {
             `SELECT u.user_id, u.first_name, u.middle_initial, u.last_name, u.email,
                     u.password_hash, u.role_id, u.is_email_verified, u.account_status AS status, r.role_name,
                     sp.student_number AS student_id, sp.department_id, sp.program_id,
-                    sp.year_level, sp.verification_status,
+                    sp.year_level, sp.verification_status, sp.verification_remarks,
                     d.department_name, pr.program_name
              FROM users u
              JOIN roles r ON u.role_id = r.role_id
@@ -748,16 +807,13 @@ router.post('/login', loginLimiter, async (req, res) => {
 
         const user = result.rows[0];
 
-        if (String(user.status).toLowerCase() === 'suspended' || String(user.status).toLowerCase() === 'archived') {
-            return res.status(403).json({ message: `Your account is currently ${user.status}.` });
-        }
-
-        if (!user.is_email_verified || String(user.status).toLowerCase() === 'pending') {
-            return res.status(403).json({
-                message: 'Please confirm your email address via the link sent to your Gmail before signing in.',
-                requiresEmailConfirmation: true,
-                email: user.email
-            });
+        const preGate = evaluatePrePasswordGate({
+            isEmailVerified: user.is_email_verified,
+            accountStatus: user.status,
+            email: user.email
+        });
+        if (!preGate.allowed) {
+            return res.status(preGate.httpStatus).json(preGate.payload);
         }
 
         const passwordMatch = await bcrypt.compare(password, user.password_hash);
@@ -774,9 +830,28 @@ router.post('/login', loginLimiter, async (req, res) => {
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
+        const requireStudentVerification = await getRequireStudentVerification(pool);
+        const postGate = evaluatePostPasswordGate({
+            roleName: user.role_name,
+            verificationStatus: user.verification_status,
+            verificationRemarks: user.verification_remarks,
+            requireStudentVerification
+        });
+        if (!postGate.allowed) {
+            const responsePayload = { ...postGate.payload };
+            if (postGate.code === 'ADMIN_CORRECTION') {
+                responsePayload.resubmitToken = jwt.sign(
+                    { userId: user.user_id, purpose: 'cor_id_resubmit' },
+                    RESUBMIT_TOKEN_SECRET,
+                    { expiresIn: '30m' }
+                );
+            }
+            return res.status(postGate.httpStatus).json(responsePayload);
+        }
+
         const token = jwt.sign(
             { userId: user.user_id, roleId: user.role_id, role: user.role_name },
-            process.env.JWT_SECRET || 'fallback_secret',
+            JWT_SECRET,
             { expiresIn: '8h' }
         );
 
@@ -804,9 +879,102 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 });
 
+// -------- RESUBMIT STUDENT VERIFICATION DOCUMENTS (PRE-LOGIN CORRECTION FLOW) -------- //
+router.post('/resubmit-verification', registerLimiter, async (req, res) => {
+    try {
+        const { resubmitToken, corPhoto, studentIdPhoto } = req.body || {};
+        if (!resubmitToken) {
+            return res.status(401).json({ message: 'Resubmission token is missing. Please sign in again.' });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(String(resubmitToken).trim(), RESUBMIT_TOKEN_SECRET);
+        } catch (_) {
+            return res.status(401).json({ message: 'Your resubmission session has expired. Please sign in again.' });
+        }
+
+        if (decoded?.purpose !== 'cor_id_resubmit' || !Number.isSafeInteger(Number(decoded.userId))) {
+            return res.status(401).json({ message: 'Invalid resubmission token.' });
+        }
+
+        const parsedCor = parseBase64Image(corPhoto);
+        const parsedStudentId = parseBase64Image(studentIdPhoto);
+        if (!parsedCor || !parsedStudentId) {
+            return res.status(400).json({
+                message: 'Valid live camera photos of both your COR and WMSU Student ID (max 5MB each) are required.'
+            });
+        }
+
+        const userRes = await pool.query(
+            `SELECT u.user_id, u.first_name, u.last_name, u.email, u.is_email_verified, u.account_status, r.role_name,
+                    sp.student_number, sp.verification_status, sp.verification_remarks
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             JOIN student_profiles sp ON u.user_id = sp.user_id
+             WHERE u.user_id = $1
+             LIMIT 1`,
+            [Number(decoded.userId)]
+        );
+
+        if (userRes.rowCount === 0) {
+            return res.status(404).json({ message: 'Student profile not found.' });
+        }
+
+        const target = userRes.rows[0];
+        if (!target.is_email_verified || String(target.account_status).toLowerCase() === 'suspended' || String(target.account_status).toLowerCase() === 'archived') {
+            return res.status(403).json({ message: 'Account is not eligible for document resubmission.' });
+        }
+
+        if (String(target.verification_status).toLowerCase() !== 'pending' || !String(target.verification_remarks || '').trim()) {
+            return res.status(403).json({
+                message: 'Document resubmission is only permitted when an Administrator requests corrections.'
+            });
+        }
+
+        await pool.query(
+            `UPDATE student_profiles
+             SET cor_image = $1,
+                 cor_mime_type = $2,
+                 student_id_image = $3,
+                 student_id_mime_type = $4,
+                 verification_status = 'Pending',
+                 verification_remarks = NULL,
+                 updated_at = NOW()
+             WHERE user_id = $5`,
+            [parsedCor.buffer, parsedCor.mimeType, parsedStudentId.buffer, parsedStudentId.mimeType, target.user_id]
+        );
+
+        await logAudit(req, {
+            action: 'Student Resubmitted Verification Documents',
+            module: 'users',
+            actorUserId: target.user_id,
+            actorRole: target.role_name,
+            targetType: 'user',
+            targetId: target.user_id,
+            outcome: 'SUCCESS'
+        });
+
+        await notifyAdminsStudentVerification(pool, {
+            studentUserId: target.user_id,
+            studentName: `${target.first_name || ''} ${target.last_name || ''}`.trim() || target.email,
+            studentNumber: target.student_number || '',
+            isResubmission: true
+        });
+
+        return res.status(200).json({
+            message: 'Updated COR and Student ID photos submitted! An Administrator will re-review your documents shortly.'
+        });
+    } catch (error) {
+        console.error('Resubmit verification error:', error);
+        return res.status(500).json({ message: 'Server error while resubmitting verification documents.' });
+    }
+});
+
 // -------- DASHBOARD FEED (USED BY STUDENT & STAFF VIEWS) -------- //
 const handleDashboardData = async (req, res) => {
     try {
+        await ensureUniversityWideColumn(pool);
         const userId = await resolveUserId(req);
 
         const annRes = await pool.query(
@@ -819,8 +987,15 @@ const handleDashboardData = async (req, res) => {
                     p.title,
                     p.content,
                     p.content AS description,
-                    p.image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
                     p.audience,
+                    p.is_university_wide,
+                    p.is_university_wide AS is_university,
+                    p.expires_at,
                     p.is_pinned,
                     p.status,
                     p.created_at,
@@ -856,9 +1031,20 @@ const handleDashboardData = async (req, res) => {
                     p.content,
                     p.content AS description,
                     p.content AS event_description,
-                    p.image_url,
-                    p.image_url AS poster_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS poster_url,
                     p.audience,
+                    p.is_university_wide,
+                    p.is_university_wide AS is_university,
+                    p.expires_at,
                     p.status,
                     p.created_at,
                     ed.event_date,
@@ -921,8 +1107,19 @@ router.get('/events-data', async (req, res) => {
                     p.title AS event_title,
                     p.content AS description,
                     p.content AS event_description,
-                    p.image_url,
-                    p.image_url AS poster_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS poster_url,
+                    p.is_university_wide,
+                    p.is_university_wide AS is_university,
+                    p.expires_at,
                     p.status,
                     p.created_at,
                     ed.event_date,
@@ -965,8 +1162,16 @@ router.get('/my-events', async (req, res) => {
                     p.title,
                     p.title AS event_title,
                     p.content AS event_description,
-                    p.image_url,
-                    p.image_url AS poster_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS poster_url,
                     ed.event_date,
                     ed.end_date,
                     ed.location,
@@ -1012,6 +1217,24 @@ router.post('/events/:id/register', async (req, res) => {
             [eventId, userId]
         );
 
+        const [evInfo, regUser] = await Promise.all([
+            pool.query(`SELECT post_id, page_id, title FROM posts WHERE post_id = $1 LIMIT 1`, [eventId]),
+            pool.query(`SELECT first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`, [userId])
+        ]);
+
+        if (evInfo.rows[0]) {
+            const uRow = regUser.rows[0];
+            const regName = uRow ? `${uRow.first_name || ''} ${uRow.last_name || ''}`.trim() : 'A student';
+            await notifyEventRegistrationChange(pool, {
+                postId: eventId,
+                eventTitle: evInfo.rows[0].title,
+                pageId: evInfo.rows[0].page_id,
+                registrantUserId: userId,
+                registrantName: regName || 'A student',
+                action: 'registered'
+            });
+        }
+
         return res.status(201).json({
             message: 'Successfully registered for the event!',
             registration: regRes.rows[0]
@@ -1032,10 +1255,29 @@ const handleCancelRegistration = async (req, res) => {
             return res.status(400).json({ message: 'User ID and Event ID are required.' });
         }
 
-        await pool.query(
-            `DELETE FROM event_registrations WHERE event_post_id = $1 AND registrant_user_id = $2`,
+        const delRes = await pool.query(
+            `DELETE FROM event_registrations WHERE event_post_id = $1 AND registrant_user_id = $2 RETURNING registration_id`,
             [eventId, userId]
         );
+
+        if (delRes.rowCount > 0) {
+            const [evInfo, regUser] = await Promise.all([
+                pool.query(`SELECT post_id, page_id, title FROM posts WHERE post_id = $1 LIMIT 1`, [eventId]),
+                pool.query(`SELECT first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`, [userId])
+            ]);
+            if (evInfo.rows[0]) {
+                const uRow = regUser.rows[0];
+                const regName = uRow ? `${uRow.first_name || ''} ${uRow.last_name || ''}`.trim() : 'A student';
+                await notifyEventRegistrationChange(pool, {
+                    postId: eventId,
+                    eventTitle: evInfo.rows[0].title,
+                    pageId: evInfo.rows[0].page_id,
+                    registrantUserId: userId,
+                    registrantName: regName || 'A student',
+                    action: 'cancelled'
+                });
+            }
+        }
 
         return res.status(200).json({ message: 'Registration cancelled successfully.' });
     } catch (error) {
@@ -1048,33 +1290,91 @@ router.post('/events/:id/cancel', handleCancelRegistration);
 router.delete('/events/:id/cancel', handleCancelRegistration);
 router.delete('/events/:id/register', handleCancelRegistration);
 
+// -------- USER NOTIFICATION PREFERENCES -------- //
+router.get('/notifications/preferences', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const preferences = await getUserNotificationPreferences(pool, authUser.user_id, authUser.role_name);
+        return res.status(200).json({ preferences });
+    } catch (error) {
+        console.error('Error fetching notification preferences:', error);
+        return res.status(500).json({ message: 'Failed to load notification preferences.' });
+    }
+});
+
+const handleUpdatePreferences = async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const incoming = req.body?.preferences || req.body?.settings || req.body || {};
+        const preferences = await updateUserNotificationPreferences(pool, authUser.user_id, authUser.role_name, incoming);
+        if (!preferences) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        return res.status(200).json({
+            message: 'Notification preferences saved successfully.',
+            preferences
+        });
+    } catch (error) {
+        console.error('Error saving notification preferences:', error);
+        return res.status(500).json({ message: 'Failed to save notification preferences.' });
+    }
+};
+router.put('/notifications/preferences', handleUpdatePreferences);
+router.post('/notifications/preferences', handleUpdatePreferences);
+router.patch('/notifications/preferences', handleUpdatePreferences);
+
 // -------- USER NOTIFICATIONS -------- //
 router.get('/notifications', async (req, res) => {
     try {
         const userId = await resolveUserId(req);
         if (!userId) {
-            return res.status(200).json({ notifications: [] });
+            return res.status(200).json({ notifications: [], unreadCount: 0 });
         }
 
-        const result = await pool.query(
-            `SELECT notification_id AS id,
-                    notification_id,
-                    recipient_user_id,
-                    page_id,
-                    post_id,
-                    type,
-                    title,
-                    message,
-                    is_read,
-                    is_archived,
-                    created_at
-             FROM notifications
-             WHERE recipient_user_id = $1
-             ORDER BY created_at DESC`,
+        const roleRes = await pool.query(
+            `SELECT r.role_name
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             WHERE u.user_id = $1
+             LIMIT 1`,
             [userId]
         );
+        const roleName = roleRes.rows[0]?.role_name || '';
+        const roleLower = String(roleName).toLowerCase();
 
-        return res.status(200).json({ notifications: result.rows });
+        await ensureUpcomingEventReminders(pool, userId, roleName);
+
+        const includeArchived = req.query.includeArchived === 'true';
+        const scopeClause = roleLower === 'student'
+            ? `AND LOWER(n.notification_scope) = 'student'`
+            : (roleLower === 'staff'
+                ? `AND LOWER(n.notification_scope) IN ('staff', 'mypage')`
+                : '');
+
+        const result = await pool.query(
+            `SELECT n.notification_id, n.recipient_user_id, n.actor_user_id,
+                    n.page_id, n.post_id, n.notification_scope, n.type,
+                    n.title, n.message, n.is_read, n.read_at, n.is_archived, n.created_at,
+                    pg.page_name, po.post_type
+             FROM notifications n
+             LEFT JOIN pages pg ON n.page_id = pg.page_id
+             LEFT JOIN posts po ON n.post_id = po.post_id
+             WHERE n.recipient_user_id = $1
+               ${scopeClause}
+               AND ($2::boolean = TRUE OR n.is_archived = FALSE)
+             ORDER BY n.created_at DESC
+             LIMIT 100`,
+            [userId, includeArchived]
+        );
+
+        const notifications = result.rows.map(formatNotificationRow);
+        const unreadCount = notifications.filter((n) => !n.is_read && !n.is_archived).length;
+        return res.status(200).json({ notifications, unreadCount });
     } catch (error) {
         console.error('Error fetching notifications:', error);
         return res.status(500).json({ message: 'Server error fetching notifications.' });
@@ -1083,10 +1383,18 @@ router.get('/notifications', async (req, res) => {
 
 const markNotificationRead = async (req, res) => {
     try {
-        await pool.query(
-            `UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE notification_id = $1`,
-            [Number(req.params.id)]
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const upd = await pool.query(
+            `UPDATE notifications
+             SET is_read = TRUE, read_at = COALESCE(read_at, NOW())
+             WHERE notification_id = $1 AND recipient_user_id = $2`,
+            [Number(req.params.id), authUser.user_id]
         );
+        if (upd.rowCount === 0) {
+            return res.status(404).json({ message: 'Notification not found.' });
+        }
         return res.status(200).json({ message: 'Notification marked as read.' });
     } catch (error) {
         return res.status(500).json({ message: 'Error updating notification.' });
@@ -1098,13 +1406,15 @@ router.patch('/notifications/:id/read', markNotificationRead);
 
 const markAllNotificationsRead = async (req, res) => {
     try {
-        const userId = await resolveUserId(req);
-        if (userId) {
-            await pool.query(
-                `UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE recipient_user_id = $1`,
-                [userId]
-            );
-        }
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        await pool.query(
+            `UPDATE notifications
+             SET is_read = TRUE, read_at = COALESCE(read_at, NOW())
+             WHERE recipient_user_id = $1 AND is_read = FALSE`,
+            [authUser.user_id]
+        );
         return res.status(200).json({ message: 'All notifications marked as read.' });
     } catch (error) {
         return res.status(500).json({ message: 'Error marking notifications as read.' });
@@ -1116,11 +1426,20 @@ router.patch('/notifications/read-all', markAllNotificationsRead);
 
 const archiveNotification = async (req, res) => {
     try {
-        await pool.query(
-            `UPDATE notifications SET is_archived = TRUE WHERE notification_id = $1`,
-            [Number(req.params.id)]
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const isArchived = req.body?.is_archived !== undefined ? Boolean(req.body.is_archived) : true;
+        const upd = await pool.query(
+            `UPDATE notifications
+             SET is_archived = $1
+             WHERE notification_id = $2 AND recipient_user_id = $3`,
+            [isArchived, Number(req.params.id), authUser.user_id]
         );
-        return res.status(200).json({ message: 'Notification archived.' });
+        if (upd.rowCount === 0) {
+            return res.status(404).json({ message: 'Notification not found.' });
+        }
+        return res.status(200).json({ message: isArchived ? 'Notification archived.' : 'Notification unarchived.' });
     } catch (error) {
         return res.status(500).json({ message: 'Error archiving notification.' });
     }
@@ -1131,7 +1450,16 @@ router.patch('/notifications/:id/archive', archiveNotification);
 
 router.delete('/notifications/:id', async (req, res) => {
     try {
-        await pool.query(`DELETE FROM notifications WHERE notification_id = $1`, [Number(req.params.id)]);
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const del = await pool.query(
+            `DELETE FROM notifications WHERE notification_id = $1 AND recipient_user_id = $2`,
+            [Number(req.params.id), authUser.user_id]
+        );
+        if (del.rowCount === 0) {
+            return res.status(404).json({ message: 'Notification not found.' });
+        }
         return res.status(200).json({ message: 'Notification deleted.' });
     } catch (error) {
         return res.status(500).json({ message: 'Error deleting notification.' });

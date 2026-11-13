@@ -49,11 +49,37 @@ export default function StaffSettings() {
     pageSubmissions: true,
     eventApprovalAlerts: true,
     attendanceReports: true,
-    studentInquiries: true,
     moderationAlerts: true,
     systemBroadcasts: true
   });
+  const [loadingPreferences, setLoadingPreferences] = useState(true);
   const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoadingPreferences(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch('/api/users/notifications/preferences', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!cancelled && res.ok && data.preferences) {
+          const { studentInquiries: _removed, ...cleanPrefs } = data.preferences;
+          setNotifications(prev => ({ ...prev, ...cleanPrefs, systemBroadcasts: true }));
+        }
+      })
+      .catch((err) => console.warn('Failed to fetch staff preferences:', err))
+      .finally(() => {
+        if (!cancelled) setLoadingPreferences(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   // Security Form State
   const [passwordForm, setPasswordForm] = useState({
@@ -85,24 +111,37 @@ export default function StaffSettings() {
   };
 
   const handleToggle = (key) => {
+    if (key === 'systemBroadcasts') return;
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSaveNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('', 'Please sign in again to save notification preferences.');
+      return;
+    }
     setIsSavingNotifications(true);
-    const staffId = profile.staffId;
 
     try {
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staff_id: staffId, settings: notifications }),
+      const res = await fetch('/api/users/notifications/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ preferences: { ...notifications, systemBroadcasts: true } }),
       });
-      localStorage.setItem('staffSettings', JSON.stringify(notifications));
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to save notification preferences.');
+      }
+      if (data.preferences) {
+        setNotifications(prev => ({ ...prev, ...data.preferences, systemBroadcasts: true }));
+      }
       showToast('Notification preferences saved successfully!');
-    } catch {
-      localStorage.setItem('staffSettings', JSON.stringify(notifications));
-      showToast('Notification preferences saved locally.');
+    } catch (err) {
+      showToast('', err.message || 'Unable to save notification preferences.');
     } finally {
       setIsSavingNotifications(false);
     }
@@ -274,23 +313,30 @@ export default function StaffSettings() {
               <div className="lp-toggle-rows">
                 {[
                   { id: 'universityAnnouncements', title: 'University Announcements', desc: 'Newly published campus-wide circulars and directives' },
-                  { id: 'departmentAnnouncements', title: 'Department Announcements', desc: 'Internal updates relevant to your assigned college' },
-                  { id: 'pageSubmissions', title: 'Page Submission Alerts', desc: 'Alerts when organizations submit content for review' },
-                  { id: 'eventApprovalAlerts', title: 'Event Approvals & Schedules', desc: 'Status notices for registered and created events' },
-                  { id: 'attendanceReports', title: 'Attendance & QR Check-in', desc: 'Automated summaries of event attendance scans' },
-                  { id: 'studentInquiries', title: 'Student Inquiries', desc: 'Questions submitted to your department page' },
-                  { id: 'moderationAlerts', title: 'Content Moderation', desc: 'Flagged posts or content requiring staff review' },
-                  { id: 'systemBroadcasts', title: 'System Operations Broadcasts', desc: 'Maintenance updates and platform schedule notices' }
+                  { id: 'departmentAnnouncements', title: 'Department & Followed Pages', desc: 'Updates relevant to your department or pages you follow' },
+                  { id: 'pageSubmissions', title: 'Page Status Updates', desc: 'Status updates when your page request is reviewed by administrators' },
+                  { id: 'eventApprovalAlerts', title: 'Events & Registrations', desc: 'Updates for created events, schedules, and events you registered for' },
+                  { id: 'attendanceReports', title: 'Attendance & QR Check-in', desc: 'Alerts when attendance check-in opens/closes and session reports finish' },
+                  { id: 'moderationAlerts', title: 'Post Moderation Decisions', desc: 'Admin approval, rejection, or correction requests on your submitted posts' },
+                  { id: 'systemBroadcasts', title: 'System Operations Broadcasts', desc: 'Mandatory university directives and critical platform notices (Always On)', locked: true }
                 ].map((item) => (
                   <div key={item.id} className="lp-row">
                     <div className="lp-row-text">
-                      <h3>{item.title}</h3>
+                      <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span>{item.title}</span>
+                        {item.locked && (
+                          <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '9999px', backgroundColor: '#f1f5f9', color: '#475569' }}>
+                            Always On
+                          </span>
+                        )}
+                      </h3>
                       <p>{item.desc}</p>
                     </div>
-                    <label className="lp-toggle-switch">
+                    <label className="lp-toggle-switch" style={item.locked ? { opacity: 0.65, cursor: 'not-allowed' } : undefined}>
                       <input
                         type="checkbox"
                         checked={notifications[item.id]}
+                        disabled={Boolean(item.locked)}
                         onChange={() => handleToggle(item.id)}
                       />
                       <span className="lp-toggle-slider"></span>
@@ -304,9 +350,9 @@ export default function StaffSettings() {
                   type="button"
                   className="lp-primary-btn"
                   onClick={handleSaveNotifications}
-                  disabled={isSavingNotifications}
+                  disabled={isSavingNotifications || loadingPreferences}
                 >
-                  {isSavingNotifications ? 'Saving...' : 'Save Preferences'}
+                  {isSavingNotifications ? 'Saving...' : (loadingPreferences ? 'Loading...' : 'Save Preferences')}
                 </button>
               </div>
             </div>

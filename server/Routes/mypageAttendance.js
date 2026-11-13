@@ -3,6 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const pool = require('../db');
 const { authenticateToken, authenticateUser } = require('../middleware/auth');
+const { notifyAttendanceWindowChange } = require('../utils/notificationService');
 
 const authorizeStaffForEvent = async (req, res, next) => {
     const userId = req.user.id;
@@ -169,6 +170,39 @@ router.post('/events/:eventId/window', authenticateToken, authorizeStaffForEvent
         }
 
         await client.query('COMMIT');
+
+        try {
+            const evRes = await pool.query(
+                `SELECT p.title, p.page_id,
+                        COUNT(ar.attendance_id) FILTER (WHERE ar.status = 'PRESENT')::int AS present,
+                        COUNT(ar.attendance_id) FILTER (WHERE ar.status = 'ABSENT')::int AS absent,
+                        COUNT(ar.attendance_id)::int AS total_eligible
+                 FROM posts p
+                 LEFT JOIN event_registrations er ON p.post_id = er.event_post_id AND LOWER(er.status) != 'cancelled'
+                 LEFT JOIN event_attendance_records ar ON er.registration_id = ar.registration_id
+                 WHERE p.post_id = $1
+                 GROUP BY p.post_id`,
+                [eventId]
+            );
+            const evRow = evRes.rows[0];
+            if (evRow) {
+                await notifyAttendanceWindowChange(pool, {
+                    eventId,
+                    title: evRow.title,
+                    pageId: evRow.page_id,
+                    actorUserId: req.user.id,
+                    action,
+                    summary: {
+                        present: evRow.present || 0,
+                        absent: evRow.absent || 0,
+                        totalEligible: evRow.total_eligible || 0
+                    }
+                });
+            }
+        } catch (notifyErr) {
+            console.warn('Attendance notification warning:', notifyErr.message);
+        }
+
         return res.json({ message: `Attendance window ${String(action).toLowerCase()}ed successfully.`, session });
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});

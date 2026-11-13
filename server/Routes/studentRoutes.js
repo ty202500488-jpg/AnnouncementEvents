@@ -2,6 +2,18 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
+const { authenticateUser } = require('../middleware/auth');
+const {
+    ensureNotificationSchema,
+    getUserNotificationPreferences,
+    updateUserNotificationPreferences,
+    formatNotificationRow,
+    ensureUpcomingEventReminders
+} = require('../utils/notificationService');
+
+ensureNotificationSchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure notification schema:', err.message);
+});
 
 async function resolveUserId(req) {
     if (req.query?.student_id) return Number(req.query.student_id);
@@ -35,7 +47,11 @@ const handleStudentDashboard = async (req, res) => {
                     p.title,
                     p.content,
                     p.content AS description,
-                    p.image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
                     p.audience,
                     p.is_pinned,
                     p.status,
@@ -66,8 +82,16 @@ const handleStudentDashboard = async (req, res) => {
                     p.title AS event_title,
                     p.content AS description,
                     p.content AS event_description,
-                    p.image_url,
-                    p.image_url AS poster_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS poster_url,
                     p.status,
                     p.created_at,
                     ed.event_date,
@@ -125,8 +149,16 @@ router.get('/events-data', async (req, res) => {
                     p.title AS event_title,
                     p.content AS description,
                     p.content AS event_description,
-                    p.image_url,
-                    p.image_url AS poster_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS image_url,
+                    CASE
+                        WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
+                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                        ELSE p.image_url
+                    END AS poster_url,
                     p.status,
                     p.created_at,
                     ed.event_date,
@@ -156,32 +188,62 @@ router.get('/events-data', async (req, res) => {
 });
 
 // -------- STUDENT NOTIFICATIONS -------- //
+router.get('/notifications/preferences', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const preferences = await getUserNotificationPreferences(pool, authUser.user_id, authUser.role_name);
+        return res.status(200).json({ preferences });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to load notification preferences.' });
+    }
+});
+
+const saveStudentPreferences = async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const incoming = req.body?.preferences || req.body?.settings || req.body || {};
+        const preferences = await updateUserNotificationPreferences(pool, authUser.user_id, authUser.role_name, incoming);
+        return res.status(200).json({ message: 'Notification preferences saved.', preferences });
+    } catch (error) {
+        return res.status(500).json({ message: 'Failed to save notification preferences.' });
+    }
+};
+router.put('/notifications/preferences', saveStudentPreferences);
+router.post('/notifications/preferences', saveStudentPreferences);
+
 router.get('/notifications', async (req, res) => {
     try {
         const userId = await resolveUserId(req);
         if (!userId) {
-            return res.status(200).json({ notifications: [] });
+            return res.status(200).json({ notifications: [], unreadCount: 0 });
         }
 
+        await ensureUpcomingEventReminders(pool, userId, 'student');
+
+        const includeArchived = req.query.includeArchived === 'true';
         const notifications = await pool.query(
-            `SELECT notification_id AS id,
-                    notification_id,
-                    recipient_user_id,
-                    page_id,
-                    post_id,
-                    type,
-                    title,
-                    message,
-                    is_read,
-                    is_archived,
-                    created_at
-             FROM notifications
-             WHERE recipient_user_id = $1 AND is_archived = FALSE
-             ORDER BY created_at DESC`,
-            [userId]
+            `SELECT n.notification_id, n.recipient_user_id, n.actor_user_id,
+                    n.page_id, n.post_id, n.notification_scope, n.type,
+                    n.title, n.message, n.is_read, n.read_at, n.is_archived, n.created_at,
+                    pg.page_name, po.post_type
+             FROM notifications n
+             LEFT JOIN pages pg ON n.page_id = pg.page_id
+             LEFT JOIN posts po ON n.post_id = po.post_id
+             WHERE n.recipient_user_id = $1
+               AND LOWER(n.notification_scope) = 'student'
+               AND ($2::boolean = TRUE OR n.is_archived = FALSE)
+             ORDER BY n.created_at DESC
+             LIMIT 100`,
+            [userId, includeArchived]
         );
 
-        return res.status(200).json({ notifications: notifications.rows });
+        const formatted = notifications.rows.map(formatNotificationRow);
+        const unreadCount = formatted.filter((n) => !n.is_read && !n.is_archived).length;
+        return res.status(200).json({ notifications: formatted, unreadCount });
     } catch (error) {
         console.error('Error fetching student notifications:', error.message);
         return res.status(500).json({ message: 'Server error fetching notifications.' });
@@ -190,10 +252,18 @@ router.get('/notifications', async (req, res) => {
 
 const markNotifRead = async (req, res) => {
     try {
-        await pool.query(
-            `UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE notification_id = $1`,
-            [Number(req.params.id)]
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const upd = await pool.query(
+            `UPDATE notifications
+             SET is_read = TRUE, read_at = COALESCE(read_at, NOW())
+             WHERE notification_id = $1 AND recipient_user_id = $2`,
+            [Number(req.params.id), authUser.user_id]
         );
+        if (upd.rowCount === 0) {
+            return res.status(404).json({ message: 'Notification not found.' });
+        }
         return res.status(200).json({ message: 'Notification marked as read.' });
     } catch (error) {
         return res.status(500).json({ message: 'Server error updating notification.' });
@@ -205,13 +275,17 @@ router.patch('/notifications/:id/read', markNotifRead);
 
 const markAllRead = async (req, res) => {
     try {
-        const userId = await resolveUserId(req);
-        if (userId) {
-            await pool.query(
-                `UPDATE notifications SET is_read = TRUE, read_at = NOW() WHERE recipient_user_id = $1`,
-                [userId]
-            );
-        }
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        await pool.query(
+            `UPDATE notifications
+             SET is_read = TRUE, read_at = COALESCE(read_at, NOW())
+             WHERE recipient_user_id = $1
+               AND LOWER(notification_scope) = 'student'
+               AND is_read = FALSE`,
+            [authUser.user_id]
+        );
         return res.status(200).json({ message: 'All notifications marked as read.' });
     } catch (error) {
         return res.status(500).json({ message: 'Server error marking notifications as read.' });
@@ -220,5 +294,47 @@ const markAllRead = async (req, res) => {
 router.post('/notifications/read-all', markAllRead);
 router.put('/notifications/read-all', markAllRead);
 router.patch('/notifications/read-all', markAllRead);
+
+const archiveStudentNotif = async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const isArchived = req.body?.is_archived !== undefined ? Boolean(req.body.is_archived) : true;
+        const upd = await pool.query(
+            `UPDATE notifications
+             SET is_archived = $1
+             WHERE notification_id = $2 AND recipient_user_id = $3`,
+            [isArchived, Number(req.params.id), authUser.user_id]
+        );
+        if (upd.rowCount === 0) {
+            return res.status(404).json({ message: 'Notification not found.' });
+        }
+        return res.status(200).json({ message: isArchived ? 'Notification archived.' : 'Notification unarchived.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error updating archive state.' });
+    }
+};
+router.post('/notifications/:id/archive', archiveStudentNotif);
+router.put('/notifications/:id/archive', archiveStudentNotif);
+router.patch('/notifications/:id/archive', archiveStudentNotif);
+
+router.delete('/notifications/:id', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const del = await pool.query(
+            `DELETE FROM notifications WHERE notification_id = $1 AND recipient_user_id = $2`,
+            [Number(req.params.id), authUser.user_id]
+        );
+        if (del.rowCount === 0) {
+            return res.status(404).json({ message: 'Notification not found.' });
+        }
+        return res.status(200).json({ message: 'Notification deleted.' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error deleting notification.' });
+    }
+});
 
 module.exports = router;

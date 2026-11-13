@@ -159,11 +159,19 @@ export default function Auth() {
   const [regData, setRegData] = useState(INITIAL_REG_DATA);
 
   const [regStep, setRegStep] = useState(1); // 1 | 2 | 3 | 4 | 'awaiting_confirmation'
-  const [activeCameraTarget, setActiveCameraTarget] = useState(null); // null | 'cor' | 'id'
+  const [activeCameraTarget, setActiveCameraTarget] = useState(null); // null | 'cor' | 'id' | 'resubmit_cor' | 'resubmit_id'
   const [cameraFacingMode, setCameraFacingMode] = useState('environment');
   const [cameraLoading, setCameraLoading] = useState(false);
   const [submittingReg, setSubmittingReg] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
+  const [resubmitModal, setResubmitModal] = useState({
+    isOpen: false,
+    token: '',
+    remarks: '',
+    corPhoto: '',
+    studentIdPhoto: '',
+    submitting: false
+  });
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -263,6 +271,10 @@ export default function Auth() {
       setRegData((prev) => ({ ...prev, corPhoto: dataUrl }));
     } else if (activeCameraTarget === 'id') {
       setRegData((prev) => ({ ...prev, studentIdPhoto: dataUrl }));
+    } else if (activeCameraTarget === 'resubmit_cor') {
+      setResubmitModal((prev) => ({ ...prev, corPhoto: dataUrl }));
+    } else if (activeCameraTarget === 'resubmit_id') {
+      setResubmitModal((prev) => ({ ...prev, studentIdPhoto: dataUrl }));
     }
     stopCameraStream();
   };
@@ -304,10 +316,15 @@ export default function Auth() {
           setLoginData((prev) => ({ ...prev, email }));
           resetRegistrationFlow();
           setActiveTab('login');
+          const needsAdminVerif =
+            data.require_admin_verification !== false &&
+            String(data.verification_status || '').toLowerCase() !== 'verified';
           showAlert(
             'Email Confirmed!',
-            'Your WMSU Gmail address has been verified. You can now sign in to your account.',
-            'success'
+            needsAdminVerif
+              ? 'Your WMSU Gmail address has been verified! Your COR & Student ID are now awaiting Administrator approval before you can sign in.'
+              : 'Your WMSU Gmail address has been verified. You can now sign in to your account.',
+            needsAdminVerif ? 'warning' : 'success'
           );
         }
       } catch (_) {
@@ -450,6 +467,30 @@ export default function Auth() {
           data.message || 'Please confirm your email address via the link sent to your Gmail before signing in.',
           'warning'
         );
+      } else if (response.status === 403 && data.requiresAdminVerification) {
+        if (data.verificationState === 'correction' && data.resubmitToken) {
+          stopCameraStream();
+          setResubmitModal({
+            isOpen: true,
+            token: data.resubmitToken,
+            remarks: data.verification_remarks || 'Please capture clearer photos of your COR and Student ID.',
+            corPhoto: '',
+            studentIdPhoto: '',
+            submitting: false
+          });
+        } else if (data.verificationState === 'rejected') {
+          showAlert(
+            'Verification Rejected',
+            data.message || 'Your student verification was rejected by an Administrator.',
+            'error'
+          );
+        } else {
+          showAlert(
+            'Pending Admin Verification',
+            data.message || 'Your email is confirmed, and your COR & Student ID are currently awaiting Administrator verification before you can sign in.',
+            'warning'
+          );
+        }
       } else {
         showAlert('Authentication Failed', data.message || 'Incorrect email or password. Please try again.', 'error');
       }
@@ -458,6 +499,163 @@ export default function Auth() {
       showAlert('Connection Error', 'Could not connect to the backend server. Make sure localhost:5000 is running.', 'error');
     }
   };
+
+  const closeResubmitModal = () => {
+    stopCameraStream();
+    setResubmitModal({
+      isOpen: false,
+      token: '',
+      remarks: '',
+      corPhoto: '',
+      studentIdPhoto: '',
+      submitting: false
+    });
+  };
+
+  const handleResubmitSubmit = async () => {
+    if (!resubmitModal.corPhoto || !resubmitModal.studentIdPhoto) {
+      showAlert(
+        'Photos Required',
+        'Please capture live camera photos of both your Certificate of Registration (COR) and WMSU Student ID.',
+        'warning'
+      );
+      return;
+    }
+
+    stopCameraStream();
+    setResubmitModal((prev) => ({ ...prev, submitting: true }));
+    try {
+      const response = await fetch('http://localhost:5000/api/users/resubmit-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resubmitToken: resubmitModal.token,
+          corPhoto: resubmitModal.corPhoto,
+          studentIdPhoto: resubmitModal.studentIdPhoto
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        closeResubmitModal();
+        showAlert(
+          'Documents Re-submitted!',
+          data.message || 'Updated COR and Student ID photos submitted for Administrator review.',
+          'success'
+        );
+      } else {
+        setResubmitModal((prev) => ({ ...prev, submitting: false }));
+        showAlert('Resubmission Failed', data.message || 'Could not resubmit your verification documents.', 'error');
+      }
+    } catch (err) {
+      console.error('Resubmit verification error:', err);
+      setResubmitModal((prev) => ({ ...prev, submitting: false }));
+      showAlert('Network Error', 'Could not reach the server to resubmit your documents.', 'error');
+    }
+  };
+
+  const renderCameraViewfinder = () => {
+    if (!activeCameraTarget) return null;
+    const isCor = activeCameraTarget === 'cor' || activeCameraTarget === 'resubmit_cor';
+    return (
+      <div className="camera-viewfinder">
+        <div className="camera-viewfinder-header">
+          <span>
+            Live Camera — {isCor ? 'Certificate of Registration (COR)' : 'WMSU Student ID'}
+          </span>
+        </div>
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="camera-video-el"
+        />
+        <div className="camera-controls-bar">
+          <button type="button" className="btn-auth-secondary btn-compact" onClick={flipCamera}>
+            Flip Camera
+          </button>
+          <button type="button" className="btn-auth-submit btn-compact" onClick={capturePhoto}>
+            Capture Photo
+          </button>
+          <button type="button" className="btn-auth-secondary btn-compact" onClick={stopCameraStream}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDocCaptureGrid = ({ corPhoto, studentIdPhoto, corTarget, idTarget }) => (
+    <div className="camera-capture-grid">
+      <div className={`camera-doc-card ${corPhoto ? 'captured' : ''}`}>
+        <div className="camera-doc-title">Certificate of Registration (COR)</div>
+        {corPhoto ? (
+          <div className="captured-preview-wrap">
+            <img src={corPhoto} alt="Captured COR" className="captured-preview-img" />
+            <button
+              type="button"
+              className="btn-auth-secondary btn-compact btn-block"
+              onClick={() => startCamera(corTarget)}
+              disabled={cameraLoading}
+            >
+              Retake COR Photo
+            </button>
+          </div>
+        ) : (
+          <div className="camera-empty-state">
+            <svg className="camera-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+            <span className="camera-empty-hint">Live photo required</span>
+            <button
+              type="button"
+              className="btn-auth-submit btn-compact btn-block"
+              onClick={() => startCamera(corTarget)}
+              disabled={cameraLoading}
+            >
+              {cameraLoading ? 'Starting Camera...' : 'Open Camera'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className={`camera-doc-card ${studentIdPhoto ? 'captured' : ''}`}>
+        <div className="camera-doc-title">WMSU Student ID</div>
+        {studentIdPhoto ? (
+          <div className="captured-preview-wrap">
+            <img src={studentIdPhoto} alt="Captured Student ID" className="captured-preview-img" />
+            <button
+              type="button"
+              className="btn-auth-secondary btn-compact btn-block"
+              onClick={() => startCamera(idTarget)}
+              disabled={cameraLoading}
+            >
+              Retake ID Photo
+            </button>
+          </div>
+        ) : (
+          <div className="camera-empty-state">
+            <svg className="camera-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+              <circle cx="8" cy="12" r="2"></circle>
+              <line x1="13" y1="10" x2="19" y2="10"></line>
+              <line x1="13" y1="14" x2="17" y2="14"></line>
+            </svg>
+            <span className="camera-empty-hint">Live photo required</span>
+            <button
+              type="button"
+              className="btn-auth-submit btn-compact btn-block"
+              onClick={() => startCamera(idTarget)}
+              disabled={cameraLoading}
+            >
+              {cameraLoading ? 'Starting Camera...' : 'Open Camera'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   const handleRegisterSubmit = async (e) => {
     e.preventDefault();
@@ -795,105 +993,13 @@ export default function Auth() {
                     Use your live camera to take clear photos of your Certificate of Registration (COR) and WMSU Student ID. Photos are stored securely inside the database.
                   </p>
 
-                  {activeCameraTarget && (
-                    <div className="camera-viewfinder">
-                      <div className="camera-viewfinder-header">
-                        <span>
-                          Live Camera — {activeCameraTarget === 'cor' ? 'Certificate of Registration (COR)' : 'WMSU Student ID'}
-                        </span>
-                      </div>
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="camera-video-el"
-                      />
-                      <div className="camera-controls-bar">
-                        <button type="button" className="btn-auth-secondary btn-compact" onClick={flipCamera}>
-                          Flip Camera
-                        </button>
-                        <button type="button" className="btn-auth-submit btn-compact" onClick={capturePhoto}>
-                          Capture Photo
-                        </button>
-                        <button type="button" className="btn-auth-secondary btn-compact" onClick={stopCameraStream}>
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="camera-capture-grid">
-                    {/* COR Capture Card */}
-                    <div className={`camera-doc-card ${regData.corPhoto ? 'captured' : ''}`}>
-                      <div className="camera-doc-title">Certificate of Registration (COR)</div>
-                      {regData.corPhoto ? (
-                        <div className="captured-preview-wrap">
-                          <img src={regData.corPhoto} alt="Captured COR" className="captured-preview-img" />
-                          <button
-                            type="button"
-                            className="btn-auth-secondary btn-compact btn-block"
-                            onClick={() => startCamera('cor')}
-                            disabled={cameraLoading}
-                          >
-                            Retake COR Photo
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="camera-empty-state">
-                          <svg className="camera-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                            <circle cx="12" cy="13" r="4"></circle>
-                          </svg>
-                          <span className="camera-empty-hint">Live photo required</span>
-                          <button
-                            type="button"
-                            className="btn-auth-submit btn-compact btn-block"
-                            onClick={() => startCamera('cor')}
-                            disabled={cameraLoading}
-                          >
-                            {cameraLoading ? 'Starting Camera...' : 'Open Camera'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Student ID Capture Card */}
-                    <div className={`camera-doc-card ${regData.studentIdPhoto ? 'captured' : ''}`}>
-                      <div className="camera-doc-title">WMSU Student ID</div>
-                      {regData.studentIdPhoto ? (
-                        <div className="captured-preview-wrap">
-                          <img src={regData.studentIdPhoto} alt="Captured Student ID" className="captured-preview-img" />
-                          <button
-                            type="button"
-                            className="btn-auth-secondary btn-compact btn-block"
-                            onClick={() => startCamera('id')}
-                            disabled={cameraLoading}
-                          >
-                            Retake ID Photo
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="camera-empty-state">
-                          <svg className="camera-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                            <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-                            <circle cx="8" cy="12" r="2"></circle>
-                            <line x1="13" y1="10" x2="19" y2="10"></line>
-                            <line x1="13" y1="14" x2="17" y2="14"></line>
-                          </svg>
-                          <span className="camera-empty-hint">Live photo required</span>
-                          <button
-                            type="button"
-                            className="btn-auth-submit btn-compact btn-block"
-                            onClick={() => startCamera('id')}
-                            disabled={cameraLoading}
-                          >
-                            {cameraLoading ? 'Starting Camera...' : 'Open Camera'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  {!resubmitModal.isOpen && renderCameraViewfinder()}
+                  {renderDocCaptureGrid({
+                    corPhoto: regData.corPhoto,
+                    studentIdPhoto: regData.studentIdPhoto,
+                    corTarget: 'cor',
+                    idTarget: 'id'
+                  })}
 
                   <div className="step-actions-row">
                     <button type="button" className="btn-auth-secondary" onClick={handlePrevStep}>
@@ -1041,6 +1147,50 @@ export default function Auth() {
           </div>
         </div>
       </main>
+
+      {/* Pre-Login Correction Resubmit Modal (Admin requested updated COR & ID) */}
+      {resubmitModal.isOpen && (
+        <div className="auth-modal-backdrop" onClick={closeResubmitModal}>
+          <div className="auth-modal-card warning resubmit-modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="auth-modal-title">Corrections Requested</h3>
+            <p className="auth-modal-message">
+              Please capture updated photos of your COR and WMSU Student ID before an Administrator can approve your account.
+            </p>
+            {resubmitModal.remarks && (
+              <div className="remarks-callout">
+                <strong>Admin Remarks:</strong> {resubmitModal.remarks}
+              </div>
+            )}
+
+            {renderCameraViewfinder()}
+            {renderDocCaptureGrid({
+              corPhoto: resubmitModal.corPhoto,
+              studentIdPhoto: resubmitModal.studentIdPhoto,
+              corTarget: 'resubmit_cor',
+              idTarget: 'resubmit_id'
+            })}
+
+            <div className="step-actions-row" style={{ marginTop: '1rem' }}>
+              <button
+                type="button"
+                className="btn-auth-secondary"
+                onClick={closeResubmitModal}
+                disabled={resubmitModal.submitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-auth-submit"
+                onClick={handleResubmitSubmit}
+                disabled={resubmitModal.submitting}
+              >
+                {resubmitModal.submitting ? 'Submitting...' : 'Submit Updated Photos'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modern Notification Modal UI: Only displays on errors or validation warnings */}
       {modalConfig.isOpen && (

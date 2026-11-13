@@ -345,6 +345,15 @@
     display: none;
 }
 
+.student-dashboard-wrapper .mobile-spotlight-slot {
+    width: 100%;
+    flex-shrink: 0;
+}
+
+.student-dashboard-wrapper .mobile-spotlight-slot:empty {
+    display: none;
+}
+
 /* Card Utility */
 .student-dashboard-wrapper .card {
     background-color: #ffffff;
@@ -654,14 +663,45 @@
     }
 
     /* Fixed height card containers for Sidebars with visible rounded corners */
-    .student-dashboard-wrapper #leftSidebar .card,
-    .student-dashboard-wrapper .lg-col-3:last-child .card {
+    .student-dashboard-wrapper #leftSidebar .card {
         height: 100%;
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
         overflow-y: auto;
         border-radius: 1rem;
+    }
+
+    .student-dashboard-wrapper .lg-col-3:last-child.lg-block {
+        display: flex !important;
+        flex-direction: column;
+        gap: 1rem;
+        height: 100%;
+    }
+
+    .student-dashboard-wrapper .lg-col-3:last-child.space-y-6 > * + * {
+        margin-top: 0;
+    }
+
+    .student-dashboard-wrapper .lg-col-3:last-child .uw-spotlight-card {
+        flex-shrink: 0;
+        height: auto;
+    }
+
+    .student-dashboard-wrapper .lg-col-3:last-child .dept-pages-card,
+    .student-dashboard-wrapper .lg-col-3:last-child > .card:only-child {
+        flex: 1;
+        min-height: 0;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        overflow-y: auto;
+        border-radius: 1rem;
+    }
+
+    .student-dashboard-wrapper .mobile-spotlight-slot {
+        display: none !important;
     }
 
     /* Independently Scrollable Center Feed */

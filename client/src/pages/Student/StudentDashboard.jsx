@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../assets/components/DashboardLayout';
+import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import '../styles/StudentDashboard.css';
 
 export default function StudentDashboard() {
@@ -9,6 +10,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [feedFilter, setFeedFilter] = useState('all'); // 'all' | 'following'
   const [togglingPageId, setTogglingPageId] = useState(null);
+  const highlightedPostId = useHighlightedPost(!loading && feed.length > 0, () => setFeedFilter('all'));
 
   const token = localStorage.getItem('token');
 
@@ -234,9 +236,11 @@ export default function StudentDashboard() {
             const currentRegistered = item.registered_count ?? item.current_registered ?? 0;
             const maxCapacity = item.max_capacity || item.capacity || 'Unlimited';
             const locationText = item.location || 'University Campus';
+            const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
 
             return (
               <article 
+                id={domId}
                 key={item.id || index} 
                 className="card card-interactive" 
                 style={{ 
@@ -246,7 +250,8 @@ export default function StudentDashboard() {
                   backgroundColor: '#ffffff',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
                   overflow: 'hidden',
-                  flexShrink: 0
+                  flexShrink: 0,
+                  ...highlightStyle
                 }}
               >
                 {/* 1. POST HEADER (CLICKABLE TO OPEN FACEBOOK PAGE VIEW) */}

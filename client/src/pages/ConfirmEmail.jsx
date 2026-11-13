@@ -9,6 +9,7 @@ export default function ConfirmEmail() {
 
   const [status, setStatus] = useState('verifying'); // 'verifying' | 'success' | 'error'
   const [message, setMessage] = useState('Verifying your email address...');
+  const [requiresAdminVerif, setRequiresAdminVerif] = useState(false);
   
   // Guard against React 18 StrictMode double-execution
   const hasVerified = useRef(false);
@@ -23,15 +24,20 @@ export default function ConfirmEmail() {
     if (hasVerified.current) return;
     hasVerified.current = true;
 
+    let redirectTimer;
     const verifyEmail = async () => {
       try {
         const response = await fetch(`http://localhost:5000/api/users/confirm-email?token=${token}`);
         const data = await response.json();
 
         if (response.ok) {
+          const needsAdmin = Boolean(data.requiresAdminVerification);
           setStatus('success');
+          setRequiresAdminVerif(needsAdmin);
           setMessage(data.message || 'Email confirmed successfully!');
-          setTimeout(() => navigate('/auth'), 3000);
+          if (!needsAdmin) {
+            redirectTimer = setTimeout(() => navigate('/auth'), 3000);
+          }
         } else {
           setStatus('error');
           setMessage(data.message || 'Verification failed. Please try registering again.');
@@ -44,6 +50,9 @@ export default function ConfirmEmail() {
     };
 
     verifyEmail();
+    return () => {
+      if (redirectTimer) clearTimeout(redirectTimer);
+    };
   }, [token, navigate]);
 
   return (
@@ -111,12 +120,18 @@ export default function ConfirmEmail() {
                   <i className="fa-solid fa-check"></i>
                 </div>
                 <div>
-                  <p style={{ fontSize: '0.95rem', color: '#34d399', fontWeight: 700, marginBottom: '0.25rem' }}>
+                  <p style={{ fontSize: '0.95rem', color: '#34d399', fontWeight: 700, marginBottom: '0.35rem' }}>
                     {message}
                   </p>
-                  <p style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    Redirecting to sign-in portal...
-                  </p>
+                  {requiresAdminVerif ? (
+                    <p style={{ fontSize: '0.8rem', color: '#fcd34d', lineHeight: 1.5, marginTop: '0.4rem' }}>
+                      Step 2 of 2: Your COR and Student ID are now in the Administrator review queue. You will receive an email notification once approved, and sign-in access will unlock automatically.
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                      Redirecting to sign-in portal...
+                    </p>
+                  )}
                 </div>
                 <button 
                   type="button" 
@@ -124,7 +139,7 @@ export default function ConfirmEmail() {
                   className="btn-auth-submit" 
                   style={{ marginTop: '1rem' }}
                 >
-                  Proceed to Sign In
+                  {requiresAdminVerif ? 'Back to Sign In Portal' : 'Proceed to Sign In'}
                 </button>
               </div>
             )}
