@@ -16,7 +16,7 @@ const { startAttendanceWorker } = require('./Routes/attendanceWorker');
 
 // ---- Global Middleware ---- //
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '25mb' }));
 
 // ---- Routes ---- //
 // Mount userRoutes on both /api/users and /users so all frontend fetch paths resolve

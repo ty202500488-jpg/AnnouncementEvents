@@ -31,17 +31,10 @@ export default function ConfirmEmail() {
         if (response.ok) {
           setStatus('success');
           setMessage(data.message || 'Email confirmed successfully!');
-          setTimeout(() => navigate('/'), 3000);
+          setTimeout(() => navigate('/auth'), 3000);
         } else {
-          // Gracefully handle React StrictMode double-consumption
-          if (data.message?.includes('already-used') || data.message?.includes('Invalid')) {
-            setStatus('success');
-            setMessage('Email confirmed successfully! You can now log in.');
-            setTimeout(() => navigate('/'), 3000);
-          } else {
-            setStatus('error');
-            setMessage(data.message || 'Verification failed.');
-          }
+          setStatus('error');
+          setMessage(data.message || 'Verification failed. Please try registering again.');
         }
       } catch (err) {
         console.error('Confirmation error:', err);
@@ -54,7 +47,7 @@ export default function ConfirmEmail() {
   }, [token, navigate]);
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="auth-page-root" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* CRIMSON Animated Interactive Background */}
       <div className="interactive-bg">
         <div className="bg-blob blob-left-deep float-anim-2"></div>
@@ -127,8 +120,8 @@ export default function ConfirmEmail() {
                 </div>
                 <button 
                   type="button" 
-                  onClick={() => navigate('/')} 
-                  className="btn-primary btn-block" 
+                  onClick={() => navigate('/auth')} 
+                  className="btn-auth-submit" 
                   style={{ marginTop: '1rem' }}
                 >
                   Proceed to Sign In
@@ -158,14 +151,22 @@ export default function ConfirmEmail() {
                 <p style={{ fontSize: '0.9rem', color: '#fb7185', fontWeight: 600 }}>
                   {message}
                 </p>
-                <button 
-                  type="button" 
-                  onClick={() => navigate('/')} 
-                  className="btn-primary btn-block" 
-                  style={{ marginTop: '1rem' }}
-                >
-                  Return to Home
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', width: '100%', marginTop: '0.75rem' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => navigate('/auth?tab=register')} 
+                    className="btn-auth-submit" 
+                  >
+                    Register Again
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => navigate('/auth')} 
+                    className="btn-auth-secondary" 
+                  >
+                    Back to Sign In
+                  </button>
+                </div>
               </div>
             )}
 
