@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
+import { formatPostTimestamp, formatScheduledDate } from '../../../utils/dateUtils';
 import '../../styles/MyPageDashboard.css';
 
 export default function MyPageEvents() {
@@ -110,7 +111,8 @@ export default function MyPageEvents() {
             {filteredEvents.map((item, index) => {
               const deptName = item.department_name || item.page_name || 'University Office';
               const avatarText = deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-              const postDate = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBA';
+              const postDate = formatScheduledDate(item.date);
+              const postedAt = item.created_at ? formatPostTimestamp(item.created_at) : null;
               const postImage = item.image_url || item.image || null;
               
               const currentRegistered = item.registered_count ?? item.current_registered ?? 0;
@@ -160,7 +162,13 @@ export default function MyPageEvents() {
                           <span>•</span>
                           <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
                           <span>•</span>
-                          <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                          <span><i className="fa-regular fa-calendar" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                          {postedAt && (
+                            <>
+                              <span>•</span>
+                              <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> Posted {postedAt}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

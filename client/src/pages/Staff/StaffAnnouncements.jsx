@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
+import { formatPostTimestamp } from '../../utils/dateUtils';
 import '../styles/StaffDashboard.css';
 
 export default function StaffAnnouncements() {
@@ -121,7 +122,7 @@ export default function StaffAnnouncements() {
               const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
               const deptKey = item.department_id || item.page_id || deptName;
               const isFollowed = !!followedDepts[deptKey];
-              const postDate = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+              const postDate = formatPostTimestamp(item.created_at);
               const postImage = item.image_url || item.image || null;
               const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
 

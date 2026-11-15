@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AdminLayout from '../../assets/components/AdminLayout'; // Adjust path if AdminLayout is in components
 import Pagination from '../../assets/components/Pagination';
+import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import '../styles/AuditLogs.css';
 
 const AuditLogs = () => {
@@ -36,9 +37,12 @@ const AuditLogs = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
 
-  // Modal / Details
+  // Modal / Details & Permanent Post Deletion
   const [selectedLog, setSelectedLog] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [deletingPost, setDeletingPost] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState(null);
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -224,6 +228,46 @@ const AuditLogs = () => {
     setIsModalOpen(true);
   };
 
+  const handlePermanentDeletePost = async (reasonText) => {
+    if (!postToDelete?.target_post_id) return;
+    setDeletingPost(true);
+    setActionFeedback(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/admin/content-feed/${postToDelete.target_post_id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: reasonText })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to permanently delete archived post.');
+      }
+
+      setActionFeedback({
+        type: 'success',
+        message: data.message || 'Archived post permanently deleted and creator notified.'
+      });
+      setPostToDelete(null);
+      setIsModalOpen(false);
+      await Promise.all([fetchAuditLogs(), fetchAuditSummary()]);
+    } catch (err) {
+      setActionFeedback({
+        type: 'error',
+        message: err.message || 'Failed to permanently delete archived post.'
+      });
+      setPostToDelete(null);
+      setIsModalOpen(false);
+    } finally {
+      setDeletingPost(false);
+    }
+  };
+
   const renderBadgeClass = (outcome) => {
     switch ((outcome || '').toUpperCase()) {
       case 'SUCCESS':
@@ -284,6 +328,39 @@ const AuditLogs = () => {
             </button>
           </div>
         </div>
+
+        {/* ACTION FEEDBACK BANNER */}
+        {actionFeedback && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              padding: '0.85rem 1rem',
+              borderRadius: '0.75rem',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              background: actionFeedback.type === 'success' ? '#ecfdf5' : '#fef2f2',
+              color: actionFeedback.type === 'success' ? '#065f46' : '#991b1b',
+              border: `1px solid ${actionFeedback.type === 'success' ? '#a7f3d0' : '#fecaca'}`
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <i className={`fa-solid ${actionFeedback.type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`}></i>
+              <span>{actionFeedback.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionFeedback(null)}
+              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
+              aria-label="Dismiss notification"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+        )}
 
         {/* ==================== OVERVIEW SUMMARY CARDS ==================== */}
         <div className="audit-logs-summary">
@@ -528,6 +605,12 @@ const AuditLogs = () => {
                     [resourcePart, actorPart, reasonPart].filter(Boolean).join(' • ') ||
                     `${log.action || 'System activity'} recorded in ${log.module || 'System'}`;
 
+                  const isPostArchiveLog =
+                    String(log.action || '').toLowerCase().includes('archive') &&
+                    ['post', 'announcement', 'event'].includes(String(log.target_type || '').toLowerCase());
+                  const canDeleteArchivedPost = Boolean(log.target_post_id && log.target_post_is_archived);
+                  const alreadyPurgedPost = isPostArchiveLog && !log.target_post_id;
+
                   return (
                     <tr key={log.id} className="audit-logs-row">
                       <td className="cell-nowrap cell-timestamp">
@@ -543,6 +626,22 @@ const AuditLogs = () => {
                       <td className="cell-action">
                         <span className="action-label">{log.action}</span>
                         {log.module && <span className="module-tag">{log.module}</span>}
+                        {alreadyPurgedPost && (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              marginTop: '0.25rem',
+                              fontSize: '0.7rem',
+                              padding: '2px 7px',
+                              borderRadius: '4px',
+                              background: '#f1f5f9',
+                              color: '#64748b',
+                              fontWeight: 600
+                            }}
+                          >
+                            Post Permanently Deleted
+                          </span>
+                        )}
                       </td>
                       <td className="cell-description" title={`${modulePrefix}${descriptionText}`}>
                         <span className="audit-desc-text">{descriptionText}</span>
@@ -561,6 +660,22 @@ const AuditLogs = () => {
                         >
                           <i className="fa-solid fa-eye"></i> Details
                         </button>
+                        {canDeleteArchivedPost && (
+                          <button
+                            type="button"
+                            className="btn-view-details"
+                            style={{
+                              marginLeft: '0.45rem',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              borderColor: '#fecaca'
+                            }}
+                            onClick={() => setPostToDelete(log)}
+                            title="Permanently delete this archived post and notify creator"
+                          >
+                            <i className="fa-solid fa-trash-can"></i> Delete Post
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -699,7 +814,22 @@ const AuditLogs = () => {
                 </div>
               </div>
 
-              <div className="modal-footer">
+              <div className="modal-footer" style={{ gap: '0.5rem' }}>
+                {selectedLog.target_post_id && selectedLog.target_post_is_archived && (
+                  <button
+                    type="button"
+                    className="btn-audit-secondary"
+                    style={{
+                      background: '#dc2626',
+                      color: '#ffffff',
+                      borderColor: '#dc2626'
+                    }}
+                    onClick={() => setPostToDelete(selectedLog)}
+                  >
+                    <i className="fa-solid fa-trash-can" style={{ marginRight: '0.4rem' }}></i>
+                    Permanently Delete Archived Post
+                  </button>
+                )}
                 <button type="button" className="btn-audit-secondary" onClick={() => setIsModalOpen(false)}>
                   Close
                 </button>
@@ -707,6 +837,24 @@ const AuditLogs = () => {
             </div>
           </div>
         )}
+
+        {/* ==================== CONFIRM PERMANENT DELETION OF ARCHIVED POST ==================== */}
+        <ConfirmationModal
+          isOpen={Boolean(postToDelete)}
+          title="Permanently Delete Archived Post?"
+          itemName={postToDelete?.target_post_title || postToDelete?.resource_title || 'Archived Post'}
+          itemSubtitle={postToDelete ? `Post ID #${postToDelete.target_post_id} • Archived in System Logs` : ''}
+          variant="danger"
+          confirmText="Permanently Delete & Notify Creator"
+          requireReason={true}
+          initialReason={postToDelete?.target_post_archive_reason || postToDelete?.reason || ''}
+          reasonLabel="Reason for Permanent Deletion (logged & sent to post creator)"
+          reasonPlaceholder="Explain why this archived post is being permanently deleted..."
+          loading={deletingPost}
+          message={`This will permanently remove "${postToDelete?.target_post_title || postToDelete?.resource_title || 'this post'}" from the database, record the permanent deletion in System Audit Logs, and notify the post creator why it was permanently deleted.`}
+          onConfirm={handlePermanentDeletePost}
+          onCancel={() => setPostToDelete(null)}
+        />
 
       </div>
     </AdminLayout>

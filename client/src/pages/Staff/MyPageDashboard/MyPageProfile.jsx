@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
+import { formatPostTimestamp } from '../../../utils/dateUtils';
 import '../../styles/StaffDashboard.css';
 import '../../styles/Profile.css';
 import '../../styles/MyPageDashboard.css';
@@ -103,7 +104,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
         const announcements = (postData.announcements || []).map(a => ({ ...a, type: 'Announcement' }));
         const events = (postData.events || []).map(e => ({ ...e, type: 'Event' }));
         const postList = Array.isArray(postData) ? postData : [...announcements, ...events];
-        const sorted = postList.sort((a, b) => new Date(b.date || b.created_at || b.eventDate || b.event_date) - new Date(a.date || a.created_at || a.eventDate || a.event_date));
+        const sorted = postList.sort((a, b) => new Date(b.created_at || b.date || b.eventDate || b.event_date) - new Date(a.created_at || a.date || a.eventDate || a.event_date));
         setPosts(sorted);
       } else {
         setPosts([]);
@@ -431,7 +432,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard }) {
         {posts.length > 0 ? (
           posts.map((post, idx) => {
             const pId = post.id || post.post_id || idx;
-            const formattedDate = post.date || post.created_at || post.eventDate || post.event_date ? new Date(post.date || post.created_at || post.eventDate || post.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+            const formattedDate = formatPostTimestamp(post.created_at || post.date || post.eventDate || post.event_date);
             const isMenuOpen = activeMenuId === pId;
             const isEvent = post.type === 'Event' || Boolean(post.event_id || post.event_title);
             const postImage = post.image_url || post.image || null;

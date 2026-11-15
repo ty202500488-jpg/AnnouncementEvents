@@ -11,6 +11,7 @@ const {
     formatNotificationRow,
     notifyPublishedPost,
     notifyModerationOrPageDecision,
+    notifyPostArchivedOrDeleted,
     notifyEventUpdated
 } = require('../utils/notificationService');
 
@@ -960,10 +961,13 @@ router.get('/content-feed', async (req, res) => {
                     p.moderation_status,
                     p.is_pinned,
                     p.is_archived,
+                    p.is_university_wide,
                     p.archive_reason,
+                    CASE WHEN pg.avatar_url LIKE 'blob:%' THEN NULL ELSE pg.avatar_url END AS page_avatar_url,
                     CASE
                         WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
-                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                            THEN 'data:' || p.post_image_mime || ';base64,' || REPLACE(ENCODE(p.post_image, 'base64'), E'\n', '')
+                        WHEN p.image_url LIKE 'blob:%' THEN NULL
                         ELSE p.image_url
                     END AS image_url,
                     p.published_at AS scheduled_at,
@@ -1279,6 +1283,11 @@ const handleContentStatus = async (req, res) => {
         const postId = Number(req.params.id);
         const { status, action, reason } = req.body;
         const targetAction = String(action || status || '').toLowerCase();
+        const trimmedReason = reason ? String(reason).trim() : '';
+
+        if ((targetAction === 'archive' || targetAction === 'archived' || targetAction === 'takedown' || targetAction === 'rejected') && !trimmedReason) {
+            return res.status(400).json({ message: 'A reason is required when archiving or taking down a post.' });
+        }
 
         let affectedPost = null;
 
@@ -1294,27 +1303,39 @@ const handleContentStatus = async (req, res) => {
                      updated_at = NOW()
                  WHERE post_id = $3
                  RETURNING *`,
-                [req.user.user_id, reason || 'Administrative Archive', postId]
+                [req.user.user_id, trimmedReason || 'Administrative Archive', postId]
             );
             affectedPost = upd.rows[0];
+            if (affectedPost) {
+                await pool.query(
+                    `INSERT INTO post_moderation_logs (post_id, reviewer_user_id, decision, reason)
+                     VALUES ($1, $2, 'reject', $3)`,
+                    [postId, req.user.user_id, trimmedReason || 'Administrative Archive']
+                );
+            }
         } else if (targetAction === 'takedown' || targetAction === 'rejected') {
             const upd = await pool.query(
                 `UPDATE posts
-                 SET previous_status = CASE WHEN status != 'Rejected' THEN status ELSE previous_status END,
-                     status = 'Rejected',
-                     moderation_status = 'Rejected',
-                     archive_reason = COALESCE($1, archive_reason),
+                 SET previous_status = CASE WHEN status != 'Archived' THEN status ELSE previous_status END,
+                     is_archived = TRUE,
+                     status = 'Archived',
+                     moderation_status = 'rejected',
+                     archived_at = NOW(),
+                     archived_by = $1,
+                     archive_reason = COALESCE($2, archive_reason, 'Rule violation takedown'),
                      updated_at = NOW()
-                 WHERE post_id = $2
+                 WHERE post_id = $3
                  RETURNING *`,
-                [reason || 'Administrative Takedown', postId]
+                [req.user.user_id, trimmedReason || 'Administrative Takedown', postId]
             );
             affectedPost = upd.rows[0];
-            await pool.query(
-                `INSERT INTO post_moderation_logs (post_id, reviewer_user_id, decision, reason)
-                 VALUES ($1, $2, 'takedown', $3)`,
-                [postId, req.user.user_id, reason || 'Administrative Takedown']
-            );
+            if (affectedPost) {
+                await pool.query(
+                    `INSERT INTO post_moderation_logs (post_id, reviewer_user_id, decision, reason)
+                     VALUES ($1, $2, 'reject', $3)`,
+                    [postId, req.user.user_id, trimmedReason || 'Administrative Takedown']
+                );
+            }
         } else if (targetAction === 'restore' || targetAction === 'published') {
             const upd = await pool.query(
                 `UPDATE posts
@@ -1322,6 +1343,7 @@ const handleContentStatus = async (req, res) => {
                      status = COALESCE(NULLIF(previous_status, 'Archived'), CASE WHEN post_type = 'event' THEN 'Upcoming' ELSE 'Published' END),
                      moderation_status = 'Approved',
                      archived_at = NULL,
+                     archived_by = NULL,
                      updated_at = NOW()
                  WHERE post_id = $1
                  RETURNING *`,
@@ -1337,36 +1359,82 @@ const handleContentStatus = async (req, res) => {
             affectedPost = upd.rows[0];
         }
 
-        if (affectedPost) {
-            if (
-                affectedPost.post_type === 'event' &&
-                ['archive', 'archived', 'takedown', 'rejected', 'cancelled'].includes(targetAction)
-            ) {
+        if (!affectedPost) {
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        let pageName = 'University Administration';
+        if (affectedPost.page_id) {
+            const pgRes = await pool.query(`SELECT page_name FROM pages WHERE page_id = $1 LIMIT 1`, [affectedPost.page_id]);
+            if (pgRes.rows[0]?.page_name) {
+                pageName = pgRes.rows[0].page_name;
+            }
+        }
+
+        const isArchiveOrTakedown = ['archive', 'archived', 'takedown', 'rejected'].includes(targetAction);
+        if (isArchiveOrTakedown) {
+            if (affectedPost.post_type === 'event') {
                 await notifyEventUpdated(pool, {
                     postId,
                     title: affectedPost.title,
                     pageId: affectedPost.page_id,
                     actorUserId: req.user.user_id,
                     isCancelled: true,
-                    changeReason: reason || undefined
-                });
-            } else if (targetAction === 'restore' || targetAction === 'published') {
-                await notifyPublishedPost(pool, {
-                    post: affectedPost,
-                    actorUserId: req.user.user_id
+                    changeReason: trimmedReason || undefined
                 });
             }
+
+            await notifyPostArchivedOrDeleted(pool, {
+                creatorUserId: affectedPost.creator_user_id,
+                actorUserId: req.user.user_id,
+                pageId: affectedPost.page_id,
+                postId,
+                postType: affectedPost.post_type,
+                title: affectedPost.title,
+                action: 'archived',
+                reason: trimmedReason || 'Archived by administrator'
+            });
+        } else if (affectedPost.post_type === 'event' && targetAction === 'cancelled') {
+            await notifyEventUpdated(pool, {
+                postId,
+                title: affectedPost.title,
+                pageId: affectedPost.page_id,
+                actorUserId: req.user.user_id,
+                isCancelled: true,
+                changeReason: trimmedReason || undefined
+            });
+        } else if (targetAction === 'restore' || targetAction === 'published') {
+            await notifyPublishedPost(pool, {
+                post: affectedPost,
+                actorUserId: req.user.user_id
+            });
         }
 
+        const auditActionLabel = isArchiveOrTakedown
+            ? 'Archived Post'
+            : (targetAction === 'restore' || targetAction === 'published')
+                ? 'Restored Archived Post'
+                : `Updated Post Status (${targetAction || status})`;
+
         await logAudit(req, {
-            action: `Updated Post Status (${targetAction || status})`,
+            action: auditActionLabel,
             module: 'posts',
-            targetType: 'post',
+            targetType: affectedPost.post_type || 'post',
             targetId: postId,
-            details: { action: targetAction || status, reason }
+            details: {
+                title: affectedPost.title,
+                post_type: affectedPost.post_type,
+                page_name: pageName,
+                action: targetAction || status,
+                reason: trimmedReason || null
+            }
         });
 
-        return res.json({ message: 'Content status updated successfully.' });
+        return res.json({
+            message: isArchiveOrTakedown
+                ? 'Post archived, logged in Audit Logs, and creator notified.'
+                : 'Content status updated successfully.'
+        });
     } catch (error) {
         console.error('Content status error:', error);
         return res.status(500).json({ message: 'Failed to update content status.' });
@@ -1380,28 +1448,71 @@ router.delete('/content-feed/:id', async (req, res) => {
     const client = await pool.connect();
     try {
         const postId = Number(req.params.id);
-        const reason = req.body?.reason || req.query?.reason || 'Permanent administrative deletion';
+        const rawReason = req.body?.reason || req.query?.reason || '';
+        const trimmedReason = String(rawReason).trim();
 
         await client.query('BEGIN');
-        const check = await client.query(`SELECT post_id, title, post_type FROM posts WHERE post_id = $1`, [postId]);
+        const check = await client.query(
+            `SELECT p.post_id,
+                    p.title,
+                    p.post_type,
+                    p.page_id,
+                    p.creator_user_id,
+                    p.is_archived,
+                    p.archive_reason,
+                    COALESCE(pg.page_name, 'University Administration') AS page_name
+             FROM posts p
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             WHERE p.post_id = $1
+             LIMIT 1`,
+            [postId]
+        );
         if (check.rowCount === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ message: 'Post not found.' });
         }
 
         const deletedPost = check.rows[0];
+        if (!deletedPost.is_archived) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                message: 'Posts must be archived first before they can be permanently deleted from Audit Logs or Archives.'
+            });
+        }
+
+        const finalReason = trimmedReason || deletedPost.archive_reason || 'Permanently deleted from system archives by administrator';
+
+        // Preserve earlier archive notifications instead of losing them to ON DELETE CASCADE
+        await client.query(`UPDATE notifications SET post_id = NULL WHERE post_id = $1`, [postId]);
         await client.query(`DELETE FROM posts WHERE post_id = $1`, [postId]);
         await client.query('COMMIT');
 
-        await logAudit(req, {
-            action: `Permanently Deleted ${deletedPost.post_type}`,
-            module: 'posts',
-            targetType: deletedPost.post_type,
-            targetId: postId,
-            details: { title: deletedPost.title, reason }
+        await notifyPostArchivedOrDeleted(pool, {
+            creatorUserId: deletedPost.creator_user_id,
+            actorUserId: req.user.user_id,
+            pageId: deletedPost.page_id,
+            postId: null,
+            postType: deletedPost.post_type,
+            title: deletedPost.title,
+            action: 'deleted',
+            reason: finalReason
         });
 
-        return res.json({ message: 'Record permanently deleted.' });
+        await logAudit(req, {
+            action: 'Permanently Deleted Archived Post',
+            module: 'posts',
+            targetType: deletedPost.post_type || 'post',
+            targetId: postId,
+            details: {
+                title: deletedPost.title,
+                post_type: deletedPost.post_type,
+                page_name: deletedPost.page_name,
+                archive_reason: deletedPost.archive_reason || null,
+                reason: finalReason
+            }
+        });
+
+        return res.json({ message: 'Archived post permanently deleted and creator notified.' });
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         console.error('Delete content error:', error);
@@ -2350,7 +2461,8 @@ router.get('/post-approval', async (req, res) => {
                     p.content AS body,
                     CASE
                         WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
-                            THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
+                            THEN 'data:' || p.post_image_mime || ';base64,' || REPLACE(ENCODE(p.post_image, 'base64'), E'\n', '')
+                        WHEN p.image_url LIKE 'blob:%' THEN NULL
                         ELSE p.image_url
                     END AS image_url,
                     p.audience,
@@ -3917,8 +4029,13 @@ router.get('/audit-logs', async (req, res) => {
                     l.ip_address,
                     l.details,
                     l.details AS metadata,
-                    COALESCE(l.details->>'title', l.details->>'page_name', CASE WHEN l.target_type IS NOT NULL THEN l.target_type || ' #' || COALESCE(l.target_id::text, '') ELSE l.module END) AS resource_title,
-                    COALESCE(l.details->>'reason', l.details->>'remarks', NULL) AS reason,
+                    COALESCE(l.details->>'title', p.title, l.details->>'name', l.details->>'email', l.details->>'page_name', CASE WHEN l.target_type IS NOT NULL THEN l.target_type || ' #' || COALESCE(l.target_id::text, '') ELSE l.module END) AS resource_title,
+                    COALESCE(l.details->>'reason', l.details->>'remarks', p.archive_reason, NULL) AS reason,
+                    p.post_id AS target_post_id,
+                    COALESCE(p.is_archived, FALSE) AS target_post_is_archived,
+                    p.title AS target_post_title,
+                    p.post_type AS target_post_type,
+                    p.archive_reason AS target_post_archive_reason,
                     l.created_at,
                     COALESCE(u.first_name || ' ' || u.last_name, 'System') AS actor_name,
                     COALESCE(u.first_name || ' ' || u.last_name, 'System') AS actor_label,
@@ -3926,6 +4043,10 @@ router.get('/audit-logs', async (req, res) => {
                     COALESCE(l.actor_role, 'admin') AS actor_role
              FROM audit_logs l
              LEFT JOIN users u ON l.actor_user_id = u.user_id
+             LEFT JOIN posts p
+               ON LOWER(COALESCE(l.target_type, '')) IN ('post', 'announcement', 'event')
+              AND l.target_id::text ~ '^[0-9]+$'
+              AND p.post_id = l.target_id::int
              ${whereSql}
              ORDER BY l.created_at DESC
              LIMIT $${params.length - 1} OFFSET $${params.length}`,

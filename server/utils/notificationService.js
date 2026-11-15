@@ -817,6 +817,93 @@ async function notifyModerationOrPageDecision(db, {
 }
 
 /**
+ * Notify the post creator and active page owners/managers when an administrator
+ * archives (removes from feed) or permanently deletes an archived post, including the reason.
+ */
+async function notifyPostArchivedOrDeleted(db, {
+    creatorUserId = null,
+    actorUserId = null,
+    pageId = null,
+    postId = null,
+    postType = 'announcement',
+    title = 'Untitled Post',
+    action = 'archived',
+    reason = ''
+}) {
+    try {
+        await ensureNotificationSchema(db);
+        const globalSettings = await getGlobalNotificationSettings(db);
+        if (!globalSettings.enable_in_app_notifications) return 0;
+
+        const recipientIds = new Set();
+        if (creatorUserId && Number.isFinite(Number(creatorUserId))) {
+            recipientIds.add(Number(creatorUserId));
+        }
+
+        if (pageId) {
+            const { rows: managers } = await db.query(
+                `SELECT pg.created_by AS user_id
+                 FROM pages pg
+                 WHERE pg.page_id = $1 AND pg.created_by IS NOT NULL
+                 UNION
+                 SELECT pm.user_id
+                 FROM page_members pm
+                 WHERE pm.page_id = $1 AND LOWER(pm.status) = 'active'`,
+                [pageId]
+            );
+            for (const m of managers) {
+                if (m.user_id && Number.isFinite(Number(m.user_id))) {
+                    recipientIds.add(Number(m.user_id));
+                }
+            }
+        }
+
+        if (recipientIds.size === 0) return 0;
+
+        const { rows: users } = await db.query(
+            `SELECT u.user_id, u.email, u.first_name, r.role_name
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             WHERE u.user_id = ANY($1::int[])
+               AND LOWER(u.account_status) = 'active'`,
+            [Array.from(recipientIds)]
+        );
+        if (users.length === 0) return 0;
+
+        const isPermanentDelete = String(action || '').toLowerCase() === 'deleted';
+        const cleanType = String(postType || 'announcement').toLowerCase() === 'event' ? 'event' : 'announcement';
+        const cleanTitle = String(title || 'Untitled Post').trim() || 'Untitled Post';
+        const cleanReason = String(reason || '').trim() || 'Administrative moderation / policy enforcement';
+
+        const notifTitle = isPermanentDelete
+            ? `Archived Post Permanently Deleted: ${cleanTitle}`
+            : `Post Archived by Admin: ${cleanTitle}`;
+        const notifMsg = isPermanentDelete
+            ? `Your archived ${cleanType} "${cleanTitle}" was permanently deleted by an administrator. Reason: ${cleanReason}`
+            : `Your ${cleanType} "${cleanTitle}" was removed from the campus feed and archived by an administrator. Reason: ${cleanReason}`;
+
+        const toInsert = users.map((u) => {
+            const role = String(u.role_name || '').toLowerCase();
+            return {
+                recipientUserId: u.user_id,
+                actorUserId: actorUserId || null,
+                pageId: pageId || null,
+                postId: isPermanentDelete ? null : (postId || null),
+                scope: role === 'student' ? 'student' : 'mypage',
+                type: 'moderation',
+                title: notifTitle,
+                message: notifMsg
+            };
+        });
+
+        return await insertBatchNotifications(db, toInsert);
+    } catch (err) {
+        console.warn('Warning: notifyPostArchivedOrDeleted failed:', err.message);
+        return 0;
+    }
+}
+
+/**
  * Notify page managers when attendance session opens or closes with summary stats.
  */
 async function notifyAttendanceWindowChange(db, { eventId, title, pageId, actorUserId = null, action = 'OPEN', summary = null }) {
@@ -957,6 +1044,7 @@ module.exports = {
     notifyEventRegistrationChange,
     notifyEventUpdated,
     notifyModerationOrPageDecision,
+    notifyPostArchivedOrDeleted,
     notifyAttendanceWindowChange,
     ensureUpcomingEventReminders
 };
