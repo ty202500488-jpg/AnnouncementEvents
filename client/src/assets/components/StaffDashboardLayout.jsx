@@ -4,6 +4,18 @@ import '../../pages/styles/StudentDashboard.css';
 import logo from '../../assets/images/logo.jpg';
 import useSessionGuard from './useSessionGuard';
 import UniversityWideSpotlight from './UniversityWideSpotlight';
+import {
+  PortalHeaderCenterTabs,
+  DepartmentPagesSidebarList,
+  getInitials,
+} from './PortalShellElements';
+
+const STAFF_HEADER_TABS = [
+  { id: 'home', label: 'Home', href: '/staff/dashboard', icon: 'fa-solid fa-house' },
+  { id: 'announcements', label: 'Announcements', href: '/staff/announcements', icon: 'fa-solid fa-bullhorn' },
+  { id: 'events', label: 'Events', href: '/staff/events', icon: 'fa-regular fa-calendar-days' },
+  { id: 'mypage', label: 'My Page', href: '/staff/mypage', icon: 'fa-solid fa-flag' },
+];
 
 export default function StaffDashboardLayout({ children, activePage }) {
   const navigate = useNavigate();
@@ -270,9 +282,10 @@ export default function StaffDashboardLayout({ children, activePage }) {
   };
 
   const isPageApproved = pageStatus.exists && (pageStatus.status === 'approved' || pageStatus.status === 'active');
+  const userInitials = getInitials(`${user.firstName} ${user.lastName}`, 'ST');
 
   return (
-    <div className="staff-dashboard staff-dashboard-wrapper student-dashboard-wrapper">
+    <div className="staff-dashboard staff-dashboard-wrapper student-dashboard-wrapper fb-shell-layout">
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
@@ -291,26 +304,27 @@ export default function StaffDashboardLayout({ children, activePage }) {
       `}</style>
 
       {/* TOP NAVBAR */}
-      <header className="header" style={{ position: 'sticky', top: 0, zIndex: 40, backgroundColor: '#ffffff' }}>
-        <div className="header-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+      <header className="header">
+        <div className="header-container">
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-            <button 
-              type="button" 
-              className="mobile-menu-btn icon-btn" 
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              style={{ color: 'var(--slate-600)', background: 'none', border: 'none', cursor: 'pointer' }}
-              aria-label="Toggle Menu"
-            >
-              <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              <img src={logo} alt="CRIMSON Logo" style={{ height: '38px', width: '38px', objectFit: 'contain', borderRadius: '50%' }} />
+          <div className="fb-header-left">
+            <div className="fb-header-brand">
+              <button 
+                type="button" 
+                className="mobile-menu-btn icon-btn" 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                style={{ color: 'var(--slate-600)', background: 'none', border: 'none', cursor: 'pointer' }}
+                aria-label="Toggle Menu"
+              >
+                <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
+              </button>
+              <a href="/staff/dashboard" className="fb-brand-link" aria-label="CRIMSON Staff Home">
+                <img src={logo} alt="CRIMSON Logo" style={{ height: '38px', width: '38px', objectFit: 'contain', borderRadius: '50%' }} />
+              </a>
             </div>
-          </div>
 
-          {/* Search Bar */}
-          <div className="search-container" ref={searchContainerRef} style={{ position: 'relative', flex: '1 1 auto', maxWidth: '480px' }}>
+            {/* Search Bar */}
+            <div className="search-container" ref={searchContainerRef}>
             <div className="search-wrapper" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
               <input 
@@ -393,45 +407,35 @@ export default function StaffDashboardLayout({ children, activePage }) {
                 )}
               </div>
             )}
+            </div>
           </div>
 
+          {/* Centered Facebook-Style Navigation Tabs */}
+          <PortalHeaderCenterTabs tabs={STAFF_HEADER_TABS} activePage={activePage} />
+
           {/* Right Header Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}> 
+          <div className="fb-header-actions"> 
             
             {/* QR Camera Scan Button */}
             <button
               type="button"
-              className="icon-btn"
+              className="icon-btn fb-header-circle-btn fb-qr-btn"
               onClick={() => navigate('/staff/attendance/check-in/scan')}
-              style={{
-                background: 'transparent',
-                color: '#7B0D1E',
-                border: '1px solid #fecdd3',
-                backgroundColor: '#fff1f2',
-                borderRadius: '0.375rem',
-                width: '34px',
-                height: '34px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                flexShrink: 0
-              }}
               title="Scan QR Attendance with Camera"
+              aria-label="Scan QR Attendance with Camera"
             >
-              <i className="fa-solid fa-qrcode" style={{ fontSize: '0.875rem' }}></i>
+              <i className="fa-solid fa-qrcode" style={{ fontSize: '0.95rem' }}></i>
             </button>
 
             {/* Notifications Dropdown */}
             <div ref={notifDropdownRef} style={{ position: 'relative' }}>
               <button 
                 type="button" 
-                className="icon-btn" 
+                className="icon-btn fb-header-circle-btn" 
                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none', padding: '0.25rem' }}
                 aria-label="Notifications"
               >
-                <i className="fa-regular fa-bell" style={{ fontSize: '1.1rem' }}></i>
+                <i className="fa-solid fa-bell" style={{ fontSize: '1.02rem' }}></i>
                 {unreadNotifCount > 0 && <span className="badge-dot"></span>}
               </button>
 
@@ -507,19 +511,22 @@ export default function StaffDashboardLayout({ children, activePage }) {
             </div>
 
             <div ref={profileDropdownRef} style={{ position: 'relative' }}>
-              <div 
-                className="profile-btn" 
-                onClick={() => setShowProfileDropdown(!showProfileDropdown)} 
-                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.375rem', userSelect: 'none' }}
+              <button
+                type="button"
+                className="profile-btn fb-profile-trigger"
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                aria-expanded={showProfileDropdown}
+                aria-label="Account menu"
               >
-                <div className="profile-details-text" style={{ textAlign: 'left' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2 }}>
+                <span className="fb-avatar-badge" aria-hidden="true">{userInitials}</span>
+                <div className="profile-details-text" style={{ textAlign: 'left', minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {user.firstName} {user.lastName}
                   </div>
-                  <div style={{ fontSize: '10px', color: 'var(--slate-500)', lineHeight: 1.2 }}>{user.program}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--slate-500)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.program}</div>
                 </div>
-                <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px' }}></i>
-              </div>
+                <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px', flexShrink: 0 }}></i>
+              </button>
 
               {showProfileDropdown && (
                 <div 
@@ -607,29 +614,33 @@ export default function StaffDashboardLayout({ children, activePage }) {
             transition: 'transform 0.3s ease-in-out'
           } : {}}
         >
-          <div className="card space-y-5" style={{ padding: '1rem', height: '100%', border: 'none' }}>
+          <div className="card space-y-4">
             
-            <div style={{ paddingTop: '0.5rem', borderBottom: '1px solid var(--slate-200)', paddingBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ padding: '0 0.5rem', textAlign: 'left' }}>
-                <span style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem', display: 'block', lineHeight: 1.2 }}>
-                  {user.firstName} {user.lastName}
-                </span>
-                <span style={{ fontSize: '11px', color: 'var(--slate-500)', display: 'block', marginTop: '3px', lineHeight: 1.2 }}>
-                  {user.program}
-                </span>
+            <div className="fb-sidebar-profile">
+              <div className="fb-sidebar-profile-inner">
+                <span className="fb-avatar-badge" aria-hidden="true">{userInitials}</span>
+                <div style={{ minWidth: 0, textAlign: 'left' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--slate-900)', fontSize: '0.875rem', display: 'block', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.firstName} {user.lastName}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--slate-600)', display: 'block', marginTop: '2px', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.program}
+                  </span>
+                </div>
               </div>
               {isMobileMenuOpen && (
                 <button 
                   type="button" 
                   onClick={() => setIsMobileMenuOpen(false)}
                   style={{ color: 'var(--slate-600)', background: 'none', border: 'none', padding: '0.5rem', cursor: 'pointer' }}
+                  aria-label="Close navigation menu"
                 >
                   <i className="fa-solid fa-xmark" style={{ fontSize: '1.2rem' }}></i>
                 </button>
               )}
             </div>
 
-            <div>
+            <div className="fb-nav-section">
               <div className="nav-group-title">Main</div>
               <nav className="space-y-1">
                 <a href="/staff/dashboard" className={`nav-item ${activePage === 'home' ? 'active btn-nav' : ''}`}>
@@ -651,18 +662,15 @@ export default function StaffDashboardLayout({ children, activePage }) {
                   </div>
                 </a>
                 <a href="/staff/mypage" className={`nav-item ${activePage === 'mypage' ? 'active btn-nav' : ''}`}>
-                  <div className="nav-item-content" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                      <i className="fa-solid fa-flag nav-icon"></i>
-                      <span>My Page</span>
-                    </div>
-
+                  <div className="nav-item-content">
+                    <i className="fa-solid fa-flag nav-icon"></i>
+                    <span>My Page</span>
                   </div>
                 </a>
               </nav>
             </div>
 
-            <div>
+            <div className="fb-nav-section">
               <div className="nav-group-title">Personal</div>
               <nav className="space-y-1">
                 <a href="/staff/profile" className={`nav-item ${activePage === 'profile' ? 'active btn-nav' : ''}`}>
@@ -671,7 +679,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
                     <span>Profile</span>
                   </div>
                 </a>
-                <a href="/staff/notifications" className={`nav-item ${activePage === 'notifications' ? 'active btn-nav' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <a href="/staff/notifications" className={`nav-item ${activePage === 'notifications' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
                     <i className="fa-regular fa-bell nav-icon"></i>
                     <span>Notifications</span>
@@ -691,7 +699,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
               </nav>
             </div>
 
-            <div>
+            <div className="fb-nav-section">
               <div className="nav-group-title">System</div>
               <nav className="space-y-1">
                 <a href="/staff/settings" className={`nav-item ${activePage === 'settings' ? 'active btn-nav' : ''}`}>
@@ -700,9 +708,9 @@ export default function StaffDashboardLayout({ children, activePage }) {
                     <span>Settings</span>
                   </div>
                 </a>
-                <a href="/" className="nav-item" style={{ color: 'var(--rose-600)' }}>
+                <a href="/" className="nav-item nav-item-logout">
                   <div className="nav-item-content">
-                    <i className="fa-solid fa-right-from-bracket nav-icon" style={{ color: 'var(--rose-600)' }}></i>
+                    <i className="fa-solid fa-right-from-bracket nav-icon"></i>
                     <span>Logout</span>
                   </div>
                 </a>
@@ -712,68 +720,21 @@ export default function StaffDashboardLayout({ children, activePage }) {
         </aside>
 
         {/* DYNAMIC CENTER CONTENT */}
-        <div className="mobile-spotlight-slot">
-          <UniversityWideSpotlight role="staff" variant="mobile" />
+        <div className="fb-center-track">
+          <div className="mobile-spotlight-slot">
+            <UniversityWideSpotlight role="staff" variant="mobile" />
+          </div>
+          {children}
         </div>
-        {children}
 
         {/* RIGHT SIDEBAR WITH CATEGORIES DISPLAYED BELOW DEPARTMENT NAMES */}
         <aside className="lg-col-3 space-y-6 hidden lg-block">
           <UniversityWideSpotlight role="staff" variant="desktop" />
-          <div className="card dept-pages-card" style={{ padding: '1.25rem' }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: '1rem' }}>
-              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '0.975rem' }}>Department Pages</h3>
-              <span style={{ color: '#881337', fontSize: '11px', fontWeight: 700, padding: '0.125rem 0.5rem', cursor: 'pointer' }}>View All</span>
-            </div>
-
-            <div className="dept-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {loadingDepts ? (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center', padding: '1rem' }}>Loading pages...</p>
-              ) : departments.length === 0 ? (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center', padding: '1rem' }}>No approved pages found.</p>
-              ) : (
-                departments.map((dept, index) => (
-                  <a 
-                    key={dept.id || index} 
-                    href={dept.url || `/student/page/${dept.id}`} 
-                    className="dept-item"
-                    style={{
-                      display: 'block',
-                      padding: '0.75rem 1rem',
-                      backgroundColor: '#ffffff',
-                      borderRadius: '0.5rem',
-                      border: '1px solid #e2e8f0',
-                      borderLeft: '4px solid #e2e8f0',
-                      textDecoration: 'none',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#fff5f6';
-                      e.currentTarget.style.borderColor = '#fecdd3';
-                      e.currentTarget.style.borderLeftColor = '#881337';
-                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(136, 19, 55, 0.06)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#ffffff';
-                      e.currentTarget.style.borderColor = '#e2e8f0';
-                      e.currentTarget.style.borderLeftColor = '#e2e8f0';
-                      e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.02)';
-                    }}
-                  >
-                    <div className="dept-info" style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <span className="dept-title" style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem' }}>{dept.name}</span>
-                      <span className="dept-sub" style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 500 }}>{dept.category || dept.subtitle || 'Official Page'}</span>
-                    </div>
-                  </a>
-                ))
-              )}
-
-              <a href="#" className="see-more-btn" style={{ marginTop: '0.5rem', textAlign: 'center', display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#881337', textDecoration: 'none' }}>
-                <span>See More</span>
-              </a>
-            </div>
-          </div>
+          <DepartmentPagesSidebarList
+            departments={departments}
+            loadingDepts={loadingDepts}
+            pageBasePath="/staff/page"
+          />
         </aside>
 
       </div>
