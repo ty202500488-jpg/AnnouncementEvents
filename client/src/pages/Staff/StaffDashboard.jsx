@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
+import { formatPostTimestamp } from '../../utils/dateUtils';
 import '../styles/StaffDashboard.css';
 
 export default function StaffDashboard() {
@@ -95,7 +96,7 @@ export default function StaffDashboard() {
             const isFollowed = !!followedDepts[deptKey];
             
             // Format Timestamp / Date
-            const postDate = item.created_at || item.date || item.event_date ? new Date(item.created_at || item.date || item.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+            const postDate = formatPostTimestamp(item.created_at || item.date || item.event_date);
             const postImage = item.image_url || item.image || null;
 
             // Event-specific details

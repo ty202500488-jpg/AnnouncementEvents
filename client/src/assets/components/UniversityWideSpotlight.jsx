@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import logo from '../images/logo.jpg';
 import '../../pages/styles/UniversityWideSpotlight.css';
+import { formatPostTimestamp } from '../../utils/dateUtils';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const ROTATION_INTERVAL_MS = 5000;
@@ -112,7 +113,7 @@ function SpotlightDetailModal({ item, onClose, onNavigateToPage }) {
               </span>
               <span className="uw-modal-meta-item">
                 <i className="fa-regular fa-clock" style={{ color: '#64748b' }}></i>
-                Posted {formatReadableDate(item.published_at || item.created_at)}
+                Posted {formatPostTimestamp(item.published_at || item.created_at)}
               </span>
               {item.expires_at && (
                 <span className="uw-modal-meta-item">

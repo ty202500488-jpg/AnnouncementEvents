@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../../assets/components/DashboardLayout';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
+import { formatPostTimestamp } from '../../utils/dateUtils';
 import '../styles/StudentDashboard.css';
 
 export default function Announcements() {
@@ -118,7 +119,7 @@ export default function Announcements() {
               const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
               const deptKey = item.department_id || item.page_id || deptName;
               const isFollowed = !!followedDepts[deptKey];
-              const postDate = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+              const postDate = formatPostTimestamp(item.created_at);
               const postImage = item.image_url || item.image || null;
               const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
 

@@ -3,13 +3,40 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
 import Pagination from '../../assets/components/Pagination';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
+import UniversityWideSpotlight from '../../assets/components/UniversityWideSpotlight';
+import { formatPostTimestamp } from '../../utils/dateUtils';
 import '../styles/ContentFeed.css';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+/** Normalize image URLs across base64 data URIs (stripping newlines), relative /uploads paths, and remote URLs. */
+function resolveMediaUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed || trimmed.startsWith('blob:')) return null;
+
+  if (trimmed.startsWith('data:')) {
+    const commaIdx = trimmed.indexOf(',');
+    if (commaIdx === -1) return trimmed;
+    const header = trimmed.slice(0, commaIdx + 1);
+    const payload = trimmed.slice(commaIdx + 1).replace(/\s+/g, '');
+    return `${header}${payload}`;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
+    const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    return `${API_BASE}${normalizedPath}`;
+  }
+  return trimmed;
+}
 
 const ContentFeed = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Navigation & Filter States (Parts 10 & 11)
+  // View Mode ('management' vs 'student_feed') & Filter States (Parts 10 & 11)
+  const [viewMode, setViewMode] = useState('management'); // 'management' | 'student_feed'
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'announcements', 'events', 'scheduled', 'archived', 'takedown'
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -37,6 +64,11 @@ const ContentFeed = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [failedImages, setFailedImages] = useState({});
+
+  const markImageFailed = useCallback((key) => {
+    setFailedImages(prev => (prev[key] ? prev : { ...prev, [key]: true }));
+  }, []);
 
   // Event Engagement (Registrations & Attendance) in Preview Modal
   const [eventEngagement, setEventEngagement] = useState({
@@ -114,12 +146,19 @@ const ContentFeed = () => {
     setError(null);
     const token = localStorage.getItem('token');
 
+    const effectiveTab = viewMode === 'student_feed'
+      ? (['all', 'announcements', 'events'].includes(activeTab) ? activeTab : 'all')
+      : activeTab;
+    const effectiveStatus = viewMode === 'student_feed' && statusFilter === 'all'
+      ? 'approved'
+      : statusFilter;
+
     const params = new URLSearchParams({
-      tab: activeTab,
+      tab: effectiveTab,
       search: debouncedSearch,
       category: categoryFilter,
       college: collegeFilter,
-      status: statusFilter,
+      status: effectiveStatus,
       academicYearId: academicYearFilter,
       eventDate: dateFilter,
       sort: sortOrder,
@@ -162,6 +201,7 @@ const ContentFeed = () => {
       setLoading(false);
     }
   }, [
+    viewMode,
     activeTab,
     debouncedSearch,
     categoryFilter,
@@ -178,6 +218,19 @@ const ContentFeed = () => {
   useEffect(() => {
     fetchFeedData();
   }, [fetchFeedData]);
+
+  const handleSwitchViewMode = (mode) => {
+    setViewMode(mode);
+    if (mode === 'student_feed' && ['scheduled', 'archived', 'takedown'].includes(activeTab)) {
+      setActiveTab('all');
+    }
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleOpenConfirm = (action, item) => {
+    setSelectedItem(item);
+    setActiveModal(action);
+  };
 
   // Load Event Registrations & Attendance when previewing an event
   const handleOpenPreview = async (item) => {
@@ -373,7 +426,63 @@ const ContentFeed = () => {
             </p>
           </div>
 
-          <div className="feed-header-actions">
+          <div className="feed-header-actions" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                background: '#f1f5f9',
+                padding: '0.25rem',
+                borderRadius: '0.65rem',
+                border: '1px solid #e2e8f0',
+                gap: '0.25rem'
+              }}
+              role="group"
+              aria-label="Switch Content Feed View"
+            >
+              <button
+                type="button"
+                onClick={() => handleSwitchViewMode('management')}
+                style={{
+                  border: 'none',
+                  borderRadius: '0.45rem',
+                  padding: '0.42rem 0.8rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  background: viewMode === 'management' ? '#ffffff' : 'transparent',
+                  color: viewMode === 'management' ? '#7b0d1e' : '#64748b',
+                  boxShadow: viewMode === 'management' ? '0 1px 2px rgba(15,23,42,0.08)' : 'none'
+                }}
+              >
+                <i className="fa-solid fa-table-list"></i>
+                <span>Management View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSwitchViewMode('student_feed')}
+                style={{
+                  border: 'none',
+                  borderRadius: '0.45rem',
+                  padding: '0.42rem 0.8rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  background: viewMode === 'student_feed' ? '#7b0d1e' : 'transparent',
+                  color: viewMode === 'student_feed' ? '#ffffff' : '#64748b',
+                  boxShadow: viewMode === 'student_feed' ? '0 1px 2px rgba(123,13,30,0.22)' : 'none'
+                }}
+              >
+                <i className="fa-solid fa-newspaper"></i>
+                <span>Student Feed View</span>
+              </button>
+            </div>
+
             <button 
               type="button" 
               className="btn-feed-secondary" 
@@ -452,14 +561,21 @@ const ContentFeed = () => {
           
           {/* Tabs */}
           <div className="feed-tabs-list">
-            {[
-              { id: 'all', label: 'All Content' },
-              { id: 'announcements', label: 'Announcements' },
-              { id: 'events', label: 'Events' },
-              { id: 'scheduled', label: 'Scheduled' },
-              { id: 'archived', label: 'Archived' },
-              { id: 'takedown', label: 'Taken Down' }
-            ].map(tab => (
+            {(viewMode === 'student_feed'
+              ? [
+                  { id: 'all', label: 'All Active Posts' },
+                  { id: 'announcements', label: 'Announcements' },
+                  { id: 'events', label: 'Events' }
+                ]
+              : [
+                  { id: 'all', label: 'All Content' },
+                  { id: 'announcements', label: 'Announcements' },
+                  { id: 'events', label: 'Events' },
+                  { id: 'scheduled', label: 'Scheduled' },
+                  { id: 'archived', label: 'Archived' },
+                  { id: 'takedown', label: 'Taken Down' }
+                ]
+            ).map(tab => (
               <button
                 key={tab.id}
                 type="button"
@@ -475,10 +591,10 @@ const ContentFeed = () => {
           </div>
 
           {/* Filter & Search Toolbar */}
-          <div className="feed-toolbar" style={{ flexWrap: 'wrap' }}>
+          <div className="feed-toolbar">
             
             {/* Search Field */}
-            <div className="feed-search-box" style={{ minWidth: '220px' }}>
+            <div className="feed-search-box" style={{ minWidth: '250px', flex: '1 1 260px' }}>
               <i className="fa-solid fa-magnifying-glass search-icon"></i>
               <input 
                 type="text" 
@@ -497,25 +613,27 @@ const ContentFeed = () => {
               )}
             </div>
 
-            {/* School Year Filter */}
-            <div className="feed-filter-item">
-              <select
-                className="feed-select"
-                value={academicYearFilter}
-                onChange={(e) => {
-                  setAcademicYearFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                aria-label="Filter by School Year"
-              >
-                <option value="all">All School Years</option>
-                {academicYearsList.map(ay => (
-                  <option key={ay.id} value={ay.id}>
-                    SY {ay.label}{ay.is_active ? ' (Active)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* School Year Filter (Management View only) */}
+            {viewMode === 'management' && (
+              <div className="feed-filter-item">
+                <select
+                  className="feed-select"
+                  value={academicYearFilter}
+                  onChange={(e) => {
+                    setAcademicYearFilter(e.target.value);
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  aria-label="Filter by School Year"
+                >
+                  <option value="all">All School Years</option>
+                  {academicYearsList.map(ay => (
+                    <option key={ay.id} value={ay.id}>
+                      SY {ay.label}{ay.is_active ? ' (Active)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Category Filter */}
             <div className="feed-filter-item">
@@ -566,41 +684,45 @@ const ContentFeed = () => {
               </select>
             </div>
 
-            {/* Status Filter */}
-            <div className="feed-filter-item">
-              <select
-                className="feed-select"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                aria-label="Filter by Status"
-              >
-                <option value="all">All Statuses</option>
-                <option value="Published">Published</option>
-                <option value="Upcoming">Upcoming</option>
-                <option value="Ongoing">Ongoing</option>
-                <option value="Completed">Completed</option>
-                <option value="Pending">Pending</option>
-                <option value="Archived">Archived</option>
-                <option value="Rejected">Rejected</option>
-              </select>
-            </div>
+            {/* Status Filter (Management View only) */}
+            {viewMode === 'management' && (
+              <div className="feed-filter-item">
+                <select
+                  className="feed-select"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  aria-label="Filter by Status"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="Published">Published</option>
+                  <option value="Upcoming">Upcoming</option>
+                  <option value="Ongoing">Ongoing</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Archived">Archived</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+            )}
 
-            {/* Date Filter */}
-            <div className="feed-filter-item">
-              <input
-                type="date"
-                className="feed-select"
-                value={dateFilter}
-                onChange={(e) => {
-                  setDateFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                title="Filter by Event or Publication Date"
-              />
-            </div>
+            {/* Date Filter (Management View only) */}
+            {viewMode === 'management' && (
+              <div className="feed-filter-item">
+                <input
+                  type="date"
+                  className="feed-select"
+                  value={dateFilter}
+                  onChange={(e) => {
+                    setDateFilter(e.target.value);
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  title="Filter by Event or Publication Date"
+                />
+              </div>
+            )}
 
             {/* Sorting Order */}
             <div className="feed-filter-item">
@@ -642,13 +764,13 @@ const ContentFeed = () => {
 
         </div>
 
-        {/* ================= CONTENT LISTING GRID ================= */}
+        {/* ================= CONTENT LISTING ================= */}
         {loading ? (
           <div className="feed-skeleton-grid">
             {[1, 2, 3, 4].map(n => (
               <div key={n} className="skeleton-card">
                 <div className="skeleton-line width-40 height-20"></div>
-                <div className="skeleton-line width-80 height-24" style={{ margin: '0.5rem 0' }}></div>
+                <div className="skeleton-line width-80 height-24"></div>
                 <div className="skeleton-line width-100 height-60"></div>
               </div>
             ))}
@@ -670,11 +792,182 @@ const ContentFeed = () => {
                 : 'There are no items currently listed in this category view.'}
             </p>
           </div>
+        ) : viewMode === 'student_feed' ? (
+          <div className="csf-layout">
+            {/* Main Student Feed Column */}
+            <div className="csf-main">
+              {items.map((item) => {
+                const isEvent = item.type === 'event';
+                const deptName = item.page_name || item.department_name || 'University Notice';
+                const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+                const postTimestamp = formatPostTimestamp(item.created_at);
+                const postKey = `${item.type}-${item.id}`;
+                const avatarSrc = resolveMediaUrl(item.page_avatar_url);
+                const postImage = resolveMediaUrl(item.image_url);
+                const avatarFailed = Boolean(failedImages[`avatar-${postKey}`]);
+                const mediaFailed = Boolean(failedImages[`media-${postKey}`]);
+                const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
+
+                return (
+                  <article key={postKey} className="csf-post-card">
+                    {/* Student-Style Post Header */}
+                    <div className="csf-post-header">
+                      <div className="csf-author-wrap">
+                        <div className="csf-avatar">
+                          {avatarSrc && !avatarFailed ? (
+                            <img
+                              src={avatarSrc}
+                              alt={deptName}
+                              onError={() => markImageFailed(`avatar-${postKey}`)}
+                            />
+                          ) : (
+                            avatarText
+                          )}
+                        </div>
+
+                        <div className="csf-author-meta">
+                          <div className="csf-badges-row">
+                            <h4 className="csf-page-name">{deptName}</h4>
+                            {item.is_university_wide && (
+                              <span className="csf-pill-uw">University-Wide</span>
+                            )}
+                            {item.is_pinned && (
+                              <span className="csf-pill-pinned">Pinned</span>
+                            )}
+                            <span className="category-pill">{item.category || 'General'}</span>
+                          </div>
+
+                          <div className="csf-submeta">
+                            {isEvent ? (
+                              <>
+                                <span><i className="fa-solid fa-users"></i> {item.registered_count || 0} / {item.capacity || 'Unlimited'} registered</span>
+                                <span>•</span>
+                                <span><i className="fa-solid fa-location-dot"></i> {item.venue || item.location || 'University Campus'}</span>
+                                <span>•</span>
+                                <span><i className="fa-regular fa-clock"></i> {postTimestamp}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span><i className="fa-regular fa-clock"></i> Announcement • {postTimestamp}</span>
+                                {item.author_name && (
+                                  <>
+                                    <span>•</span>
+                                    <span>By {item.author_name}</span>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className={`workflow-status-badge status-${String(item.status).toLowerCase()}`}>
+                        {item.status}
+                      </span>
+                    </div>
+
+                    {/* Title & Body BEFORE Media for immediate scannability */}
+                    <div className="csf-post-body-wrap">
+                      <h3 className="csf-post-title">{item.title}</h3>
+                      <p className="csf-post-text">
+                        {item.description || item.body || 'No description provided.'}
+                      </p>
+                    </div>
+
+                    {/* Post Media */}
+                    {postImage && !mediaFailed && (
+                      <div className="csf-post-media">
+                        <img
+                          src={postImage}
+                          alt={item.title}
+                          loading="lazy"
+                          onError={() => markImageFailed(`media-${postKey}`)}
+                        />
+                      </div>
+                    )}
+
+                    {postImage && mediaFailed && (
+                      <div className="csf-image-fallback">
+                        <i className="fa-regular fa-image"></i>
+                        <span>Attachment image could not be loaded for this post.</span>
+                      </div>
+                    )}
+
+                    {/* Admin Moderation Footer */}
+                    <div className="csf-post-footer">
+                      <span className="csf-post-meta-id">
+                        Post #{item.id} • Audience: {item.audience || 'All Campus'}
+                      </span>
+
+                      <div className="csf-footer-actions">
+                        <button
+                          type="button"
+                          className="btn-feed-secondary"
+                          style={{ padding: '0.38rem 0.78rem', fontSize: '0.78rem' }}
+                          onClick={() => handleOpenPreview(item)}
+                        >
+                          <i className="fa-solid fa-eye"></i>
+                          <span>View Details</span>
+                        </button>
+
+                        {!isArchived ? (
+                          <button
+                            type="button"
+                            className="csf-btn-archive"
+                            title="Archive violating or unwanted post, record reason in Audit Logs, and notify creator"
+                            onClick={() => handleOpenConfirm('archive', item)}
+                          >
+                            <i className="fa-solid fa-box-archive"></i>
+                            <span>Archive Post</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="csf-btn-restore"
+                            onClick={() => handleOpenConfirm('restore', item)}
+                          >
+                            <i className="fa-solid fa-rotate-left"></i>
+                            <span>Restore Post</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {/* Right Sticky Rail: Compact Student Spotlight + Moderation Guidance */}
+            <aside className="csf-rail">
+              <UniversityWideSpotlight role="student" />
+
+              <div className="csf-guidance-card">
+                <div className="csf-guidance-header">
+                  <i className="fa-solid fa-shield-halved"></i>
+                  <span>Moderation Policy</span>
+                </div>
+                <p className="csf-guidance-text">
+                  Removing a post archives it first with your moderation reason, records the event in Audit Logs, and notifies the creator.
+                </p>
+                <button
+                  type="button"
+                  className="csf-guidance-btn"
+                  onClick={() => navigate('/admin/audit-logs')}
+                >
+                  <i className="fa-solid fa-clipboard-list"></i>
+                  <span>Open Audit Logs</span>
+                </button>
+              </div>
+            </aside>
+          </div>
         ) : (
           <div className="feed-cards-grid">
             {items.map(item => {
               const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
               const isTakenDown = String(item.status).toLowerCase() === 'rejected';
+              const mgmtKey = `mgmt-${item.type}-${item.id}`;
+              const cardThumb = resolveMediaUrl(item.image_url);
+              const thumbFailed = Boolean(failedImages[mgmtKey]);
 
               return (
                 <div key={`${item.type}-${item.id}`} className="feed-item-card">
@@ -698,6 +991,17 @@ const ContentFeed = () => {
                       {item.status}
                     </span>
                   </div>
+
+                  {cardThumb && !thumbFailed && (
+                    <div className="card-media-thumb">
+                      <img
+                        src={cardThumb}
+                        alt={item.title}
+                        loading="lazy"
+                        onError={() => markImageFailed(mgmtKey)}
+                      />
+                    </div>
+                  )}
 
                   {/* Card Title & Content Body */}
                   <h2 className="card-item-title">{item.title}</h2>
@@ -771,10 +1075,7 @@ const ContentFeed = () => {
                           className="card-icon-btn text-emerald" 
                           style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
                           title="Restore Item"
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setActiveModal('restore');
-                          }}
+                          onClick={() => handleOpenConfirm('restore', item)}
                         >
                           <i className="fa-solid fa-rotate-left"></i>
                           <span>Restore</span>
@@ -786,10 +1087,7 @@ const ContentFeed = () => {
                             className="card-icon-btn text-amber" 
                             style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
                             title="Archive Item"
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setActiveModal('archive');
-                            }}
+                            onClick={() => handleOpenConfirm('archive', item)}
                           >
                             <i className="fa-solid fa-box-archive"></i>
                             <span>Archive</span>
@@ -798,11 +1096,8 @@ const ContentFeed = () => {
                             type="button" 
                             className="card-icon-btn text-rose" 
                             style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                            title="Take Down (Moderate)"
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setActiveModal('takedown');
-                            }}
+                            title="Take Down & Archive"
+                            onClick={() => handleOpenConfirm('takedown', item)}
                           >
                             <i className="fa-solid fa-shield-halved"></i>
                             <span>Take Down</span>
@@ -810,19 +1105,18 @@ const ContentFeed = () => {
                         </>
                       )}
 
-                      <button
-                        type="button"
-                        className="card-icon-btn text-rose"
-                        style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                        title="Permanently Delete Record"
-                        onClick={() => {
-                          setSelectedItem(item);
-                          setActiveModal('delete');
-                        }}
-                      >
-                        <i className="fa-solid fa-trash-can"></i>
-                        <span>Delete</span>
-                      </button>
+                      {isArchived && (
+                        <button
+                          type="button"
+                          className="card-icon-btn text-rose"
+                          style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                          title="Permanently Delete Archived Post (also available in Audit Logs)"
+                          onClick={() => handleOpenConfirm('delete', item)}
+                        >
+                          <i className="fa-solid fa-trash-can"></i>
+                          <span>Delete</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1071,6 +1365,21 @@ const ContentFeed = () => {
               </div>
 
               <div className="preview-modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+                {(() => {
+                  const previewMedia = resolveMediaUrl(selectedItem.image_url);
+                  const previewKey = `preview-${selectedItem.type}-${selectedItem.id}`;
+                  if (!previewMedia || failedImages[previewKey]) return null;
+                  return (
+                    <div className="preview-media-frame">
+                      <img
+                        src={previewMedia}
+                        alt={selectedItem.title}
+                        onError={() => markImageFailed(previewKey)}
+                      />
+                    </div>
+                  );
+                })()}
+
                 <div className="preview-meta-list">
                   <div><strong>Category:</strong> {selectedItem.category || 'General'}</div>
                   <div><strong>Audience:</strong> {selectedItem.audience || 'All Campus'}</div>
@@ -1187,24 +1496,30 @@ const ContentFeed = () => {
           }
           confirmText={
             activeModal === 'archive'
-              ? 'Confirm Archive'
+              ? 'Archive Post & Notify Creator'
               : activeModal === 'takedown'
-              ? 'Confirm Takedown'
+              ? 'Archive Takedown & Notify Creator'
               : activeModal === 'delete'
-              ? 'Confirm Delete'
+              ? 'Permanently Delete & Notify Creator'
               : 'Confirm Restore'
           }
           requireReason={activeModal === 'archive' || activeModal === 'takedown' || activeModal === 'delete'}
-          reasonLabel={`Reason for ${activeModal || 'action'}`}
-          reasonPlaceholder={`Provide a clear reason for audit logs...`}
+          reasonLabel={
+            activeModal === 'archive' || activeModal === 'takedown'
+              ? 'Reason for Archiving (logged in Audit Logs & sent to creator)'
+              : activeModal === 'delete'
+              ? 'Reason for Permanent Deletion (logged & sent to creator)'
+              : 'Reason for restoring'
+          }
+          reasonPlaceholder={`Provide a clear reason (e.g., rule violation details) for audit logs and creator notification...`}
           loading={submitting}
           message={
             activeModal === 'archive'
-              ? `This will move "${selectedItem?.title}" to the Historical Archives while preserving all associated data.`
+              ? `This will remove "${selectedItem?.title}" from student feeds, archive it in the database, record your reason in Audit Logs, and notify the post creator.`
               : activeModal === 'takedown'
-              ? `This will immediately remove "${selectedItem?.title}" from active campus feeds and mark it as Rejected.`
+              ? `This will immediately remove "${selectedItem?.title}" from student feeds, archive it as a rule-violation takedown, record your reason in Audit Logs, and notify the post creator.`
               : activeModal === 'delete'
-              ? `Are you sure you want to permanently delete "${selectedItem?.title}"? For historical preservation, archiving is recommended unless this record is inappropriate or invalid.`
+              ? `This will permanently delete the already-archived post "${selectedItem?.title}" from the database, log the deletion in Audit Logs, and notify the post creator.`
               : `This will restore "${selectedItem?.title}" back to active campus visibility.`
           }
           onConfirm={handleExecuteWorkflow}

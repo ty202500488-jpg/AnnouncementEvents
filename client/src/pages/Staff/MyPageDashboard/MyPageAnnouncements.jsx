@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
+import { formatPostTimestamp } from '../../../utils/dateUtils';
 import '../../styles/MyPageDashboard.css';
 
 export default function MyPageAnnouncements() {
@@ -133,7 +134,7 @@ export default function MyPageAnnouncements() {
             {filteredAnnouncements.map((item, index) => {
               const deptName = item.page_name || item.department_name || 'My Page';
               const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-              const postDate = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+              const postDate = formatPostTimestamp(item.created_at);
               const postImage = item.image_url || item.image || null;
 
               return (

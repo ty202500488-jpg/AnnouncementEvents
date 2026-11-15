@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
+import { formatPostTimestamp } from '../../../utils/dateUtils';
 import '../../styles/StaffDashboard.css';
 import '../../styles/Profile.css';
 import '../../styles/Settings.css';
@@ -666,7 +667,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             const isFollowed = !!followedDepts[deptKey];
             
             // Format Timestamp / Date
-            const postDate = item.created_at || item.date || item.event_date ? new Date(item.created_at || item.date || item.event_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+            const postDate = formatPostTimestamp(item.created_at || item.date || item.event_date);
             const postImage = item.image_url || item.image || null;
 
             // Event-specific details

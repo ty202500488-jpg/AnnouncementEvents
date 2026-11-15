@@ -226,7 +226,7 @@ const Archives = () => {
       const res = await fetch(`/api/admin/archives/${recordToRestore.id}/restore`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ recordType: recordToRestore.type }),
+        body: JSON.stringify({ recordType: recordToRestore.type, type: recordToRestore.type }),
       });
 
       const data = await res.json();

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../assets/components/DashboardLayout';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
+import { formatPostTimestamp } from '../../utils/dateUtils';
 import '../styles/StudentDashboard.css';
 
 export default function StudentDashboard() {
@@ -229,7 +230,7 @@ export default function StudentDashboard() {
             const pageId = item.page_id;
 
             // Format Timestamp / Date
-            const postDate = item.created_at || item.date ? new Date(item.created_at || item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+            const postDate = formatPostTimestamp(item.created_at || item.date);
             const postImage = item.image_url || item.image || null;
 
             // Event-specific details

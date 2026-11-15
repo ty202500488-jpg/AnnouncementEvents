@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import '../styles/PageView.css';
 import logo from '../../assets/images/logo.jpg';
+import { formatPostTimestamp } from '../../utils/dateUtils';
 
 export default function PageView({ role = 'guest' }) {
   const { pageId } = useParams();
@@ -432,7 +433,7 @@ export default function PageView({ role = 'guest' }) {
               /* POST CARDS */
               filteredPosts.map((item, idx) => {
                 const isEvent = item.post_type === 'event';
-                const postDate = item.created_at ? new Date(item.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent';
+                const postDate = formatPostTimestamp(item.created_at);
                 const isRegistered = !!item.is_registered;
 
                 return (
