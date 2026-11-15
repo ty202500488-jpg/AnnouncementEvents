@@ -1298,7 +1298,11 @@ async function handleGetPageDetails(req, res) {
                     COALESCE((SELECT COUNT(*)::int FROM posts po WHERE po.page_id = p.page_id AND po.post_type = 'announcement' AND po.is_archived = FALSE AND LOWER(po.moderation_status) = 'approved'), 0) AS announcements_count,
                     CASE WHEN $2::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM page_follows WHERE page_id = p.page_id AND follower_user_id = $2
-                    ) THEN TRUE ELSE FALSE END AS is_followed
+                    ) THEN TRUE ELSE FALSE END AS is_followed,
+                    CASE WHEN $2::int IS NOT NULL AND (
+                        p.created_by = $2
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $2)
+                    ) THEN TRUE ELSE FALSE END AS is_owner
              FROM pages p
              LEFT JOIN departments d ON p.department_id = d.department_id
              LEFT JOIN organizations o ON p.organization_id = o.organization_id

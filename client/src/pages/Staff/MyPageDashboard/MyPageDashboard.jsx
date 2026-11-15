@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
+import HiddenPostCard from '../../../assets/components/HiddenPostCard';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
+import {
+  shuffleFeedItems,
+  hidePostOnServer,
+  unhidePostOnServer,
+  hideAllFromPageOnServer,
+} from '../../../utils/feedUtils';
 import '../../styles/StaffDashboard.css';
 import '../../styles/Profile.css';
 import '../../styles/Settings.css';
@@ -30,12 +37,21 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const fileInputRef = useRef(null);
 
   const [editingPost, setEditingPost] = useState(null);
+  const [activeMenuKey, setActiveMenuKey] = useState(null);
+  const [deletingPost, setDeletingPost] = useState(null);
 
   const [pageName, setPageName] = useState('Student Affairs Office');
   const [pageCode, setPageCode] = useState('SAO');
+  const [pageAvatarUrl, setPageAvatarUrl] = useState('');
   const [myPageId, setMyPageId] = useState(null);
   const [userName, setUserName] = useState('Staff User');
-  const [followedDepts, setFollowedDepts] = useState({});
+  const [togglingPageId, setTogglingPageId] = useState(null);
+  const [hiddenPosts, setHiddenPosts] = useState({});
+  const [hiddenPageKeys, setHiddenPageKeys] = useState([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPopoverRef = useRef(null);
+
+  const QUICK_EMOJIS = ['📢', '🎉', '📅', '🎓', '🏆', '💡', '👏', '🔥', '✅', '📌', '❤️', '🙌'];
 
   const fetchPageAndFeedData = async () => {
     try {
@@ -46,8 +62,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       };
 
       // Fetch Feed Data
-      const response = await fetch('http://localhost:5000/api/dashboard-data', {
-        method: 'GET',
+      const response = await fetch('http://localhost:5000/users/dashboard-data', {
+        method: 'POST',
         headers
       });
 
@@ -55,10 +71,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         const data = await response.json();
         const announcements = (data.announcements || []).map(a => ({ ...a, _type: 'Announcement' }));
         const events = (data.events || []).map(e => ({ ...e, _type: 'Event' }));
-        const merged = [...announcements, ...events].sort(
-          (a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date)
-        );
-        setFeed(merged);
+        setFeed(shuffleFeedItems([...announcements, ...events]));
       }
 
       // Fetch Categories
@@ -75,6 +88,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         if (statusData.exists) {
           if (statusData.pageName) setPageName(statusData.pageName);
           if (statusData.pageCode) setPageCode(statusData.pageCode);
+          if (statusData.profile_image || statusData.logo || statusData.image_url) {
+            setPageAvatarUrl(statusData.profile_image || statusData.logo || statusData.image_url);
+          }
           if (statusData.pageId || statusData.id) setMyPageId(statusData.pageId || statusData.id);
         }
       }
@@ -99,13 +115,111 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     }
 
     fetchPageAndFeedData();
+
+    const handleClickOutside = (e) => {
+      if (emojiPopoverRef.current && !emojiPopoverRef.current.contains(e.target)) {
+        setShowEmojiPicker(false);
+      }
+      setActiveMenuKey(null);
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const toggleFollow = (deptKey) => {
-    setFollowedDepts(prev => ({
+  const handleToggleFollow = async (pageId, currentFollowState) => {
+    const token = localStorage.getItem('token');
+    if (!pageId || !token) return;
+    setTogglingPageId(pageId);
+    const method = currentFollowState ? 'DELETE' : 'POST';
+    try {
+      const response = await fetch(`http://localhost:5000/api/pages/${pageId}/follow`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setFeed(prev =>
+          prev.map(item =>
+            item.page_id === pageId ? { ...item, is_followed: !currentFollowState } : item
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Failed to update follow status:', err);
+    } finally {
+      setTogglingPageId(null);
+    }
+  };
+
+  const handleHidePost = (postKey, postId) => {
+    const token = localStorage.getItem('token');
+    setHiddenPosts(prev => ({
       ...prev,
-      [deptKey]: !prev[deptKey]
+      [postKey]: { reason: null, dismissed: false, postId }
     }));
+    hidePostOnServer(postId, token);
+  };
+
+  const handleUndoHidePost = (postKey, postId) => {
+    const token = localStorage.getItem('token');
+    setHiddenPosts(prev => {
+      const next = { ...prev };
+      delete next[postKey];
+      return next;
+    });
+    unhidePostOnServer(postId, token);
+  };
+
+  const handleSelectHideReason = (postKey, postId, reason) => {
+    const token = localStorage.getItem('token');
+    setHiddenPosts(prev => ({
+      ...prev,
+      [postKey]: { ...(prev[postKey] || {}), reason, dismissed: false }
+    }));
+    hidePostOnServer(postId, token, reason);
+  };
+
+  const handleHideAllFromPage = (pageKey, pageId) => {
+    const token = localStorage.getItem('token');
+    if (!pageKey) return;
+    setHiddenPageKeys(prev => (prev.includes(pageKey) ? prev : [...prev, pageKey]));
+    if (pageId) hideAllFromPageOnServer(pageId, token);
+  };
+
+  const visibleFeed = feed.filter((item, idx) => {
+    const key = `${item._type}-${item.id || idx}`;
+    const pageKey = item.page_id || item.department_name || item.page_name;
+    if (pageKey && hiddenPageKeys.includes(pageKey)) return false;
+    return !hiddenPosts[key]?.dismissed;
+  });
+
+  const handleDeletePost = async () => {
+    if (!deletingPost || !token) return;
+    const isEvent = deletingPost._type === 'Event';
+    const deleteId = deletingPost.event_id || deletingPost.announcement_id || deletingPost.id || deletingPost.post_id;
+    const deleteEndpoint = isEvent
+      ? `http://localhost:5000/api/events/${deleteId}`
+      : `http://localhost:5000/api/announcements/${deleteId}`;
+    try {
+      const res = await fetch(deleteEndpoint, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setFeed(prev =>
+          prev.filter(p => {
+            const pId = p.event_id || p.announcement_id || p.id || p.post_id;
+            return !(pId === deleteId && p._type === deletingPost._type);
+          })
+        );
+      }
+    } catch (err) {
+      console.error('Error deleting post:', err);
+    } finally {
+      setDeletingPost(null);
+    }
   };
 
   const readFileAsScaledDataUrl = (file) => new Promise((resolve, reject) => {
@@ -364,42 +478,103 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         }}
       >
         
-        {/* Trigger Box */}
-        <div className="card" style={{ padding: '1.25rem', width: '100%', borderRadius: '1rem', backgroundColor: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', flexShrink: 0 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div 
-              onClick={() => { setEditingPost(null); setIsModalOpen(true); }}
-              style={{ width: '100%', backgroundColor: '#f8fafc', borderRadius: '9999px', padding: '0.75rem 1.25rem', color: '#64748b', fontSize: '0.875rem', cursor: 'pointer', border: '1px solid #e2e8f0' }}
-            >
-              Write an announcement, event, or post description...
+        {/* Compact Horizontal Posting Composer */}
+        <div className="mypage-composer" ref={emojiPopoverRef}>
+          <div className="mypage-composer-row">
+            <div className="mypage-composer-avatar" aria-hidden="true">
+              {pageAvatarUrl ? (
+                <img src={pageAvatarUrl} alt={pageName} />
+              ) : (
+                (pageCode || pageName.split(' ').map(w => w[0]).join('').slice(0, 3)).toUpperCase()
+              )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', paddingTop: '0.625rem', borderTop: '1px solid #f1f5f9' }}>
-              <button 
-                type="button" 
-                onClick={() => { setPostType('announcement'); setIsModalOpen(true); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: '#881337', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}
-              >
-                <i className="fa-solid fa-bullhorn" style={{ color: '#e11d48' }}></i> Announcement
-              </button>
-              <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0' }}></div>
-              <button 
-                type="button" 
-                onClick={() => { setPostType('event'); setIsModalOpen(true); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: '#881337', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}
-              >
-                <i className="fa-regular fa-calendar-days" style={{ color: '#d97706' }}></i> Event
-              </button>
-              <div style={{ width: '1px', height: '16px', backgroundColor: '#e2e8f0' }}></div>
-              <button 
-                type="button" 
-                onClick={() => { setIsModalOpen(true); setTimeout(() => fileInputRef.current?.click(), 100); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', color: '#475569', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer' }}
-              >
-                <i className="fa-regular fa-image" style={{ color: '#10b981' }}></i> Photo
-              </button>
+            <div className="mypage-composer-input-wrap">
+              <input
+                type="text"
+                className="mypage-composer-input"
+                placeholder="What's on your mind?"
+                aria-label="What's on your mind?"
+                value={quickBody}
+                onChange={(e) => setQuickBody(e.target.value)}
+                onClick={() => {
+                  if (!quickBody.trim()) {
+                    setEditingPost(null);
+                    setIsModalOpen(true);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setEditingPost(null);
+                    setIsModalOpen(true);
+                  }
+                }}
+              />
+
+              <div className="mypage-composer-actions">
+                <button
+                  type="button"
+                  className="mypage-composer-icon-btn"
+                  onClick={() => { setEditingPost(null); setPostType('announcement'); setIsModalOpen(true); }}
+                  title="Create Announcement"
+                  aria-label="Create Announcement"
+                  style={{ color: '#f43f5e' }}
+                >
+                  <i className="fa-solid fa-bullhorn"></i>
+                </button>
+                <button
+                  type="button"
+                  className="mypage-composer-icon-btn"
+                  onClick={() => { setEditingPost(null); setPostType('event'); setIsModalOpen(true); }}
+                  title="Create Event"
+                  aria-label="Create Event"
+                  style={{ color: '#f7b928' }}
+                >
+                  <i className="fa-regular fa-calendar-days"></i>
+                </button>
+                <button
+                  type="button"
+                  className="mypage-composer-icon-btn"
+                  onClick={() => { setEditingPost(null); setIsModalOpen(true); setTimeout(() => fileInputRef.current?.click(), 100); }}
+                  title="Add Photo"
+                  aria-label="Add Photo"
+                  style={{ color: '#45bd62' }}
+                >
+                  <i className="fa-regular fa-image"></i>
+                </button>
+                <button
+                  type="button"
+                  className="mypage-composer-icon-btn"
+                  onClick={() => setShowEmojiPicker((prev) => !prev)}
+                  title="Insert Emoji"
+                  aria-label="Insert Emoji"
+                  aria-expanded={showEmojiPicker}
+                  style={{ color: '#f7b928' }}
+                >
+                  <i className="fa-regular fa-face-smile"></i>
+                </button>
+              </div>
             </div>
           </div>
+
+          {showEmojiPicker && (
+            <div className="mypage-emoji-popover" role="menu" aria-label="Quick emoji picker">
+              {QUICK_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="mypage-emoji-btn"
+                  onClick={() => {
+                    setQuickBody((prev) => (prev ? `${prev} ${emoji}` : emoji));
+                    setShowEmojiPicker(false);
+                  }}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Modal Form */}
@@ -648,12 +823,13 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         {/* Dynamic Feed Content */}
         {loading ? (
           <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading database feeds...</p>
-        ) : feed.length === 0 ? (
+        ) : visibleFeed.length === 0 ? (
           <article className="card" style={{ padding: '1.75rem', textAlign: 'center' }}>
             <p style={{ color: 'var(--slate-600)' }}>No posts available yet.</p>
           </article>
         ) : (
-          feed.map((item, index) => {
+          visibleFeed.map((item, index) => {
+            const postKey = `${item._type}-${item.id || index}`;
             const isEvent = item._type === 'Event';
             const deptName = item.department_name || item.page_name || pageName || 'Staff Department Office';
             const deptKey = item.department_id || item.page_id || deptName;
@@ -664,7 +840,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             // Avatar calculation matching StaffDashboard
             const avatarText = item.code || (isMyOwnPage ? pageCode : null) || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
             
-            const isFollowed = !!followedDepts[deptKey];
+            const pageId = item.page_id;
+            const isFollowed = !!item.is_followed;
             
             // Format Timestamp / Date
             const postDate = formatPostTimestamp(item.created_at || item.date || item.event_date);
@@ -674,6 +851,27 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             const currentRegistered = item.registered_count ?? item.current_registered ?? 0;
             const maxCapacity = item.max_capacity || item.capacity || 'Unlimited';
             const locationText = item.location || 'University Campus';
+            const hideState = hiddenPosts[postKey];
+            const pageKey = pageId || deptName;
+            const postId = item.id || item.post_id;
+
+            if (hideState) {
+              return (
+                <HiddenPostCard
+                  key={item.id || index}
+                  deptName={deptName}
+                  pageId={pageId}
+                  isFollowed={isFollowed}
+                  togglingPageId={togglingPageId}
+                  selectedReason={hideState.reason}
+                  onUndo={() => handleUndoHidePost(postKey, postId)}
+                  onSelectReason={(reason) => handleSelectHideReason(postKey, postId, reason)}
+                  onUnfollow={() => handleToggleFollow(pageId, true)}
+                  onHideAllFromPage={() => handleHideAllFromPage(pageKey, pageId)}
+                  onViewPage={pageId ? () => { window.location.href = `/staff/page/${pageId}`; } : null}
+                />
+              );
+            }
 
             return (
               <article 
@@ -711,9 +909,35 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                     </div>
 
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {deptName}
-                      </h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {deptName}
+                        </h4>
+                        {!isMyOwnPage && pageId && (
+                          <>
+                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>•</span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleFollow(pageId, isFollowed)}
+                              disabled={togglingPageId === pageId}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
+                                margin: 0,
+                                color: '#2563eb',
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                lineHeight: 1.2
+                              }}
+                              title={isFollowed ? 'Click to unfollow' : 'Click to follow'}
+                            >
+                              {togglingPageId === pageId ? 'Updating...' : isFollowed ? 'Following' : 'Follow'}
+                            </button>
+                          </>
+                        )}
+                      </div>
                       <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {isEvent ? (
                           <>
@@ -733,63 +957,120 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                    {/* Follow/Following Button - ONLY shown on pages you are not owning */}
-                    {!isMyOwnPage && (
-                      !isFollowed ? (
-                        <button 
-                          onClick={() => toggleFollow(deptKey)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                    {(isMyOwnPage || item.is_owner) && (
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuKey(prev => (prev === postKey ? null : postKey));
+                          }}
                           style={{
-                            backgroundColor: '#8c1030',
-                            color: '#ffffff',
+                            background: 'transparent',
                             border: 'none',
-                            borderRadius: '0.5rem',
-                            padding: '0.4rem 1rem',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
+                            color: '#64748b',
                             cursor: 'pointer',
-                            transition: 'opacity 0.2s ease'
+                            padding: '0.35rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '9999px'
                           }}
-                          onMouseEnter={(e) => e.target.style.opacity = '0.9'}
-                          onMouseLeave={(e) => e.target.style.opacity = '1'}
+                          title="Manage post"
                         >
-                          Follow
+                          <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '0.95rem' }}></i>
                         </button>
-                      ) : (
-                        <button 
-                          onClick={() => toggleFollow(deptKey)}
-                          style={{
-                            backgroundColor: '#f1f5f9',
-                            color: '#475569',
-                            border: '1px solid #e2e8f0',
-                            borderRadius: '0.5rem',
-                            padding: '0.4rem 1rem',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
-                          }}
-                          title="Click to unfollow"
-                        >
-                          Following ✓
-                        </button>
-                      )
+
+                        {activeMenuKey === postKey && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              position: 'absolute',
+                              top: '100%',
+                              right: 0,
+                              marginTop: '0.25rem',
+                              backgroundColor: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '0.625rem',
+                              boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
+                              minWidth: '130px',
+                              zIndex: 30,
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMenuKey(null);
+                                handleOpenEditModal(item);
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '0.55rem 0.85rem',
+                                background: 'transparent',
+                                border: 'none',
+                                textAlign: 'left',
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                color: '#1e293b',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                              }}
+                            >
+                              <i className="fa-regular fa-pen-to-square"></i> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeletingPost(item);
+                                setActiveMenuKey(null);
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '0.55rem 0.85rem',
+                                background: 'transparent',
+                                border: 'none',
+                                borderTop: '1px solid #f1f5f9',
+                                textAlign: 'left',
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                color: '#b91c1c',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                              }}
+                            >
+                              <i className="fa-regular fa-trash-can"></i> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
 
-                    <button 
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleHidePost(postKey, postId);
+                      }}
                       style={{
                         background: 'transparent',
                         border: 'none',
-                        color: '#16162b',
+                        color: '#64748b',
                         cursor: 'pointer',
-                        padding: '0.25rem',
+                        padding: '0.35rem',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        borderRadius: '9999px'
                       }}
-                      title="More options"
+                      title="Hide this post"
                     >
-                      <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
+                      <i className="fa-solid fa-xmark" style={{ fontSize: '1rem' }}></i>
                     </button>
                   </div>
                 </div>
@@ -869,6 +1150,47 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           })
         )}
       </main>
+
+      {deletingPost && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 60,
+            padding: '1rem'
+          }}
+          onClick={() => setDeletingPost(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '1rem',
+              width: '100%',
+              maxWidth: '400px',
+              padding: '1.25rem',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Delete Post</h3>
+            <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.875rem', color: '#475569' }}>
+              Are you sure you want to delete this post? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" onClick={() => setDeletingPost(null)} style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleDeletePost} style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: 'none', background: '#b91c1c', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </MyPageDashboardLayout>
   );
 }

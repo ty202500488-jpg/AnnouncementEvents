@@ -3,6 +3,8 @@
    ========================================================================== */
 
 /* Universal Scrollbar Elimination */
+.student-dashboard-wrapper.fb-shell-layout .fb-center-track:has(.lp-settings-scroll)::-webkit-scrollbar,
+.fb-center-track:has(.lp-settings-scroll)::-webkit-scrollbar,
 .lp-settings-scroll::-webkit-scrollbar,
 .lp-segmented-nav::-webkit-scrollbar,
 body::-webkit-scrollbar,
@@ -13,6 +15,8 @@ html::-webkit-scrollbar {
   background: transparent !important;
 }
 
+.student-dashboard-wrapper.fb-shell-layout .fb-center-track:has(.lp-settings-scroll),
+.fb-center-track:has(.lp-settings-scroll),
 .lp-settings-scroll,
 .lp-segmented-nav,
 body,

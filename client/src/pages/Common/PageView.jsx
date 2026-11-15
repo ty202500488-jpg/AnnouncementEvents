@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import '../styles/PageView.css';
-import logo from '../../assets/images/logo.jpg';
+import '../styles/StudentDashboard.css';
+import { PortalNavbar, getInitials } from '../../assets/components/PortalShellElements';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 
 export default function PageView({ role = 'guest' }) {
@@ -16,9 +17,193 @@ export default function PageView({ role = 'guest' }) {
   const [toastMessage, setToastMessage] = useState(null);
   const [isSubmittingFollow, setIsSubmittingFollow] = useState(false);
   const [registeringEventId, setRegisteringEventId] = useState(null);
+  const [activeMenuId, setActiveMenuId] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [postTitle, setPostTitle] = useState('');
+  const [postContent, setPostContent] = useState('');
+  const [postImagePreview, setPostImagePreview] = useState(null);
+  const [removePostImage, setRemovePostImage] = useState(false);
+  const [submittingPost, setSubmittingPost] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(null);
 
   const token = localStorage.getItem('token');
   const userRole = localStorage.getItem('role') || role;
+  const isStaff = userRole === 'staff';
+  const homeHref = token ? (isStaff ? '/staff/dashboard' : '/student/dashboard') : '/';
+
+  let parsedUser = null;
+  try {
+    const rawUser = localStorage.getItem('user');
+    parsedUser = rawUser ? JSON.parse(rawUser) : null;
+  } catch {
+    parsedUser = null;
+  }
+  const profileTitle = parsedUser
+    ? `${parsedUser.first_name || ''} ${parsedUser.last_name || ''}`.trim() || 'Campus Member'
+    : 'Guest Viewer';
+  const profileSubtitle = parsedUser
+    ? (parsedUser.program_name || parsedUser.course || parsedUser.department_name || (isStaff ? 'Staff' : 'Student'))
+    : 'WMSU Portal';
+  const profileInitials = getInitials(profileTitle, 'WM');
+
+  // Navbar search, notifications & profile dropdown state (matching MyPage navbar)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const profileDropdownRef = useRef(null);
+
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const notifDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
+        setShowProfileDropdown(false);
+      }
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target)) {
+        setShowNotifDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q || !token) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return undefined;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const res = await fetch(`http://localhost:5000/api/search?q=${encodeURIComponent(q)}&type=${filterCategory}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data.results || []);
+        }
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, filterCategory, token]);
+
+  useEffect(() => {
+    if (!token) return;
+    const fetchNotifications = async () => {
+      try {
+        setLoadingNotifs(true);
+        const res = await fetch('http://localhost:5000/api/notifications', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setNotifications(data.notifications || []);
+        }
+      } catch {
+        // Ignore silent notification fetch error
+      } finally {
+        setLoadingNotifs(false);
+      }
+    };
+    fetchNotifications();
+  }, [token]);
+
+  const handleToggleFilter = () => {
+    const order = ['all', 'announcements', 'events', 'departments'];
+    const next = order[(order.indexOf(filterCategory) + 1) % order.length];
+    setFilterCategory(next);
+  };
+
+  const handleSelectSearchResult = (item, openOnly) => {
+    if (openOnly) {
+      setShowDropdown(true);
+      return;
+    }
+    setShowDropdown(false);
+    if (!item) return;
+    if (item.type === 'page') {
+      navigate(isStaff ? `/staff/page/${item.id}` : `/student/page/${item.id}`);
+    } else if (item.type === 'event') {
+      navigate(isStaff ? '/staff/events' : '/student/events');
+    } else {
+      navigate(isStaff ? '/staff/announcements' : '/student/announcements');
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    if (!token) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    try {
+      await fetch('http://localhost:5000/api/notifications/read-all', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // Ignore silent failure
+    }
+  };
+
+  const handleNotifClick = async (notif) => {
+    setShowNotifDropdown(false);
+    if (!notif.is_read && token) {
+      setNotifications((prev) => prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n)));
+      try {
+        await fetch(`http://localhost:5000/api/notifications/${notif.id}/read`, {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch {
+        // Ignore silent failure
+      }
+    }
+    if (notif.link) navigate(notif.link);
+  };
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/auth');
+  };
+
+  const unreadNotifCount = notifications.filter((n) => !n.is_read).length;
+  const profileMenuItems = token
+    ? [
+        {
+          label: 'Dashboard',
+          icon: 'fa-solid fa-house',
+          onClick: () => navigate(homeHref),
+        },
+        {
+          label: 'Profile',
+          icon: 'fa-solid fa-user',
+          onClick: () => navigate(isStaff ? '/staff/profile' : '/student/profile'),
+        },
+      ]
+    : [
+        {
+          label: 'Sign In',
+          icon: 'fa-solid fa-right-to-bracket',
+          onClick: () => navigate('/auth'),
+        },
+      ];
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -110,12 +295,119 @@ export default function PageView({ role = 'guest' }) {
     }
   };
 
-  const handleShare = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      showToast('Page link copied to clipboard!');
-    } else {
-      showToast('Copy URL from your browser address bar.');
+  const handleOpenEditPost = (item) => {
+    setEditingPost(item);
+    setPostTitle(item.title || '');
+    setPostContent(item.content || item.description || '');
+    setPostImagePreview(item.image_url || null);
+    setRemovePostImage(false);
+    setActiveMenuId(null);
+  };
+
+  const handlePostImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Selected image exceeds 10MB limit.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPostImagePreview(reader.result);
+      setRemovePostImage(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSavePostEdit = async (e) => {
+    e.preventDefault();
+    if (!editingPost || !token) return;
+    setSubmittingPost(true);
+
+    const isEvent = editingPost.post_type === 'event';
+    const targetId = editingPost.id || editingPost.post_id;
+    const editEndpoint = isEvent
+      ? `http://localhost:5000/api/events/${targetId}`
+      : `http://localhost:5000/api/announcements/${targetId}`;
+
+    try {
+      const bodyData = isEvent
+        ? {
+            event_title: postTitle,
+            event_description: postContent,
+            image_data: postImagePreview,
+            remove_image: removePostImage,
+          }
+        : {
+            title: postTitle,
+            content: postContent,
+            image_data: postImagePreview,
+            remove_image: removePostImage,
+          };
+
+      const res = await fetch(editEndpoint, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(bodyData),
+      });
+
+      if (res.ok) {
+        const resData = await res.json().catch(() => ({}));
+        const updatedImg =
+          resData.announcement?.image_url ??
+          resData.event?.image_url ??
+          (removePostImage ? null : postImagePreview);
+        setPosts((prev) =>
+          prev.map((p) => {
+            const pId = p.id || p.post_id;
+            return pId === targetId
+              ? { ...p, title: postTitle, content: postContent, description: postContent, image_url: updatedImg }
+              : p;
+          })
+        );
+        showToast('Post updated successfully!');
+        setEditingPost(null);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.message || 'Failed to update post.');
+      }
+    } catch (err) {
+      console.error('Error editing post:', err);
+      showToast('Network error while updating post.');
+    } finally {
+      setSubmittingPost(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!deletingPost || !token) return;
+    const isEvent = deletingPost.post_type === 'event';
+    const deleteId = deletingPost.id || deletingPost.post_id;
+    const deleteEndpoint = isEvent
+      ? `http://localhost:5000/api/events/${deleteId}`
+      : `http://localhost:5000/api/announcements/${deleteId}`;
+
+    try {
+      const res = await fetch(deleteEndpoint, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        setPosts((prev) => prev.filter((p) => (p.id || p.post_id) !== deleteId));
+        showToast('Post deleted.');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.message || 'Failed to delete post.');
+      }
+    } catch (err) {
+      console.error('Error deleting post:', err);
+      showToast('Network error while deleting post.');
+    } finally {
+      setDeletingPost(null);
     }
   };
 
@@ -208,44 +500,59 @@ export default function PageView({ role = 'guest' }) {
 
   return (
     <div className="pageview-wrapper">
-      {/* 1. TOP NAVIGATION BAR */}
-      <header className="pageview-topbar">
-        <div className="pageview-topbar-inner">
-          <button 
-            type="button" 
-            onClick={handleGoBack} 
-            className="btn-fb btn-fb-secondary" 
-            style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}
-            title="Go back"
-          >
-            <i className="fa-solid fa-arrow-left"></i>
-            <span>Back</span>
-          </button>
-
-          <Link to="/" className="pageview-brand">
-            <img src={logo} alt="CRIMSON Logo" />
-            <span>CRIMSON Platform</span>
-          </Link>
-
-          <div className="pageview-nav-links">
-            {token ? (
-              <button 
-                type="button" 
-                onClick={() => navigate(userRole === 'staff' ? '/staff/dashboard' : '/student/dashboard')}
-                className="btn-fb btn-fb-secondary"
-                style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}
-              >
-                <i className="fa-solid fa-house"></i>
-                <span className="hidden sm-inline">Dashboard</span>
-              </button>
-            ) : (
-              <Link to="/auth" className="btn-fb btn-fb-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}>
-                Sign In
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
+      {/* 1. TOP NAVIGATION BAR (Same as MyPage Navbar) */}
+      <div
+        className="student-dashboard-wrapper fb-shell-layout"
+        style={{
+          width: '100%',
+          minHeight: '72px',
+          height: 'auto',
+          flexShrink: 0,
+          overflow: 'visible',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          backgroundColor: '#ffffff',
+        }}
+      >
+        <PortalNavbar
+          homeHref={homeHref}
+          homeAriaLabel="CRIMSON Home"
+          isMobileMenuOpen={false}
+          onToggleMobileMenu={handleGoBack}
+          searchQuery={searchQuery}
+          onSearchChange={(e) => {
+            setSearchQuery(e.target.value);
+            setShowDropdown(Boolean(e.target.value.trim()));
+          }}
+          filterCategory={filterCategory}
+          onToggleFilter={handleToggleFilter}
+          searchResults={searchResults}
+          isSearching={isSearching}
+          showSearchDropdown={showDropdown}
+          onSelectSearchResult={handleSelectSearchResult}
+          searchContainerRef={searchContainerRef}
+          showQrButton={Boolean(token)}
+          qrHref={isStaff ? '/staff/attendance/check-in/scan' : '/student/attendance/check-in/scan'}
+          notifications={notifications}
+          loadingNotifs={loadingNotifs}
+          unreadNotifCount={unreadNotifCount}
+          showNotifDropdown={showNotifDropdown}
+          onToggleNotifDropdown={() => setShowNotifDropdown((prev) => !prev)}
+          onMarkAllAsRead={handleMarkAllAsRead}
+          onNotifClick={handleNotifClick}
+          notifDropdownRef={notifDropdownRef}
+          profileTitle={profileTitle}
+          profileSubtitle={profileSubtitle}
+          profileInitials={profileInitials}
+          showProfileDropdown={showProfileDropdown}
+          onToggleProfileDropdown={() => setShowProfileDropdown((prev) => !prev)}
+          onCloseProfileDropdown={() => setShowProfileDropdown(false)}
+          profileDropdownRef={profileDropdownRef}
+          profileMenuItems={profileMenuItems}
+          onLogout={token ? handleLogout : () => navigate('/auth')}
+        />
+      </div>
 
       {/* 2. FACEBOOK HERO COVER & PROFILE SECTION */}
       <section className="fb-cover-container">
@@ -301,21 +608,13 @@ export default function PageView({ role = 'guest' }) {
                 {isSubmittingFollow ? (
                   <i className="fa-solid fa-spinner fa-spin"></i>
                 ) : page.is_followed ? (
-                  <>
-                    <i className="fa-solid fa-check"></i>
-                    <span>Following</span>
-                  </>
+                  <span>Following</span>
                 ) : (
                   <>
                     <i className="fa-solid fa-plus"></i>
                     <span>Follow</span>
                   </>
                 )}
-              </button>
-
-              <button type="button" onClick={handleShare} className="btn-fb btn-fb-secondary">
-                <i className="fa-solid fa-share-nodes"></i>
-                <span>Share</span>
               </button>
             </div>
           </div>
@@ -330,7 +629,6 @@ export default function PageView({ role = 'guest' }) {
               className={`fb-tab-item ${activeTab === 'all' ? 'active' : ''}`}
               onClick={() => setActiveTab('all')}
             >
-              <i className="fa-solid fa-newspaper"></i>
               <span>All Posts</span>
               <span className="fb-tab-count">{posts.length}</span>
             </button>
@@ -340,7 +638,6 @@ export default function PageView({ role = 'guest' }) {
               className={`fb-tab-item ${activeTab === 'announcements' ? 'active' : ''}`}
               onClick={() => setActiveTab('announcements')}
             >
-              <i className="fa-solid fa-bullhorn"></i>
               <span>Announcements</span>
               <span className="fb-tab-count">{announcementsList.length}</span>
             </button>
@@ -350,7 +647,6 @@ export default function PageView({ role = 'guest' }) {
               className={`fb-tab-item ${activeTab === 'events' ? 'active' : ''}`}
               onClick={() => setActiveTab('events')}
             >
-              <i className="fa-regular fa-calendar-days"></i>
               <span>Events</span>
               <span className="fb-tab-count">{eventsList.length}</span>
             </button>
@@ -360,7 +656,6 @@ export default function PageView({ role = 'guest' }) {
               className={`fb-tab-item ${activeTab === 'about' ? 'active' : ''}`}
               onClick={() => setActiveTab('about')}
             >
-              <i className="fa-solid fa-circle-info"></i>
               <span>About</span>
             </button>
           </nav>
@@ -435,109 +730,233 @@ export default function PageView({ role = 'guest' }) {
                 const isEvent = item.post_type === 'event';
                 const postDate = formatPostTimestamp(item.created_at);
                 const isRegistered = !!item.is_registered;
+                const postImage = item.image_url;
+                const currentRegistered = item.registered_count || 0;
+                const maxCapacity = item.capacity || 'Unlimited';
+                const locationText = item.location || item.venue || 'University Campus';
 
                 return (
-                  <article key={item.id || item.post_id || idx} className="fb-post-card">
-                    {/* Post Author Header */}
-                    <div className="fb-post-header">
-                      <div className="fb-post-author">
-                        <div className="fb-post-author-avatar">
+                  <article
+                    key={item.id || item.post_id || idx}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '0.75rem',
+                      border: '1px solid #e6ebf0',
+                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
+                      overflow: 'hidden',
+                      marginBottom: '0.75rem',
+                    }}
+                  >
+                    {/* 1. FEED-STYLE POST HEADER */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.875rem 1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            width: '2.5rem',
+                            height: '2.5rem',
+                            borderRadius: '50%',
+                            backgroundColor: '#fbe4e8',
+                            color: '#8c1030',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '0.8rem',
+                            flexShrink: 0,
+                            overflow: 'hidden',
+                          }}
+                        >
                           {page.avatar_url ? (
-                            <img src={page.avatar_url} alt={page.page_name} />
+                            <img src={page.avatar_url} alt={page.page_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <span>{pageAvatarText}</span>
                           )}
                         </div>
-                        <div>
-                          <div className="fb-post-author-name">{page.page_name}</div>
-                          <div className="fb-post-time">
-                            <span>{postDate}</span>
-                            <span>•</span>
-                            <span>{item.category_name || 'General'}</span>
-                          </div>
-                        </div>
-                      </div>
 
-                      <span className={`fb-post-type-tag ${isEvent ? 'fb-tag-event' : 'fb-tag-announcement'}`}>
-                        {isEvent ? 'Event' : 'Announcement'}
-                      </span>
-                    </div>
-
-                    {/* Post Content */}
-                    <div className="fb-post-body">
-                      {item.title && <h3 className="fb-post-title">{item.title}</h3>}
-                      <p className="fb-post-text">{item.content || item.description || ''}</p>
-                    </div>
-
-                    {/* Post Image Attachment */}
-                    {item.image_url && (
-                      <div className="fb-post-media">
-                        <img src={item.image_url} alt={item.title || 'Post attachment'} />
-                      </div>
-                    )}
-
-                    {/* Event RSVP / Registration Box */}
-                    {isEvent && (
-                      <div className="fb-event-box">
-                        <div className="fb-event-grid">
-                          <div className="fb-event-row">
-                            <i className="fa-regular fa-calendar"></i>
-                            <span>
-                              <strong>Date:</strong> {item.event_date ? new Date(item.event_date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
-                            </span>
-                          </div>
-                          <div className="fb-event-row">
-                            <i className="fa-solid fa-location-dot"></i>
-                            <span>
-                              <strong>Venue:</strong> {item.location || item.venue || 'University Campus'}
-                            </span>
-                          </div>
-                          <div className="fb-event-row">
-                            <i className="fa-solid fa-users"></i>
-                            <span>
-                              <strong>Capacity:</strong> {item.registered_count || 0} / {item.capacity || 'Unlimited'} registered
-                            </span>
-                          </div>
-                        </div>
-
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => handleEventRegister(item.id || item.post_id, isRegistered)}
-                            disabled={registeringEventId === (item.id || item.post_id)}
-                            className={`btn-fb ${isRegistered ? 'btn-fb-following' : 'btn-fb-primary'}`}
-                            style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}
-                          >
-                            {registeringEventId === (item.id || item.post_id) ? (
-                              <i className="fa-solid fa-spinner fa-spin"></i>
-                            ) : isRegistered ? (
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {page.page_name}
+                          </h4>
+                          <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                            {isEvent ? (
                               <>
-                                <i className="fa-solid fa-circle-check" style={{ color: '#059669' }}></i>
-                                <span>Registered</span>
+                                <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
+                                <span>•</span>
+                                <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
+                                <span>•</span>
+                                <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
                               </>
                             ) : (
                               <>
-                                <i className="fa-solid fa-ticket"></i>
-                                <span>Register Now</span>
+                                <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
                               </>
                             )}
-                          </button>
+                          </div>
                         </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          aria-label="Post options"
+                          title="More options"
+                          onClick={() => {
+                            const key = item.id || item.post_id || idx;
+                            setActiveMenuId((prev) => (prev === key ? null : key));
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#16162b',
+                            cursor: 'pointer',
+                            padding: '0.25rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
+                        </button>
+
+                        {activeMenuId === (item.id || item.post_id || idx) && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: 'calc(100% + 0.25rem)',
+                              right: 0,
+                              minWidth: '140px',
+                              backgroundColor: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '0.5rem',
+                              boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
+                              padding: '0.25rem',
+                              zIndex: 30,
+                              display: 'flex',
+                              flexDirection: 'column',
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPost(item)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.5rem 0.75rem',
+                                background: 'none',
+                                border: 'none',
+                                borderRadius: '0.375rem',
+                                color: '#1e293b',
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                              }}
+                            >
+                              <i className="fa-solid fa-pen-to-square" style={{ color: '#64748b' }}></i>
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeletingPost(item);
+                                setActiveMenuId(null);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                padding: '0.5rem 0.75rem',
+                                background: 'none',
+                                border: 'none',
+                                borderRadius: '0.375rem',
+                                color: '#e11d48',
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                              }}
+                            >
+                              <i className="fa-solid fa-trash"></i>
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 2. FEED-STYLE MEDIA / CONTENT CONTAINER */}
+                    {postImage ? (
+                      <>
+                        <div
+                          style={{
+                            backgroundColor: '#0f172a',
+                            width: '100%',
+                            maxHeight: '450px',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            position: 'relative',
+                          }}
+                        >
+                          <img
+                            src={postImage}
+                            alt={item.title || 'Post attachment'}
+                            style={{ width: '100%', height: 'auto', objectFit: 'cover' }}
+                          />
+                        </div>
+                        <div style={{ padding: '0.875rem 1rem 0.875rem 1rem' }}>
+                          {item.title && (
+                            <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
+                              {item.title}
+                            </h3>
+                          )}
+                          <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: item.title ? '0.4rem 0 0 0' : 0 }}>
+                            {item.content || item.description || ''}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ padding: '0.5rem 1rem 1rem 1rem' }}>
+                        {item.title && (
+                          <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
+                            {item.title}
+                          </h3>
+                        )}
+                        <p style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: item.title ? '0.75rem 0 0 0' : 0 }}>
+                          {item.content || item.description || ''}
+                        </p>
                       </div>
                     )}
 
-                    {/* Post Footer Bar */}
-                    <div className="fb-post-footer">
-                      <span>Official WMSU Notice</span>
-                      <button 
-                        type="button" 
-                        onClick={handleShare}
-                        style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.775rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                      >
-                        <i className="fa-solid fa-share"></i>
-                        <span>Share</span>
-                      </button>
-                    </div>
+                    {/* 3. EVENT REGISTRATION ACTION BAR */}
+                    {isEvent && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0.25rem 1rem 0.875rem 1rem', paddingTop: '0.75rem', borderTop: '1px solid #e6ebf0' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleEventRegister(item.id || item.post_id, isRegistered)}
+                          disabled={registeringEventId === (item.id || item.post_id)}
+                          className={`btn-fb ${isRegistered ? 'btn-fb-following' : 'btn-fb-primary'}`}
+                          style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}
+                        >
+                          {registeringEventId === (item.id || item.post_id) ? (
+                            <i className="fa-solid fa-spinner fa-spin"></i>
+                          ) : isRegistered ? (
+                            <>
+                              <i className="fa-solid fa-circle-check" style={{ color: '#059669' }}></i>
+                              <span>Registered</span>
+                            </>
+                          ) : (
+                            <>
+                              <i className="fa-solid fa-ticket"></i>
+                              <span>Register Now</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </article>
                 );
               })
@@ -648,6 +1067,186 @@ export default function PageView({ role = 'guest' }) {
 
         </div>
       </main>
+
+      {/* Edit Post Modal */}
+      {editingPost && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            zIndex: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              backgroundColor: '#ffffff',
+              borderRadius: '0.875rem',
+              padding: '1.25rem',
+              boxShadow: '0 20px 40px rgba(15, 23, 42, 0.2)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Edit Post</h3>
+              <button
+                type="button"
+                onClick={() => setEditingPost(null)}
+                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '1.1rem' }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePostEdit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                  Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={postTitle}
+                  onChange={(e) => setPostTitle(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.875rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                  Content
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={postContent}
+                  onChange={(e) => setPostContent(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '0.875rem',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                  Image Attachment
+                </label>
+                {postImagePreview && !removePostImage && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <img
+                      src={postImagePreview}
+                      alt="Preview"
+                      style={{ maxHeight: '160px', borderRadius: '0.5rem', objectFit: 'cover', display: 'block' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPostImagePreview(null);
+                        setRemovePostImage(true);
+                      }}
+                      style={{
+                        marginTop: '0.35rem',
+                        background: 'none',
+                        border: 'none',
+                        color: '#e11d48',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    >
+                      Remove image
+                    </button>
+                  </div>
+                )}
+                <input type="file" accept="image/*" onChange={handlePostImageSelect} style={{ fontSize: '0.8125rem' }} />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setEditingPost(null)} className="btn-fb btn-fb-secondary">
+                  Cancel
+                </button>
+                <button type="submit" disabled={submittingPost} className="btn-fb btn-fb-primary">
+                  {submittingPost ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Post Confirmation Modal */}
+      {deletingPost && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            zIndex: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '400px',
+              backgroundColor: '#ffffff',
+              borderRadius: '0.875rem',
+              padding: '1.25rem',
+              boxShadow: '0 20px 40px rgba(15, 23, 42, 0.2)',
+            }}
+          >
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+              Delete Post?
+            </h3>
+            <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.875rem', color: '#475569' }}>
+              Are you sure you want to delete this post? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" onClick={() => setDeletingPost(null)} className="btn-fb btn-fb-secondary">
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePost}
+                style={{
+                  padding: '0.55rem 1.15rem',
+                  backgroundColor: '#e11d48',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. TOAST NOTIFICATION */}
       {toastMessage && (

@@ -1,7 +1,7 @@
 /* Scoped entirely to .staff-dashboard to prevent leaking into Landing/Auth pages */
-.staff-dashboard *, 
-.staff-dashboard *::before, 
-.staff-dashboard *::after {
+:where(.staff-dashboard *), 
+:where(.staff-dashboard *::before), 
+:where(.staff-dashboard *::after) {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -585,8 +585,8 @@
         height: auto;
     }
 
-    .staff-dashboard .lg-col-3:last-child .dept-pages-card,
-    .staff-dashboard .lg-col-3:last-child > .card:only-child {
+    .staff-dashboard:not(.fb-shell-layout) .lg-col-3:last-child .dept-pages-card,
+    .staff-dashboard:not(.fb-shell-layout) .lg-col-3:last-child > .card:only-child {
         flex: 1;
         min-height: 0;
         height: auto;

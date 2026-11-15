@@ -1,17 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../assets/components/DashboardLayout';
+import HiddenPostCard from '../../assets/components/HiddenPostCard';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import { formatPostTimestamp } from '../../utils/dateUtils';
+import {
+  shuffleFeedItems,
+  hidePostOnServer,
+  unhidePostOnServer,
+  hideAllFromPageOnServer,
+} from '../../utils/feedUtils';
 import '../styles/StudentDashboard.css';
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [feedFilter, setFeedFilter] = useState('all'); // 'all' | 'following'
   const [togglingPageId, setTogglingPageId] = useState(null);
-  const highlightedPostId = useHighlightedPost(!loading && feed.length > 0, () => setFeedFilter('all'));
+  const [hiddenPosts, setHiddenPosts] = useState({});
+  const [hiddenPageKeys, setHiddenPageKeys] = useState([]);
+  const [activeMenuKey, setActiveMenuKey] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [postTitle, setPostTitle] = useState('');
+  const [postContent, setPostContent] = useState('');
+  const [submittingPost, setSubmittingPost] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(null);
+  const highlightedPostId = useHighlightedPost(!loading && feed.length > 0);
 
   const token = localStorage.getItem('token');
 
@@ -26,17 +40,10 @@ export default function StudentDashboard() {
       });
       const data = await response.json();
       if (response.ok) {
-        // Tag each item with its type then merge + sort followed & pinned first
+        // Tag each item with its type then shuffle feed on load
         const announcements = (data.announcements || []).map(a => ({ ...a, _type: 'Announcement' }));
         const events = (data.events || []).map(e => ({ ...e, _type: 'Event' }));
-        const merged = [...announcements, ...events].sort((a, b) => {
-          if (a.is_pinned !== b.is_pinned) return b.is_pinned ? 1 : -1;
-          const aFollowed = a.is_followed ? 1 : 0;
-          const bFollowed = b.is_followed ? 1 : 0;
-          if (aFollowed !== bFollowed) return bFollowed - aFollowed;
-          return new Date(b.created_at) - new Date(a.created_at);
-        });
-        setFeed(merged);
+        setFeed(shuffleFeedItems([...announcements, ...events]));
       }
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -85,12 +92,120 @@ export default function StudentDashboard() {
     }
   };
 
-  const displayedFeed = feed.filter(item => {
-    if (feedFilter === 'following') return !!item.is_followed;
-    return true;
-  });
+  const handleHidePost = (postKey, postId) => {
+    setHiddenPosts(prev => ({
+      ...prev,
+      [postKey]: { reason: null, dismissed: false, postId }
+    }));
+    setActiveMenuKey(null);
+    hidePostOnServer(postId, token);
+  };
 
-  const followingCount = feed.filter(item => item.is_followed).length;
+  const handleUndoHidePost = (postKey, postId) => {
+    setHiddenPosts(prev => {
+      const next = { ...prev };
+      delete next[postKey];
+      return next;
+    });
+    unhidePostOnServer(postId, token);
+  };
+
+  const handleSelectHideReason = (postKey, postId, reason) => {
+    setHiddenPosts(prev => ({
+      ...prev,
+      [postKey]: { ...(prev[postKey] || {}), reason, dismissed: false }
+    }));
+    hidePostOnServer(postId, token, reason);
+  };
+
+  const handleHideAllFromPage = (pageKey, pageId) => {
+    if (!pageKey) return;
+    setHiddenPageKeys(prev => (prev.includes(pageKey) ? prev : [...prev, pageKey]));
+    if (pageId) hideAllFromPageOnServer(pageId, token);
+  };
+
+  const handleOpenEditPost = (item) => {
+    setEditingPost(item);
+    setPostTitle(item.title || '');
+    setPostContent(item.content || item.description || '');
+    setActiveMenuKey(null);
+  };
+
+  const handleSavePostEdit = async (e) => {
+    e.preventDefault();
+    if (!editingPost || !token) return;
+    setSubmittingPost(true);
+
+    const isEvent = editingPost._type === 'Event';
+    const targetId = editingPost.id || editingPost.post_id;
+    const editEndpoint = isEvent
+      ? `http://localhost:5000/api/events/${targetId}`
+      : `http://localhost:5000/api/announcements/${targetId}`;
+
+    try {
+      const bodyData = isEvent
+        ? { event_title: postTitle, event_description: postContent }
+        : { title: postTitle, content: postContent };
+
+      const res = await fetch(editEndpoint, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(bodyData),
+      });
+
+      if (res.ok) {
+        setFeed(prev =>
+          prev.map(p => {
+            const pId = p.id || p.post_id;
+            return pId === targetId && p._type === editingPost._type
+              ? { ...p, title: postTitle, content: postContent, description: postContent }
+              : p;
+          })
+        );
+        setEditingPost(null);
+      }
+    } catch (err) {
+      console.error('Error updating post:', err);
+    } finally {
+      setSubmittingPost(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!deletingPost || !token) return;
+    const isEvent = deletingPost._type === 'Event';
+    const deleteId = deletingPost.id || deletingPost.post_id;
+    const deleteEndpoint = isEvent
+      ? `http://localhost:5000/api/events/${deleteId}`
+      : `http://localhost:5000/api/announcements/${deleteId}`;
+
+    try {
+      const res = await fetch(deleteEndpoint, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        setFeed(prev =>
+          prev.filter(p => !((p.id || p.post_id) === deleteId && p._type === deletingPost._type))
+        );
+      }
+    } catch (err) {
+      console.error('Error deleting post:', err);
+    } finally {
+      setDeletingPost(null);
+    }
+  };
+
+  const visibleFeed = feed.filter((item, idx) => {
+    const key = `${item._type}-${item.id || idx}`;
+    const pageKey = item.page_id || item.department_name || item.page_name;
+    if (pageKey && hiddenPageKeys.includes(pageKey)) return false;
+    return !hiddenPosts[key]?.dismissed;
+  });
 
   return (
     <DashboardLayout activePage="home">
@@ -121,108 +236,15 @@ export default function StudentDashboard() {
           paddingBottom: '2rem' 
         }}
       >
-        {/* FEED FILTER TABS (ALL FEED VS FOLLOWING) */}
-        <div 
-          style={{ 
-            display: 'flex', 
-            gap: '0.5rem', 
-            background: '#ffffff', 
-            padding: '0.45rem', 
-            borderRadius: '0.85rem', 
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.03)'
-          }}
-        >
-          <button 
-            type="button"
-            onClick={() => setFeedFilter('all')}
-            style={{
-              flex: 1,
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              fontWeight: feedFilter === 'all' ? 700 : 500,
-              backgroundColor: feedFilter === 'all' ? '#7B0D1E' : 'transparent',
-              color: feedFilter === 'all' ? '#ffffff' : '#64748b',
-              cursor: 'pointer',
-              fontSize: '0.825rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.45rem',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <i className="fa-solid fa-layer-group"></i>
-            <span>All Posts</span>
-            <span 
-              style={{ 
-                fontSize: '0.7rem', 
-                padding: '0.1rem 0.45rem', 
-                borderRadius: '9999px', 
-                background: feedFilter === 'all' ? 'rgba(255,255,255,0.25)' : '#e2e8f0', 
-                color: feedFilter === 'all' ? '#ffffff' : '#475569' 
-              }}
-            >
-              {feed.length}
-            </span>
-          </button>
-
-          <button 
-            type="button"
-            onClick={() => setFeedFilter('following')}
-            style={{
-              flex: 1,
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              fontWeight: feedFilter === 'following' ? 700 : 500,
-              backgroundColor: feedFilter === 'following' ? '#7B0D1E' : 'transparent',
-              color: feedFilter === 'following' ? '#ffffff' : '#64748b',
-              cursor: 'pointer',
-              fontSize: '0.825rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.45rem',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <i className="fa-solid fa-heart"></i>
-            <span>Following Feed</span>
-            <span 
-              style={{ 
-                fontSize: '0.7rem', 
-                padding: '0.1rem 0.45rem', 
-                borderRadius: '9999px', 
-                background: feedFilter === 'following' ? 'rgba(255,255,255,0.25)' : '#e2e8f0', 
-                color: feedFilter === 'following' ? '#ffffff' : '#475569' 
-              }}
-            >
-              {followingCount}
-            </span>
-          </button>
-        </div>
-
         {loading ? (
-          <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>
-            <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: '0.5rem' }}></i>
-            Loading campus feed...
-          </p>
-        ) : displayedFeed.length === 0 ? (
-          <article className="card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '1rem', border: '1px solid #e2e8f0' }}>
-            <i className="fa-regular fa-compass" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '0.75rem' }}></i>
-            <h4 style={{ margin: '0 0 0.4rem 0', color: '#0f172a', fontSize: '1rem' }}>
-              {feedFilter === 'following' ? 'No posts from followed pages yet' : 'No posts available yet'}
-            </h4>
-            <p style={{ color: 'var(--slate-600)', fontSize: '0.85rem', margin: 0 }}>
-              {feedFilter === 'following' 
-                ? 'Follow official department pages in the sidebar to have their announcements appear here.' 
-                : 'Campus notices and events will appear here once published.'}
-            </p>
+          <p style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem' }}>Loading database feeds...</p>
+        ) : visibleFeed.length === 0 ? (
+          <article className="card" style={{ padding: '1.75rem', textAlign: 'center' }}>
+            <p style={{ color: 'var(--slate-600)' }}>No posts available yet.</p>
           </article>
         ) : (
-          displayedFeed.map((item, index) => {
+          visibleFeed.map((item, index) => {
+            const postKey = `${item._type}-${item.id || index}`;
             const isEvent = item._type === 'Event';
             const deptName = item.department_name || item.page_name || 'University Notice';
             const avatarText = item.code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
@@ -238,6 +260,27 @@ export default function StudentDashboard() {
             const maxCapacity = item.max_capacity || item.capacity || 'Unlimited';
             const locationText = item.location || 'University Campus';
             const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
+            const hideState = hiddenPosts[postKey];
+            const pageKey = pageId || deptName;
+            const postId = item.id || item.post_id;
+
+            if (hideState) {
+              return (
+                <HiddenPostCard
+                  key={item.id || index}
+                  deptName={deptName}
+                  pageId={pageId}
+                  isFollowed={isFollowed}
+                  togglingPageId={togglingPageId}
+                  selectedReason={hideState.reason}
+                  onUndo={() => handleUndoHidePost(postKey, postId)}
+                  onSelectReason={(reason) => handleSelectHideReason(postKey, postId, reason)}
+                  onUnfollow={() => handleToggleFollow(pageId, true)}
+                  onHideAllFromPage={() => handleHideAllFromPage(pageKey, pageId)}
+                  onViewPage={() => navigate(`/student/page/${pageId}`)}
+                />
+              );
+            }
 
             return (
               <article 
@@ -247,7 +290,7 @@ export default function StudentDashboard() {
                 style={{ 
                   padding: '1rem 0', 
                   borderRadius: '1.25rem',
-                  border: isFollowed ? '1px solid #fecdd3' : '1px solid var(--slate-200, #e2e8f0)',
+                  border: '1px solid var(--slate-200, #e2e8f0)',
                   backgroundColor: '#ffffff',
                   boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
                   overflow: 'hidden',
@@ -286,14 +329,36 @@ export default function StudentDashboard() {
                     </div>
 
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
                         <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {deptName}
                         </h4>
-                        {isFollowed && (
-                          <span style={{ backgroundColor: '#fbe4e8', color: '#7B0D1E', fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                            Following
-                          </span>
+                        {pageId && (
+                          <>
+                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>•</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleFollow(pageId, isFollowed);
+                              }}
+                              disabled={togglingPageId === pageId}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
+                                margin: 0,
+                                color: '#2563eb',
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                lineHeight: 1.2
+                              }}
+                              title={isFollowed ? 'Click to unfollow page' : 'Click to follow page'}
+                            >
+                              {togglingPageId === pageId ? 'Updating...' : isFollowed ? 'Following' : 'Follow'}
+                            </button>
+                          </>
                         )}
                       </div>
 
@@ -316,51 +381,104 @@ export default function StudentDashboard() {
                     </div>
                   </div>
 
-                  {/* FOLLOW BUTTON ON RIGHT */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                    {pageId && (
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleFollow(pageId, isFollowed);
-                        }}
-                        disabled={togglingPageId === pageId}
-                        style={{
-                          backgroundColor: isFollowed ? '#f1f5f9' : '#7B0D1E',
-                          color: isFollowed ? '#475569' : '#ffffff',
-                          border: isFollowed ? '1px solid #cbd5e1' : 'none',
-                          borderRadius: '0.5rem',
-                          padding: '0.35rem 0.85rem',
-                          fontSize: '0.775rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          transition: 'all 0.2s ease'
-                        }}
-                        title={isFollowed ? 'Click to unfollow page' : 'Click to follow page'}
-                      >
-                        {togglingPageId === pageId ? (
-                          <i className="fa-solid fa-spinner fa-spin"></i>
-                        ) : isFollowed ? (
-                          <>
-                            <i className="fa-solid fa-check" style={{ color: '#059669' }}></i>
-                            <span>Following</span>
-                          </>
-                        ) : (
-                          <>
-                            <i className="fa-solid fa-plus"></i>
-                            <span>Follow</span>
-                          </>
+                  {/* RIGHT ACTIONS */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0, position: 'relative' }}>
+                    {item.is_owner && (
+                      <div style={{ position: 'relative' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuKey(prev => (prev === postKey ? null : postKey));
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#64748b',
+                            cursor: 'pointer',
+                            padding: '0.35rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '9999px'
+                          }}
+                          title="Manage post"
+                        >
+                          <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '0.95rem' }}></i>
+                        </button>
+
+                        {activeMenuKey === postKey && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              position: 'absolute',
+                              top: '100%',
+                              right: 0,
+                              marginTop: '0.25rem',
+                              backgroundColor: '#ffffff',
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '0.625rem',
+                              boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
+                              minWidth: '130px',
+                              zIndex: 30,
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPost(item)}
+                              style={{
+                                width: '100%',
+                                padding: '0.55rem 0.85rem',
+                                background: 'transparent',
+                                border: 'none',
+                                textAlign: 'left',
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                color: '#1e293b',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                              }}
+                            >
+                              <i className="fa-regular fa-pen-to-square"></i> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeletingPost(item);
+                                setActiveMenuKey(null);
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '0.55rem 0.85rem',
+                                background: 'transparent',
+                                border: 'none',
+                                borderTop: '1px solid #f1f5f9',
+                                textAlign: 'left',
+                                fontSize: '0.8125rem',
+                                fontWeight: 600,
+                                color: '#b91c1c',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                              }}
+                            >
+                              <i className="fa-regular fa-trash-can"></i> Delete
+                            </button>
+                          </div>
                         )}
-                      </button>
+                      </div>
                     )}
 
-                    <button 
+                    <button
                       type="button"
-                      onClick={() => pageId && navigate(`/student/page/${pageId}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleHidePost(postKey, postId);
+                      }}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -369,11 +487,12 @@ export default function StudentDashboard() {
                         padding: '0.35rem',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        borderRadius: '9999px'
                       }}
-                      title="View Page"
+                      title="Hide this post"
                     >
-                      <i className="fa-solid fa-arrow-up-right-from-square" style={{ fontSize: '0.85rem' }}></i>
+                      <i className="fa-solid fa-xmark" style={{ fontSize: '1rem' }}></i>
                     </button>
                   </div>
                 </div>
@@ -453,6 +572,110 @@ export default function StudentDashboard() {
           })
         )}
       </main>
+
+      {/* Edit Post Modal */}
+      {editingPost && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 60,
+            padding: '1rem'
+          }}
+          onClick={() => setEditingPost(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '1rem',
+              width: '100%',
+              maxWidth: '480px',
+              padding: '1.25rem',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Edit Post</h3>
+              <button type="button" onClick={() => setEditingPost(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '1.1rem' }}>
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <form onSubmit={handleSavePostEdit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <input
+                type="text"
+                value={postTitle}
+                onChange={(e) => setPostTitle(e.target.value)}
+                placeholder="Post title"
+                required
+                style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.9rem' }}
+              />
+              <textarea
+                value={postContent}
+                onChange={(e) => setPostContent(e.target.value)}
+                placeholder="Post content"
+                rows={4}
+                required
+                style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.9rem', resize: 'vertical' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button type="button" onClick={() => setEditingPost(null)} style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button type="submit" disabled={submittingPost} style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: 'none', background: '#7B0D1E', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+                  {submittingPost ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingPost && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 60,
+            padding: '1rem'
+          }}
+          onClick={() => setDeletingPost(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '1rem',
+              width: '100%',
+              maxWidth: '400px',
+              padding: '1.25rem',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Delete Post</h3>
+            <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.875rem', color: '#475569' }}>
+              Are you sure you want to delete this post? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" onClick={() => setDeletingPost(null)} style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleDeletePost} style={{ padding: '0.5rem 1rem', borderRadius: '0.5rem', border: 'none', background: '#b91c1c', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

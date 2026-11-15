@@ -8,16 +8,17 @@ export default function Notifications() {
   const navigate = useNavigate();
   const {
     loading,
-    filter,
-    setFilter,
-    unreadCount,
     filteredNotifications,
     handleMarkAsRead,
-    handleMarkAllAsRead,
     handleToggleArchive,
     handleDelete,
     handleNotificationClick
   } = useNotificationCenter('/api/student/notifications');
+
+  const visibleNotifications = filteredNotifications.filter((notif) => {
+    const t = String(notif.type || '').toLowerCase();
+    return (t === 'announcement' || t === 'event') && !notif.is_archived;
+  });
 
   return (
     <DashboardLayout activePage="notifications">
@@ -37,102 +38,21 @@ export default function Notifications() {
           }
         `}</style>
 
-        {/* Compact Header */}
-        <div
-          className="flex items-center justify-between"
-          style={{
-            marginBottom: '1.25rem',
-            paddingBottom: '0.625rem',
-            borderBottom: '1px solid var(--slate-200, #e2e8f0)'
-          }}
-        >
-          <div>
-            <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.0625rem', margin: 0 }}>Notifications</h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>
-              Stay updated with campus announcements, registered events, reminders, and account notices.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={handleMarkAllAsRead}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid var(--brand-200, #bfdbfe)',
-                  color: 'var(--brand-600, #2563eb)',
-                  padding: '0.3rem 0.625rem',
-                  borderRadius: '0.375rem',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Mark all as read
-              </button>
-            )}
-
-            {/* Filter Pills */}
-            <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
-              {['all', 'unread', 'archived'].map((type) => {
-                const isActive = filter === type;
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setFilter(type)}
-                    style={{
-                      padding: '0.3rem 0.625rem',
-                      borderRadius: '0.375rem',
-                      backgroundColor: isActive ? 'var(--brand-600, #2563eb)' : 'transparent',
-                      color: isActive ? '#ffffff' : 'var(--slate-600)',
-                      fontWeight: 600,
-                      fontSize: '0.75rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textTransform: 'capitalize',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.25rem',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span>{type}</span>
-                    {type === 'unread' && unreadCount > 0 && (
-                      <span style={{
-                        backgroundColor: isActive ? '#ffffff' : 'var(--brand-600, #2563eb)',
-                        color: isActive ? 'var(--brand-600, #2563eb)' : '#ffffff',
-                        fontSize: '9px',
-                        fontWeight: 700,
-                        padding: '1px 5px',
-                        borderRadius: '9999px'
-                      }}>
-                        {unreadCount}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
         {loading ? (
           <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>
             <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--brand-600)' }}></i>
             <p style={{ fontSize: '0.875rem' }}>Loading notifications...</p>
           </div>
-        ) : filteredNotifications.length === 0 ? (
+        ) : visibleNotifications.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)', backgroundColor: '#ffffff', borderRadius: '0.625rem', border: '1px solid var(--slate-200)' }}>
             <i className="fa-regular fa-bell-slash" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
             <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>
-              {filter === 'archived' ? 'No archived notifications.' : filter === 'unread' ? 'You are all caught up!' : 'No new notifications available.'}
+              No announcement or event notifications yet.
             </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {filteredNotifications.map((notif) => {
+            {visibleNotifications.map((notif) => {
               const meta = getNotificationMeta(notif.type);
               return (
                 <div

@@ -1,21 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/StudentDashboard.css';
-import logo from '../../assets/images/logo.jpg';
 import useSessionGuard from './useSessionGuard';
 import UniversityWideSpotlight from './UniversityWideSpotlight';
 import {
-  PortalHeaderCenterTabs,
+  PortalNavbar,
   DepartmentPagesSidebarList,
   getInitials,
 } from './PortalShellElements';
-
-const STAFF_HEADER_TABS = [
-  { id: 'home', label: 'Home', href: '/staff/dashboard', icon: 'fa-solid fa-house' },
-  { id: 'announcements', label: 'Announcements', href: '/staff/announcements', icon: 'fa-solid fa-bullhorn' },
-  { id: 'events', label: 'Events', href: '/staff/events', icon: 'fa-regular fa-calendar-days' },
-  { id: 'mypage', label: 'My Page', href: '/staff/mypage', icon: 'fa-solid fa-flag' },
-];
 
 export default function StaffDashboardLayout({ children, activePage }) {
   const navigate = useNavigate();
@@ -281,8 +273,23 @@ export default function StaffDashboardLayout({ children, activePage }) {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/';
+  };
+
   const isPageApproved = pageStatus.exists && (pageStatus.status === 'approved' || pageStatus.status === 'active');
   const userInitials = getInitials(`${user.firstName} ${user.lastName}`, 'ST');
+
+  const staffProfileMenuItems = [
+    { label: 'Profile', href: '/staff/profile', icon: 'fa-regular fa-user' },
+    { label: 'My Page', href: '/staff/mypage', icon: 'fa-solid fa-flag', iconColor: '#7B0D1E' },
+    ...(isPageApproved
+      ? [{ label: 'Page Dashboard', href: '/staff/mypage/dashboard', icon: 'fa-solid fa-chart-line', iconColor: '#7B0D1E' }]
+      : []),
+    { label: 'Settings', href: '/staff/settings', icon: 'fa-solid fa-gear' },
+  ];
 
   return (
     <div className="staff-dashboard staff-dashboard-wrapper student-dashboard-wrapper fb-shell-layout">
@@ -296,286 +303,45 @@ export default function StaffDashboardLayout({ children, activePage }) {
           .profile-details-text {
             display: none !important;
           }
-          .header-container {
-            gap: 0.5rem !important;
-            padding: 0.5rem 0.75rem !important;
-          }
         }
       `}</style>
 
       {/* TOP NAVBAR */}
-      <header className="header">
-        <div className="header-container">
-          
-          <div className="fb-header-left">
-            <div className="fb-header-brand">
-              <button 
-                type="button" 
-                className="mobile-menu-btn icon-btn" 
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                style={{ color: 'var(--slate-600)', background: 'none', border: 'none', cursor: 'pointer' }}
-                aria-label="Toggle Menu"
-              >
-                <i className="fa-solid fa-bars" style={{ fontSize: '1.25rem' }}></i>
-              </button>
-              <a href="/staff/dashboard" className="fb-brand-link" aria-label="CRIMSON Staff Home">
-                <img src={logo} alt="CRIMSON Logo" style={{ height: '38px', width: '38px', objectFit: 'contain', borderRadius: '50%' }} />
-              </a>
-            </div>
-
-            {/* Search Bar */}
-            <div className="search-container" ref={searchContainerRef}>
-            <div className="search-wrapper" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              <i className="fa-solid fa-magnifying-glass search-icon"></i>
-              <input 
-                type="text" 
-                placeholder={`Search ${filterCategory === 'all' ? 'Announcement, Events, Departments...' : filterCategory + '...'}`} 
-                className="search-input"
-                style={{ width: '100%', fontSize: '0.8125rem' }}
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onFocus={() => searchQuery.trim() && setShowDropdown(true)}
-              />
-              <button 
-                type="button"
-                className="filter-btn" 
-                onClick={toggleFilterCategory}
-                title={`Current Filter: ${filterCategory.toUpperCase()}`}
-                style={{
-                  color: filterCategory !== 'all' ? '#881337' : 'inherit',
-                  fontWeight: filterCategory !== 'all' ? 700 : 400,
-                  background: 'none',
-                  border: 'none',
-                  padding: '0.25rem'
-                }}
-              >
-                <i className="fa-sliders fa-solid" style={{ fontSize: '0.75rem' }}></i>
-              </button>
-            </div>
-
-            {showDropdown && (
-              <div 
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  marginTop: '0.5rem',
-                  backgroundColor: '#ffffff',
-                  borderRadius: '0.5rem',
-                  border: '1px solid var(--slate-200, #e2e8f0)',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
-                  zIndex: 50,
-                  maxHeight: '300px',
-                  overflowY: 'auto',
-                  padding: '0.5rem'
-                }}
-              >
-                {isSearching ? (
-                  <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>Searching database...</p>
-                ) : searchResults.length === 0 ? (
-                  <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>No matching records found in system</p>
-                ) : (
-                  searchResults.map(result => (
-                    <a
-                      key={result.id}
-                      href={result.url}
-                      onClick={() => setShowDropdown(false)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0.625rem 0.75rem',
-                        borderRadius: '0.375rem',
-                        textDecoration: 'none',
-                        transition: 'background-color 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--slate-50, #f8fafc)'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--slate-800, #1e293b)' }}>
-                          {result.title}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--slate-400, #94a3b8)' }}>
-                          {result.type}
-                        </div>
-                      </div>
-                      <i className="fa-solid fa-chevron-right" style={{ fontSize: '10px', color: 'var(--slate-300)' }}></i>
-                    </a>
-                  ))
-                )}
-              </div>
-            )}
-            </div>
-          </div>
-
-          {/* Centered Facebook-Style Navigation Tabs */}
-          <PortalHeaderCenterTabs tabs={STAFF_HEADER_TABS} activePage={activePage} />
-
-          {/* Right Header Actions */}
-          <div className="fb-header-actions"> 
-            
-            {/* QR Camera Scan Button */}
-            <button
-              type="button"
-              className="icon-btn fb-header-circle-btn fb-qr-btn"
-              onClick={() => navigate('/staff/attendance/check-in/scan')}
-              title="Scan QR Attendance with Camera"
-              aria-label="Scan QR Attendance with Camera"
-            >
-              <i className="fa-solid fa-qrcode" style={{ fontSize: '0.95rem' }}></i>
-            </button>
-
-            {/* Notifications Dropdown */}
-            <div ref={notifDropdownRef} style={{ position: 'relative' }}>
-              <button 
-                type="button" 
-                className="icon-btn fb-header-circle-btn" 
-                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-                aria-label="Notifications"
-              >
-                <i className="fa-solid fa-bell" style={{ fontSize: '1.02rem' }}></i>
-                {unreadNotifCount > 0 && <span className="badge-dot"></span>}
-              </button>
-
-              {showNotifDropdown && (
-                <div
-                  className="notif-dropdown-menu"
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 0.5rem)',
-                    right: 0,
-                    width: 'clamp(280px, 85vw, 320px)',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '0.75rem',
-                    border: '1px solid var(--slate-200, #e2e8f0)',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
-                    zIndex: 100,
-                    padding: '0.75rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid var(--slate-100, #f1f5f9)' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--slate-900, #0f172a)' }}>Notifications</div>
-                    {unreadNotifCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleMarkAllAsRead}
-                        style={{ background: 'none', border: 'none', color: '#881337', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-                    {loadingNotifs ? (
-                      <p style={{ padding: '1rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>Loading notifications...</p>
-                    ) : notifications.filter(n => !n.is_archived).length === 0 ? (
-                      <p style={{ padding: '1rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>No new notifications</p>
-                    ) : (
-                      notifications.filter(n => !n.is_archived).map(notif => (
-                        <div
-                          key={notif.id}
-                          onClick={() => handleNotifClick(notif)}
-                          style={{
-                            padding: '0.625rem 0.75rem',
-                            borderRadius: '0.5rem',
-                            backgroundColor: !notif.is_read ? '#fff5f6' : 'transparent',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '0.2rem'
-                          }}
-                        >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontWeight: !notif.is_read ? 700 : 600, fontSize: '0.8125rem', color: 'var(--slate-800, #1e293b)' }}>
-                              {notif.title || notif.page_name || 'Notification'}
-                            </span>
-                            <span style={{ fontSize: '10px', color: 'var(--slate-400, #94a3b8)' }}>
-                              {notif.created_at ? new Date(notif.created_at).toLocaleDateString() : 'Recent'}
-                            </span>
-                          </div>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--slate-600, #475569)', margin: 0, lineHeight: 1.3 }}>
-                            {notif.message}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div ref={profileDropdownRef} style={{ position: 'relative' }}>
-              <button
-                type="button"
-                className="profile-btn fb-profile-trigger"
-                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                aria-expanded={showProfileDropdown}
-                aria-label="Account menu"
-              >
-                <span className="fb-avatar-badge" aria-hidden="true">{userInitials}</span>
-                <div className="profile-details-text" style={{ textAlign: 'left', minWidth: 0, overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.8125rem', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {user.firstName} {user.lastName}
-                  </div>
-                  <div style={{ fontSize: '10px', color: 'var(--slate-500)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.program}</div>
-                </div>
-                <i className="fa-solid fa-chevron-down" style={{ color: 'var(--slate-400)', fontSize: '10px', flexShrink: 0 }}></i>
-              </button>
-
-              {showProfileDropdown && (
-                <div 
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 0.5rem)',
-                    right: 0,
-                    width: '220px',
-                    backgroundColor: '#ffffff',
-                    borderRadius: '0.75rem',
-                    border: '1px solid var(--slate-200, #e2e8f0)',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
-                    zIndex: 100,
-                    padding: '0.5rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.25rem'
-                  }}
-                >
-                  <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--slate-100)', marginBottom: '0.25rem' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)' }}>{user.firstName} {user.lastName}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{user.program}</div>
-                  </div>
-
-                  <a href="/staff/profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
-                    <i className="fa-regular fa-user" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Profile
-                  </a>
-                  <a href="/staff/mypage" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
-                    <i className="fa-solid fa-flag" style={{ width: '16px', color: '#7B0D1E' }}></i> My Page
-                  </a>
-                  {isPageApproved && (
-                    <a href="/staff/mypage/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
-                      <i className="fa-solid fa-chart-line" style={{ width: '16px', color: '#7B0D1E' }}></i> Page Dashboard
-                    </a>
-                  )}
-                  <a href="/staff/settings" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--slate-700)', textDecoration: 'none' }}>
-                    <i className="fa-solid fa-gear" style={{ width: '16px', color: 'var(--slate-500)' }}></i> Settings
-                  </a>
-                  <div style={{ borderTop: '1px solid var(--slate-100)', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
-                    <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: 'var(--rose-600)', textDecoration: 'none' }}>
-                      <i className="fa-solid fa-right-from-bracket" style={{ width: '16px' }}></i> Logout
-                    </a>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <PortalNavbar
+        homeHref="/staff/dashboard"
+        homeAriaLabel="CRIMSON Staff Home"
+        isMobileMenuOpen={isMobileMenuOpen}
+        onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
+        filterCategory={filterCategory}
+        onToggleFilter={toggleFilterCategory}
+        searchPlaceholder={`Search ${filterCategory === 'all' ? 'Announcement, Events, Departments...' : filterCategory + '...'}`}
+        searchResults={searchResults}
+        isSearching={isSearching}
+        showSearchDropdown={showDropdown}
+        onSelectSearchResult={(_result, openOnly) => setShowDropdown(Boolean(openOnly))}
+        searchContainerRef={searchContainerRef}
+        showQrButton={true}
+        qrHref="/staff/attendance/check-in/scan"
+        notifications={notifications}
+        loadingNotifs={loadingNotifs}
+        unreadNotifCount={unreadNotifCount}
+        showNotifDropdown={showNotifDropdown}
+        onToggleNotifDropdown={() => setShowNotifDropdown(!showNotifDropdown)}
+        onMarkAllAsRead={handleMarkAllAsRead}
+        onNotifClick={handleNotifClick}
+        notifDropdownRef={notifDropdownRef}
+        profileTitle={`${user.firstName} ${user.lastName}`}
+        profileSubtitle={user.program}
+        profileInitials={userInitials}
+        showProfileDropdown={showProfileDropdown}
+        onToggleProfileDropdown={() => setShowProfileDropdown(!showProfileDropdown)}
+        onCloseProfileDropdown={() => setShowProfileDropdown(false)}
+        profileDropdownRef={profileDropdownRef}
+        profileMenuItems={staffProfileMenuItems}
+        onLogout={handleLogout}
+      />
 
       {/* MOBILE BACKDROP OVERLAY */}
       {isMobileMenuOpen && (

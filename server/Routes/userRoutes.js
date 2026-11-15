@@ -972,9 +972,26 @@ router.post('/resubmit-verification', registerLimiter, async (req, res) => {
 });
 
 // -------- DASHBOARD FEED (USED BY STUDENT & STAFF VIEWS) -------- //
+let hiddenPostsTableReady = false;
+async function ensureHiddenPostsTable(dbPool) {
+    if (hiddenPostsTableReady) return;
+    await dbPool.query(`
+        CREATE TABLE IF NOT EXISTS user_hidden_posts (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+            post_id INTEGER NOT NULL REFERENCES posts(post_id) ON DELETE CASCADE,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (user_id, post_id)
+        )
+    `);
+    hiddenPostsTableReady = true;
+}
+
 const handleDashboardData = async (req, res) => {
     try {
         await ensureUniversityWideColumn(pool);
+        await ensureHiddenPostsTable(pool);
         const userId = await resolveUserId(req);
 
         const annRes = await pool.query(
@@ -1003,7 +1020,12 @@ const handleDashboardData = async (req, res) => {
                     pg.page_name AS department_name,
                     pg.avatar_url AS page_avatar_url,
                     COALESCE(pg.page_code, d.department_code, o.org_code, 'WMSU') AS code,
-                    CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed
+                    CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed,
+                    CASE WHEN $1::int IS NOT NULL AND (
+                        pg.created_by = $1
+                        OR p.creator_user_id = $1
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                    ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              LEFT JOIN pages pg ON p.page_id = pg.page_id
              LEFT JOIN departments d ON pg.department_id = d.department_id
@@ -1013,6 +1035,10 @@ const handleDashboardData = async (req, res) => {
              WHERE p.post_type = 'announcement'
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
+               AND ($1::int IS NULL OR NOT EXISTS (
+                   SELECT 1 FROM user_hidden_posts uhp
+                   WHERE uhp.user_id = $1 AND uhp.post_id = p.post_id
+               ))
              ORDER BY p.is_pinned DESC,
                       (CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN 1 ELSE 0 END) DESC,
                       p.created_at DESC`,
@@ -1064,7 +1090,12 @@ const handleDashboardData = async (req, res) => {
                     CASE WHEN $1::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM event_registrations er2
                         WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
-                    ) THEN TRUE ELSE FALSE END AS is_registered
+                    ) THEN TRUE ELSE FALSE END AS is_registered,
+                    CASE WHEN $1::int IS NOT NULL AND (
+                        pg.created_by = $1
+                        OR p.creator_user_id = $1
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                    ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN pages pg ON p.page_id = pg.page_id
@@ -1076,6 +1107,10 @@ const handleDashboardData = async (req, res) => {
              WHERE p.post_type = 'event'
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
+               AND ($1::int IS NULL OR NOT EXISTS (
+                   SELECT 1 FROM user_hidden_posts uhp
+                   WHERE uhp.user_id = $1 AND uhp.post_id = p.post_id
+               ))
              GROUP BY p.post_id, ed.post_id, pg.page_id, d.department_id, o.organization_id, pc.category_id, pf.follow_id
              ORDER BY p.is_pinned DESC,
                       (CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN 1 ELSE 0 END) DESC,
@@ -1096,9 +1131,79 @@ const handleDashboardData = async (req, res) => {
 router.get('/dashboard-data', handleDashboardData);
 router.post('/dashboard-data', handleDashboardData);
 
+// -------- HIDE / UNHIDE FEED POSTS -------- //
+router.post('/posts/:postId/hide', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        const postId = Number(req.params.postId);
+        if (!postId || isNaN(postId)) {
+            return res.status(400).json({ message: 'Invalid post ID.' });
+        }
+        await ensureHiddenPostsTable(pool);
+        const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() || null : null;
+        await pool.query(
+            `INSERT INTO user_hidden_posts (user_id, post_id, reason)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (user_id, post_id)
+             DO UPDATE SET reason = COALESCE(EXCLUDED.reason, user_hidden_posts.reason)`,
+            [authUser.user_id, postId, reason]
+        );
+        return res.status(200).json({ success: true, post_id: postId });
+    } catch (error) {
+        console.error('Error hiding post:', error);
+        return res.status(500).json({ message: 'Failed to hide post.' });
+    }
+});
+
+router.delete('/posts/:postId/hide', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        const postId = Number(req.params.postId);
+        if (!postId || isNaN(postId)) {
+            return res.status(400).json({ message: 'Invalid post ID.' });
+        }
+        await ensureHiddenPostsTable(pool);
+        await pool.query(
+            `DELETE FROM user_hidden_posts WHERE user_id = $1 AND post_id = $2`,
+            [authUser.user_id, postId]
+        );
+        return res.status(200).json({ success: true, post_id: postId });
+    } catch (error) {
+        console.error('Error unhiding post:', error);
+        return res.status(500).json({ message: 'Failed to unhide post.' });
+    }
+});
+
+router.post('/pages/:pageId/hide-all', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        const pageId = Number(req.params.pageId);
+        if (!pageId || isNaN(pageId)) {
+            return res.status(400).json({ message: 'Invalid page ID.' });
+        }
+        await ensureHiddenPostsTable(pool);
+        await pool.query(
+            `INSERT INTO user_hidden_posts (user_id, post_id, reason)
+             SELECT $1, p.post_id, 'Hide all from page'
+             FROM posts p
+             WHERE p.page_id = $2 AND p.is_archived = FALSE
+             ON CONFLICT (user_id, post_id) DO NOTHING`,
+            [authUser.user_id, pageId]
+        );
+        return res.status(200).json({ success: true, page_id: pageId });
+    } catch (error) {
+        console.error('Error hiding page posts:', error);
+        return res.status(500).json({ message: 'Failed to hide posts from page.' });
+    }
+});
+
 // -------- EVENTS DATA -------- //
 router.get('/events-data', async (req, res) => {
     try {
+        const userId = await resolveUserId(req);
         const evRes = await pool.query(
             `SELECT p.post_id AS id,
                     p.post_id AS event_id,
@@ -1130,16 +1235,24 @@ router.get('/events-data', async (req, res) => {
                     ed.capacity AS max_capacity,
                     pg.page_name,
                     pg.page_name AS department_name,
-                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count
+                    pg.avatar_url AS page_avatar_url,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count,
+                    CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN pages pg ON p.page_id = pg.page_id
              LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
+             LEFT JOIN page_follows pf ON p.page_id = pf.page_id AND pf.follower_user_id = $1
              WHERE p.post_type = 'event'
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
-             GROUP BY p.post_id, ed.post_id, pg.page_id
-             ORDER BY ed.event_date ASC`
+               AND ($1::int IS NULL OR NOT EXISTS (
+                   SELECT 1 FROM user_hidden_posts uhp
+                   WHERE uhp.user_id = $1 AND uhp.post_id = p.post_id
+               ))
+             GROUP BY p.post_id, ed.post_id, pg.page_id, pf.follow_id
+             ORDER BY ed.event_date ASC`,
+            [userId]
         );
         return res.status(200).json({ events: evRes.rows });
     } catch (error) {
@@ -1159,6 +1272,7 @@ router.get('/my-events', async (req, res) => {
         const result = await pool.query(
             `SELECT p.post_id AS id,
                     p.post_id AS event_id,
+                    p.page_id,
                     p.title,
                     p.title AS event_title,
                     p.content AS event_description,
@@ -1178,13 +1292,16 @@ router.get('/my-events', async (req, res) => {
                     ed.capacity,
                     pg.page_name,
                     pg.page_name AS department_name,
+                    pg.avatar_url AS page_avatar_url,
                     er.registration_id,
                     er.status AS registration_status,
-                    er.registered_at
+                    er.registered_at,
+                    CASE WHEN pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed
              FROM event_registrations er
              JOIN event_details ed ON er.event_post_id = ed.post_id
              JOIN posts p ON ed.post_id = p.post_id
              LEFT JOIN pages pg ON p.page_id = pg.page_id
+             LEFT JOIN page_follows pf ON p.page_id = pf.page_id AND pf.follower_user_id = $1
              WHERE er.registrant_user_id = $1
                AND LOWER(er.status) != 'cancelled'
              ORDER BY ed.event_date ASC`,

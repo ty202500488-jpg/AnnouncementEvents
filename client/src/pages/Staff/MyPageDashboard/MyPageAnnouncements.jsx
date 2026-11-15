@@ -7,7 +7,7 @@ export default function MyPageAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all');
+  const [filter] = useState('all');
 
   useEffect(() => {
     const fetchAnnouncements = async () => {
@@ -72,48 +72,6 @@ export default function MyPageAnnouncements() {
             display: none;
           }
         `}</style>
-
-        {/* Header */}
-        <div 
-          className="flex items-center justify-between" 
-          style={{ 
-            marginBottom: '1.25rem', 
-            paddingBottom: '0.625rem', 
-            borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
-          }}
-        >
-          <div>
-            <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.0625rem', margin: 0 }}>Campus Announcements</h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Review department updates and campus announcements.</p>
-          </div>
-          
-          <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
-            {['all', 'university'].map((type) => {
-              const isActive = filter === type;
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setFilter(type)}
-                  style={{
-                    padding: '0.3rem 0.625rem',
-                    borderRadius: '0.375rem',
-                    backgroundColor: isActive ? '#8c1030' : 'transparent',
-                    color: isActive ? '#ffffff' : 'var(--slate-600)',
-                    fontWeight: 600,
-                    fontSize: '0.75rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {type}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>

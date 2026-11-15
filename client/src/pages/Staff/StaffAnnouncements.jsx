@@ -7,19 +7,17 @@ import '../styles/StaffDashboard.css';
 export default function StaffAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [followedDepts, setFollowedDepts] = useState({});
-  const highlightedPostId = useHighlightedPost(!loading && announcements.length > 0, () => setFilter('all'));
+  const highlightedPostId = useHighlightedPost(!loading && announcements.length > 0);
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
     const fetchAnnouncements = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/dashboard-data', {
-          method: 'GET',
+        const response = await fetch('http://localhost:5000/users/dashboard-data', {
+          method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
           }
         });
         const data = await response.json();
@@ -33,20 +31,32 @@ export default function StaffAnnouncements() {
       }
     };
     fetchAnnouncements();
-  }, []);
+  }, [token]);
 
-  const toggleFollow = (deptKey) => {
-    setFollowedDepts(prev => ({
-      ...prev,
-      [deptKey]: !prev[deptKey]
-    }));
+  const handleToggleFollow = async (pageId, currentFollowState) => {
+    if (!pageId || !token) return;
+    const method = currentFollowState ? 'DELETE' : 'POST';
+    try {
+      const response = await fetch(`http://localhost:5000/api/pages/${pageId}/follow`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setAnnouncements(prev =>
+          prev.map(item =>
+            item.page_id === pageId ? { ...item, is_followed: !currentFollowState } : item
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Failed to update follow status:', err);
+    }
   };
 
-  const filteredAnnouncements = announcements.filter(item => {
-    if (filter === 'university') return item.is_university;
-    if (filter === 'followed') return !item.is_university;
-    return true;
-  });
+  const filteredAnnouncements = announcements.filter(item => !!item.is_followed);
 
   return (
     <StaffDashboardLayout activePage="announcements">
@@ -64,47 +74,6 @@ export default function StaffAnnouncements() {
           }
         `}</style>
 
-        {/* Compact Title & Filter Header */}
-        <div 
-          className="flex items-center justify-between" 
-          style={{ 
-            marginBottom: '0.875rem', 
-            paddingBottom: '0.625rem', 
-            borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
-          }}
-        >
-          <div>
-            <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.0625rem' }}>Campus Announcements</h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Review official department updates and announcements.</p>
-          </div>
-          
-          <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
-            {['all', 'university'].map((type) => {
-              const isActive = filter === type;
-              return (
-                <button
-                  key={type}
-                  onClick={() => setFilter(type)}
-                  style={{
-                    padding: '0.3rem 0.625rem',
-                    borderRadius: '0.375rem',
-                    backgroundColor: isActive ? '#8c1030' : 'transparent',
-                    color: isActive ? '#ffffff' : 'var(--slate-600)',
-                    fontWeight: 600,
-                    fontSize: '0.75rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {type}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {loading ? (
           <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>
             <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#8c1030' }}></i>
@@ -113,15 +82,14 @@ export default function StaffAnnouncements() {
         ) : filteredAnnouncements.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)', backgroundColor: '#ffffff', borderRadius: '0.625rem', border: '1px solid var(--slate-200)' }}>
             <i className="fa-solid fa-bullhorn" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
-            <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No announcements available for this filter.</p>
+            <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No announcements from followed pages yet.</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {filteredAnnouncements.map((item, index) => {
               const deptName = item.department_name || item.page_name || 'Staff Department Office';
               const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-              const deptKey = item.department_id || item.page_id || deptName;
-              const isFollowed = !!followedDepts[deptKey];
+              const isFollowed = !!item.is_followed;
               const postDate = formatPostTimestamp(item.created_at);
               const postImage = item.image_url || item.image || null;
               const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
@@ -163,9 +131,34 @@ export default function StaffAnnouncements() {
                       </div>
 
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {deptName}
-                        </h4>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                          <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {deptName}
+                          </h4>
+                          {item.page_id && (
+                            <>
+                              <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>•</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleFollow(item.page_id, isFollowed)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: 0,
+                                  margin: 0,
+                                  color: '#2563eb',
+                                  fontSize: '0.8125rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  lineHeight: 1.2
+                                }}
+                                title={isFollowed ? 'Click to unfollow' : 'Click to follow'}
+                              >
+                                {isFollowed ? 'Following' : 'Follow'}
+                              </button>
+                            </>
+                          )}
+                        </div>
                         <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
@@ -174,46 +167,6 @@ export default function StaffAnnouncements() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                      {!isFollowed && (
-                        <button 
-                          onClick={() => toggleFollow(deptKey)}
-                          style={{
-                            backgroundColor: '#8c1030',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '0.5rem',
-                            padding: '0.4rem 1rem',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'opacity 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => e.target.style.opacity = '0.9'}
-                          onMouseLeave={(e) => e.target.style.opacity = '1'}
-                        >
-                          Follow
-                        </button>
-                      )}
-
-                      {isFollowed && (
-                        <button 
-                          onClick={() => toggleFollow(deptKey)}
-                          style={{
-                            backgroundColor: '#f1f5f9',
-                            color: '#475569',
-                            border: '1px solid #e2e8f0',
-                            borderRadius: '0.5rem',
-                            padding: '0.4rem 1rem',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
-                          }}
-                          title="Click to unfollow"
-                        >
-                          Following ✓
-                        </button>
-                      )}
 
                       <button 
                         style={{

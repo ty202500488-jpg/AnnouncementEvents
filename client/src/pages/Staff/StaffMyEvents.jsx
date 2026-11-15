@@ -8,7 +8,8 @@ export default function StaffMyEvents() {
   const [myEvents, setMyEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [followedDepts, setFollowedDepts] = useState({});
+  const [togglingPageId, setTogglingPageId] = useState(null);
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
     const fetchMyEvents = async () => {
@@ -19,7 +20,10 @@ export default function StaffMyEvents() {
 
         const response = await fetch(`http://localhost:5000/users/my-events?staff_id=${staffId}`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
         });
         const data = await response.json();
         if (response.ok && data.events) {
@@ -57,11 +61,30 @@ export default function StaffMyEvents() {
     }
   };
 
-  const toggleFollow = (deptKey) => {
-    setFollowedDepts(prev => ({
-      ...prev,
-      [deptKey]: !prev[deptKey]
-    }));
+  const handleToggleFollow = async (pageId, currentFollowState) => {
+    if (!pageId || !token) return;
+    setTogglingPageId(pageId);
+    const method = currentFollowState ? 'DELETE' : 'POST';
+    try {
+      const response = await fetch(`http://localhost:5000/api/pages/${pageId}/follow`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        setMyEvents(prev =>
+          prev.map(item =>
+            item.page_id === pageId ? { ...item, is_followed: !currentFollowState } : item
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Failed to update follow status:', err);
+    } finally {
+      setTogglingPageId(null);
+    }
   };
 
   const filteredEvents = myEvents.filter(item => {
@@ -164,8 +187,8 @@ export default function StaffMyEvents() {
               const isUpcoming = new Date(item.date) >= new Date();
               const deptName = item.department_name || 'University Office';
               const avatarText = deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-              const deptKey = item.department_id || deptName;
-              const isFollowed = !!followedDepts[deptKey];
+              const pageId = item.page_id;
+              const isFollowed = !!item.is_followed;
               const postDate = item.date ? new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBA';
               const postImage = item.image_url || item.image || null;
               
@@ -208,10 +231,34 @@ export default function StaffMyEvents() {
                       </div>
 
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                           <h4 style={{ fontWeight: 700, color: '#16162b', fontSize: '0.9375rem', margin: 0, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {deptName}
                           </h4>
+                          {pageId && (
+                            <>
+                              <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>•</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleFollow(pageId, isFollowed)}
+                                disabled={togglingPageId === pageId}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: 0,
+                                  margin: 0,
+                                  color: '#2563eb',
+                                  fontSize: '0.8125rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  lineHeight: 1.2
+                                }}
+                                title={isFollowed ? 'Click to unfollow' : 'Click to follow'}
+                              >
+                                {togglingPageId === pageId ? 'Updating...' : isFollowed ? 'Following' : 'Follow'}
+                              </button>
+                            </>
+                          )}
                           <span 
                             style={{ 
                               fontSize: '0.625rem', 
@@ -237,46 +284,6 @@ export default function StaffMyEvents() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                      {!isFollowed && (
-                        <button 
-                          onClick={() => toggleFollow(deptKey)}
-                          style={{
-                            backgroundColor: '#8c1030',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '0.5rem',
-                            padding: '0.4rem 1rem',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'opacity 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => e.target.style.opacity = '0.9'}
-                          onMouseLeave={(e) => e.target.style.opacity = '1'}
-                        >
-                          Follow
-                        </button>
-                      )}
-
-                      {isFollowed && (
-                        <button 
-                          onClick={() => toggleFollow(deptKey)}
-                          style={{
-                            backgroundColor: '#f1f5f9',
-                            color: '#475569',
-                            border: '1px solid #e2e8f0',
-                            borderRadius: '0.5rem',
-                            padding: '0.4rem 1rem',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease'
-                          }}
-                          title="Click to unfollow"
-                        >
-                          Following ✓
-                        </button>
-                      )}
 
                       <button 
                         style={{

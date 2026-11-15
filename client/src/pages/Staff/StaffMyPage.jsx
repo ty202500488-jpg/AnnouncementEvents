@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import MyPageProfile from './MyPageDashboard/MyPageProfile';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import '../styles/StaffDashboard.css';
 import '../styles/MyPage.css';
@@ -382,6 +383,15 @@ export default function StaffMyPage() {
           </div>
         </main>
       </StaffDashboardLayout>
+    );
+  }
+
+  if (pageData) {
+    return (
+      <MyPageProfile
+        fromStaffDashboard
+        onSwitchToStaffDashboard={() => navigate('/staff/dashboard')}
+      />
     );
   }
 

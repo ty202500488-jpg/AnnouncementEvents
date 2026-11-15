@@ -70,10 +70,12 @@ export default function StaffProfile() {
     }
   };
 
+  const initials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || 'WM';
+
   return (
     <StaffDashboardLayout activePage="profile">
       {/* ==================== CENTER MAIN CONTENT (PROFILE MANAGEMENT) ==================== */}
-      <main className="lg-col-6 space-y-6">
+      <main className="lg-col-6 space-y-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '2rem' }}>
         {saveMessage && (
           <div className="alert-success">
             <i className="fa-solid fa-circle-check"></i>
@@ -85,28 +87,31 @@ export default function StaffProfile() {
         <div className="card profile-banner-card">
           <div className="profile-cover-bg"></div>
           <div className="profile-header-content">
+            <div className="profile-initials-avatar" aria-hidden="true">
+              {initials}
+            </div>
             <div className="profile-header-text">
               <h2>{user.firstName} {user.lastName}</h2>
               <p className="profile-program-tag">{user.program}</p>
-              <p className="profile-institution">Western Mindanao State University • Student ID: {user.studentId}</p>
+              <p className="profile-institution">Western Mindanao State University • ID: {user.studentId}</p>
             </div>
           </div>
         </div>
 
         {/* Profile Details & Form Card */}
         <div className="card" style={{ padding: '1.75rem' }}>
-          <div className="flex items-center justify-between" style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem', borderBottom: '1px solid var(--slate-100)', paddingBottom: '1rem' }}>
             <div>
-              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem' }}>Personal Information</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>Manage your personal details and academic program settings.</p>
+              <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1rem', margin: 0 }}>Personal Information</h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', margin: '0.25rem 0 0 0' }}>Manage your personal details and academic program settings.</p>
             </div>
             {!isEditing ? (
-              <button onClick={() => setIsEditing(true)} className="edit-profile-btn">
+              <button type="button" onClick={() => setIsEditing(true)} className="edit-profile-btn">
                 <i className="fa-solid fa-pen-to-square"></i>
                 <span>Edit Profile</span>
               </button>
             ) : (
-              <button onClick={() => { setIsEditing(false); setFormData(user); }} className="cancel-profile-btn">
+              <button type="button" onClick={() => { setIsEditing(false); setFormData(user); }} className="cancel-profile-btn">
                 Cancel
               </button>
             )}
