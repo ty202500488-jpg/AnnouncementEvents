@@ -4,6 +4,7 @@ import AdminLayout from '../../assets/components/AdminLayout';
 import Pagination from '../../assets/components/Pagination';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import UniversityWideSpotlight from '../../assets/components/UniversityWideSpotlight';
+import { DepartmentPagesSidebarList } from '../../assets/components/PortalShellElements';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import '../styles/ContentFeed.css';
 
@@ -35,8 +36,8 @@ const ContentFeed = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // View Mode ('management' vs 'student_feed') & Filter States (Parts 10 & 11)
-  const [viewMode, setViewMode] = useState('management'); // 'management' | 'student_feed'
+  // View Mode ('student_feed' default | 'management' grid) & Filter States
+  const [viewMode, setViewMode] = useState('student_feed');
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'announcements', 'events', 'scheduled', 'archived', 'takedown'
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -46,11 +47,14 @@ const ContentFeed = () => {
   const [academicYearFilter, setAcademicYearFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
   const [sortOrder, setSortOrder] = useState('newest');
+  const [showMobileControls, setShowMobileControls] = useState(false);
 
-  // Filter Metadata Options
+  // Filter Metadata & Department Pages Options
   const [collegesList, setCollegesList] = useState([]);
   const [categoriesList, setCategoriesList] = useState([]);
   const [academicYearsList, setAcademicYearsList] = useState([]);
+  const [approvedPages, setApprovedPages] = useState([]);
+  const [loadingPages, setLoadingPages] = useState(true);
 
   // Data States
   const [items, setItems] = useState([]);
@@ -113,7 +117,7 @@ const ContentFeed = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch filter metadata (colleges, categories, academic years)
+  // Fetch filter metadata (colleges, categories, academic years) & approved department pages
   useEffect(() => {
     const token = localStorage.getItem('token');
     fetch('/api/admin/reports/metadata', {
@@ -127,6 +131,18 @@ const ContentFeed = () => {
         if (Array.isArray(data.academicYears)) setAcademicYearsList(data.academicYears);
       })
       .catch(() => {});
+
+    fetch('/api/approved-pages', {
+      headers: { Authorization: token ? `Bearer ${token}` : '' }
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data && Array.isArray(data.pages)) {
+          setApprovedPages(data.pages);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingPages(false));
   }, []);
 
   // Close Create Dropdown when clicking outside
@@ -146,12 +162,12 @@ const ContentFeed = () => {
     setError(null);
     const token = localStorage.getItem('token');
 
-    const effectiveTab = viewMode === 'student_feed'
-      ? (['all', 'announcements', 'events'].includes(activeTab) ? activeTab : 'all')
-      : activeTab;
-    const effectiveStatus = viewMode === 'student_feed' && statusFilter === 'all'
-      ? 'approved'
-      : statusFilter;
+    const effectiveTab = activeTab;
+    const isActiveFeedTab = ['all', 'announcements', 'events'].includes(activeTab);
+    const effectiveStatus =
+      viewMode === 'student_feed' && isActiveFeedTab && statusFilter === 'all'
+        ? 'approved'
+        : statusFilter;
 
     const params = new URLSearchParams({
       tab: effectiveTab,
@@ -221,9 +237,6 @@ const ContentFeed = () => {
 
   const handleSwitchViewMode = (mode) => {
     setViewMode(mode);
-    if (mode === 'student_feed' && ['scheduled', 'archived', 'takedown'].includes(activeTab)) {
-      setActiveTab('all');
-    }
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
@@ -413,541 +426,830 @@ const ContentFeed = () => {
     dateFilter !== '' ||
     sortOrder !== 'newest';
 
-  return (
-    <AdminLayout>
-      <div className="content-feed-container">
-        
-        {/* ================= PAGE HEADER ================= */}
-        <div className="feed-header">
-          <div>
-            <h1 className="feed-title">Announcements & Events</h1>
-            <p className="feed-subtitle">
-              View, filter, publish, moderate, and manage all campus announcements, events, registrations, and attendance.
-            </p>
-          </div>
+  const activeFilterCount = [
+    categoryFilter !== 'all',
+    collegeFilter !== 'all',
+    statusFilter !== 'all',
+    academicYearFilter !== 'all',
+    dateFilter !== '',
+    sortOrder !== 'newest',
+  ].filter(Boolean).length;
 
-          <div className="feed-header-actions" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-            <div
-              style={{
-                display: 'inline-flex',
-                background: '#f1f5f9',
-                padding: '0.25rem',
-                borderRadius: '0.65rem',
-                border: '1px solid #e2e8f0',
-                gap: '0.25rem'
-              }}
-              role="group"
-              aria-label="Switch Content Feed View"
-            >
-              <button
-                type="button"
-                onClick={() => handleSwitchViewMode('management')}
-                style={{
-                  border: 'none',
-                  borderRadius: '0.45rem',
-                  padding: '0.42rem 0.8rem',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  background: viewMode === 'management' ? '#ffffff' : 'transparent',
-                  color: viewMode === 'management' ? '#7b0d1e' : '#64748b',
-                  boxShadow: viewMode === 'management' ? '0 1px 2px rgba(15,23,42,0.08)' : 'none'
-                }}
-              >
-                <i className="fa-solid fa-table-list"></i>
-                <span>Management View</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSwitchViewMode('student_feed')}
-                style={{
-                  border: 'none',
-                  borderRadius: '0.45rem',
-                  padding: '0.42rem 0.8rem',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  background: viewMode === 'student_feed' ? '#7b0d1e' : 'transparent',
-                  color: viewMode === 'student_feed' ? '#ffffff' : '#64748b',
-                  boxShadow: viewMode === 'student_feed' ? '0 1px 2px rgba(123,13,30,0.22)' : 'none'
-                }}
-              >
-                <i className="fa-solid fa-newspaper"></i>
-                <span>Student Feed View</span>
-              </button>
-            </div>
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setCategoryFilter('all');
+    setCollegeFilter('all');
+    setStatusFilter('all');
+    setAcademicYearFilter('all');
+    setDateFilter('');
+    setSortOrder('newest');
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
 
-            <button 
-              type="button" 
-              className="btn-feed-secondary" 
-              onClick={fetchFeedData}
-              disabled={loading}
-              title="Refresh Content Feed"
-            >
-              <i className={`fa-solid fa-rotate-right ${loading ? 'spin-icon' : ''}`}></i>
-              <span>Refresh</span>
-            </button>
+  const viewNavItems = [
+    { id: 'all', label: 'All Content', icon: 'fa-solid fa-layer-group' },
+    { id: 'announcements', label: 'Announcements', icon: 'fa-solid fa-bullhorn' },
+    { id: 'events', label: 'Events', icon: 'fa-solid fa-calendar-days' },
+    { id: 'scheduled', label: 'Scheduled', icon: 'fa-solid fa-clock' },
+    { id: 'archived', label: 'Archived', icon: 'fa-solid fa-box-archive' },
+    { id: 'takedown', label: 'Taken Down', icon: 'fa-solid fa-shield-halved' },
+  ];
 
-            {/* Create Content Dropdown Button */}
-            <div className="create-menu-wrapper" ref={createMenuRef}>
-              <button 
-                type="button" 
-                className="btn-feed-primary"
-                onClick={() => setShowCreateMenu(!showCreateMenu)}
-              >
-                <i className="fa-solid fa-plus"></i>
-                <span>Create Content</span>
-                <i className="fa-solid fa-chevron-down" style={{ fontSize: '0.7rem' }}></i>
-              </button>
-
-              {showCreateMenu && (
-                <div className="create-dropdown-menu">
-                  <button 
-                    type="button" 
-                    className="dropdown-menu-item"
-                    onClick={() => {
-                      setShowCreateMenu(false);
-                      setActiveModal('create_announcement');
-                    }}
-                  >
-                    <i className="fa-solid fa-bullhorn icon-maroon"></i>
-                    <div>
-                      <div className="menu-item-title">Create Announcement</div>
-                      <div className="menu-item-sub">Publish general campus updates</div>
-                    </div>
-                  </button>
-
-                  <button 
-                    type="button" 
-                    className="dropdown-menu-item"
-                    onClick={() => {
-                      setShowCreateMenu(false);
-                      setActiveModal('create_event');
-                    }}
-                  >
-                    <i className="fa-solid fa-calendar-days icon-maroon"></i>
-                    <div>
-                      <div className="menu-item-title">Create Event</div>
-                      <div className="menu-item-sub">Schedule activities & check-ins</div>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* FEEDBACK ALERT BANNERS */}
-        {feedback && (
-          <div className={`feed-alert-banner ${feedback.type}`}>
-            <div className="alert-content">
-              <i className={`fa-solid ${feedback.type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`}></i>
-              <span>{feedback.message}</span>
-            </div>
-            <button type="button" className="close-alert-btn" onClick={() => setFeedback(null)}>
-              <i className="fa-solid fa-xmark"></i>
-            </button>
-          </div>
+  const headerSearchNode = (
+    <div className="acf-header-search-wrap">
+      <div className="acf-header-search-pill">
+        <i className="fa-solid fa-magnifying-glass acf-header-search-icon" aria-hidden="true"></i>
+        <input
+          type="text"
+          placeholder="Search title, organizer, or page..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPagination(prev => ({ ...prev, page: 1 }));
+          }}
+          className="acf-header-search-input"
+          aria-label="Search announcements and events"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            className="acf-header-clear-btn"
+            onClick={() => {
+              setSearchQuery('');
+              setPagination(prev => ({ ...prev, page: 1 }));
+            }}
+            aria-label="Clear search"
+            title="Clear search"
+          >
+            <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+          </button>
         )}
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="acf-header-reset-chip"
+            onClick={handleResetFilters}
+            title="Reset all filters"
+          >
+            <i className="fa-solid fa-sliders" aria-hidden="true"></i>
+            <span>Reset</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
-        {/* ================= NAVIGATION TABS & FILTERS ================= */}
-        <div className="feed-controls-card">
-          
-          {/* Tabs */}
-          <div className="feed-tabs-list">
-            {(viewMode === 'student_feed'
-              ? [
-                  { id: 'all', label: 'All Active Posts' },
-                  { id: 'announcements', label: 'Announcements' },
-                  { id: 'events', label: 'Events' }
-                ]
-              : [
-                  { id: 'all', label: 'All Content' },
-                  { id: 'announcements', label: 'Announcements' },
-                  { id: 'events', label: 'Events' },
-                  { id: 'scheduled', label: 'Scheduled' },
-                  { id: 'archived', label: 'Archived' },
-                  { id: 'takedown', label: 'Taken Down' }
-                ]
-            ).map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`feed-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+  return (
+    <AdminLayout headerCenter={headerSearchNode} fullBleed>
+      <div className={`content-feed-container acf-workspace ${viewMode === 'management' ? 'is-grid-mode' : 'is-feed-mode'}`}>
 
-          {/* Filter & Search Toolbar */}
-          <div className="feed-toolbar">
-            
-            {/* Search Field */}
-            <div className="feed-search-box" style={{ minWidth: '250px', flex: '1 1 260px' }}>
-              <i className="fa-solid fa-magnifying-glass search-icon"></i>
-              <input 
-                type="text" 
+        {/* ================= RESPONSIVE MOBILE SEARCH & CONTROLS BAR (< 1100px) ================= */}
+        <div className="acf-mobile-bar">
+          <div className="acf-mobile-search-row">
+            <div className="acf-header-search-pill">
+              <i className="fa-solid fa-magnifying-glass acf-header-search-icon" aria-hidden="true"></i>
+              <input
+                type="text"
                 placeholder="Search title, organizer, or page..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="feed-search-input"
+                className="acf-header-search-input"
               />
               {searchQuery && (
-                <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')}>
+                <button
+                  type="button"
+                  className="acf-header-clear-btn"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  aria-label="Clear search"
+                >
                   <i className="fa-solid fa-xmark"></i>
                 </button>
               )}
             </div>
 
-            {/* School Year Filter (Management View only) */}
-            {viewMode === 'management' && (
-              <div className="feed-filter-item">
-                <select
-                  className="feed-select"
-                  value={academicYearFilter}
-                  onChange={(e) => {
-                    setAcademicYearFilter(e.target.value);
-                    setPagination(prev => ({ ...prev, page: 1 }));
-                  }}
-                  aria-label="Filter by School Year"
-                >
-                  <option value="all">All School Years</option>
-                  {academicYearsList.map(ay => (
-                    <option key={ay.id} value={ay.id}>
-                      SY {ay.label}{ay.is_active ? ' (Active)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Category Filter */}
-            <div className="feed-filter-item">
-              <select 
-                id="category-select"
-                className="feed-select" 
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                <option value="all">All Categories</option>
-                {categoriesList.length > 0 ? (
-                  categoriesList.map(c => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))
-                ) : (
-                  <>
-                    <option value="General">General</option>
-                    <option value="Academic">Academic</option>
-                    <option value="Urgent">Urgent</option>
-                    <option value="Campus Life">Campus Life</option>
-                    <option value="Sports">Sports</option>
-                    <option value="Scholarship">Scholarship</option>
-                  </>
-                )}
-              </select>
-            </div>
-
-            {/* College / Department Filter */}
-            <div className="feed-filter-item">
-              <select
-                className="feed-select"
-                value={collegeFilter}
-                onChange={(e) => {
-                  setCollegeFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                aria-label="Filter by College or Department"
-              >
-                <option value="all">All Colleges / Offices</option>
-                {collegesList.map(col => (
-                  <option key={col.id} value={col.name}>
-                    {col.code ? `${col.code} — ${col.name}` : col.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Status Filter (Management View only) */}
-            {viewMode === 'management' && (
-              <div className="feed-filter-item">
-                <select
-                  className="feed-select"
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value);
-                    setPagination(prev => ({ ...prev, page: 1 }));
-                  }}
-                  aria-label="Filter by Status"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="Published">Published</option>
-                  <option value="Upcoming">Upcoming</option>
-                  <option value="Ongoing">Ongoing</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Archived">Archived</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
-              </div>
-            )}
-
-            {/* Date Filter (Management View only) */}
-            {viewMode === 'management' && (
-              <div className="feed-filter-item">
-                <input
-                  type="date"
-                  className="feed-select"
-                  value={dateFilter}
-                  onChange={(e) => {
-                    setDateFilter(e.target.value);
-                    setPagination(prev => ({ ...prev, page: 1 }));
-                  }}
-                  title="Filter by Event or Publication Date"
-                />
-              </div>
-            )}
-
-            {/* Sorting Order */}
-            <div className="feed-filter-item">
-              <select 
-                id="sort-select"
-                className="feed-select" 
-                value={sortOrder}
-                onChange={(e) => {
-                  setSortOrder(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-              </select>
-            </div>
-
-            {/* Reset Filters */}
-            {hasActiveFilters && (
-              <button 
-                type="button" 
-                className="btn-feed-link"
-                onClick={() => {
-                  setSearchQuery('');
-                  setCategoryFilter('all');
-                  setCollegeFilter('all');
-                  setStatusFilter('all');
-                  setAcademicYearFilter('all');
-                  setDateFilter('');
-                  setSortOrder('newest');
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                Reset Filters
-              </button>
-            )}
-
+            <button
+              type="button"
+              className={`acf-mobile-filter-toggle ${showMobileControls ? 'is-active' : ''}`}
+              onClick={() => setShowMobileControls(prev => !prev)}
+            >
+              <i className="fa-solid fa-sliders"></i>
+              <span>Views &amp; Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="acf-filter-count-pill">{activeFilterCount}</span>
+              )}
+            </button>
           </div>
-
         </div>
 
-        {/* ================= CONTENT LISTING ================= */}
-        {loading ? (
-          <div className="feed-skeleton-grid">
-            {[1, 2, 3, 4].map(n => (
-              <div key={n} className="skeleton-card">
-                <div className="skeleton-line width-40 height-20"></div>
-                <div className="skeleton-line width-80 height-24"></div>
-                <div className="skeleton-line width-100 height-60"></div>
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="feed-empty-state">
-            <i className="fa-solid fa-triangle-exclamation empty-icon text-rose"></i>
-            <h3 className="empty-title">Error Loading Content</h3>
-            <p className="empty-desc">{error}</p>
-            <button type="button" className="btn-feed-primary" onClick={fetchFeedData}>Retry</button>
-          </div>
-        ) : items.length === 0 ? (
-          <div className="feed-empty-state">
-            <i className="fa-solid fa-box-open empty-icon"></i>
-            <h3 className="empty-title">No Content Records Found</h3>
-            <p className="empty-desc">
-              {hasActiveFilters
-                ? 'No items match your active search or filter criteria.'
-                : 'There are no items currently listed in this category view.'}
-            </p>
-          </div>
-        ) : viewMode === 'student_feed' ? (
-          <div className="csf-layout">
-            {/* Main Student Feed Column */}
-            <div className="csf-main">
-              {items.map((item) => {
-                const isEvent = item.type === 'event';
-                const deptName = item.page_name || item.department_name || 'University Notice';
-                const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-                const postTimestamp = formatPostTimestamp(item.created_at);
-                const postKey = `${item.type}-${item.id}`;
-                const avatarSrc = resolveMediaUrl(item.page_avatar_url);
-                const postImage = resolveMediaUrl(item.image_url);
-                const avatarFailed = Boolean(failedImages[`avatar-${postKey}`]);
-                const mediaFailed = Boolean(failedImages[`media-${postKey}`]);
-                const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
+        {/* ================= 3-COLUMN FACEBOOK-INSPIRED WORKSPACE ================= */}
+        <div className="acf-shell">
 
-                return (
-                  <article key={postKey} className="csf-post-card">
-                    {/* Student-Style Post Header */}
-                    <div className="csf-post-header">
-                      <div className="csf-author-wrap">
-                        <div className="csf-avatar">
-                          {avatarSrc && !avatarFailed ? (
-                            <img
-                              src={avatarSrc}
-                              alt={deptName}
-                              onError={() => markImageFailed(`avatar-${postKey}`)}
-                            />
-                          ) : (
-                            avatarText
-                          )}
+          {/* LEFT BORDERLESS RAIL: CREATE, VIEW MODE, VIEWS & FILTERS */}
+          <aside className={`acf-left-rail ${showMobileControls ? 'is-mobile-open' : ''}`}>
+            <div className="acf-left-inner">
+
+              {/* Top Page Title & Primary Controls */}
+              <div className="acf-rail-top">
+                <div className="acf-rail-heading-row">
+                  <div>
+                    <h1 className="acf-rail-title">Announcements &amp; Events</h1>
+                    <p className="acf-rail-sub">Feed moderation &amp; publishing</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="acf-icon-circle-btn"
+                    onClick={fetchFeedData}
+                    disabled={loading}
+                    title="Refresh Content Feed"
+                    aria-label="Refresh Content Feed"
+                  >
+                    <i className={`fa-solid fa-rotate-right ${loading ? 'spin-icon' : ''}`}></i>
+                  </button>
+                </div>
+
+                {/* Create Content Dropdown Button */}
+                <div className="create-menu-wrapper acf-create-full" ref={createMenuRef}>
+                  <button
+                    type="button"
+                    className="btn-feed-primary acf-create-primary-btn"
+                    onClick={() => setShowCreateMenu(!showCreateMenu)}
+                  >
+                    <span className="acf-create-btn-label">
+                      <i className="fa-solid fa-plus"></i>
+                      <span>Create Content</span>
+                    </span>
+                    <i className="fa-solid fa-chevron-down" style={{ fontSize: '0.7rem' }}></i>
+                  </button>
+
+                  {showCreateMenu && (
+                    <div className="create-dropdown-menu acf-create-dropdown-left">
+                      <button
+                        type="button"
+                        className="dropdown-menu-item"
+                        onClick={() => {
+                          setShowCreateMenu(false);
+                          setActiveModal('create_announcement');
+                        }}
+                      >
+                        <i className="fa-solid fa-bullhorn icon-maroon"></i>
+                        <div>
+                          <div className="menu-item-title">Create Announcement</div>
+                          <div className="menu-item-sub">Publish general campus updates</div>
                         </div>
+                      </button>
 
-                        <div className="csf-author-meta">
-                          <div className="csf-badges-row">
-                            <h4 className="csf-page-name">{deptName}</h4>
-                            {item.is_university_wide && (
-                              <span className="csf-pill-uw">University-Wide</span>
-                            )}
-                            {item.is_pinned && (
-                              <span className="csf-pill-pinned">Pinned</span>
-                            )}
-                            <span className="category-pill">{item.category || 'General'}</span>
+                      <button
+                        type="button"
+                        className="dropdown-menu-item"
+                        onClick={() => {
+                          setShowCreateMenu(false);
+                          setActiveModal('create_event');
+                        }}
+                      >
+                        <i className="fa-solid fa-calendar-days icon-maroon"></i>
+                        <div>
+                          <div className="menu-item-title">Create Event</div>
+                          <div className="menu-item-sub">Schedule activities &amp; check-ins</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Feed View (Default) vs Grid View Switch */}
+                <div className="acf-mode-switch" role="group" aria-label="Switch Content Layout">
+                  <button
+                    type="button"
+                    className={`acf-mode-btn ${viewMode === 'student_feed' ? 'is-active' : ''}`}
+                    onClick={() => handleSwitchViewMode('student_feed')}
+                  >
+                    <i className="fa-solid fa-newspaper"></i>
+                    <span>Feed View</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`acf-mode-btn ${viewMode === 'management' ? 'is-active' : ''}`}
+                    onClick={() => handleSwitchViewMode('management')}
+                  >
+                    <i className="fa-solid fa-table-cells-large"></i>
+                    <span>Grid View</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* VIEWS SECTION */}
+              <div className="acf-rail-section">
+                <div className="acf-rail-section-label">Views</div>
+                <nav className="acf-nav-list" aria-label="Content views">
+                  {viewNavItems.map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        className={`acf-nav-item ${isActive ? 'is-active' : ''}`}
+                        onClick={() => {
+                          setActiveTab(tab.id);
+                          setPagination(prev => ({ ...prev, page: 1 }));
+                        }}
+                      >
+                        <span className="acf-nav-icon" aria-hidden="true">
+                          <i className={tab.icon}></i>
+                        </span>
+                        <span className="acf-nav-text">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              {/* FILTERS SECTION */}
+              <div className="acf-rail-section">
+                <div className="acf-rail-section-header">
+                  <span className="acf-rail-section-label">Filters</span>
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      className="btn-feed-link"
+                      onClick={handleResetFilters}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+
+                <div className="acf-filters-stack">
+                  <div className="acf-filter-field">
+                    <label htmlFor="acf-year-select">School Year</label>
+                    <select
+                      id="acf-year-select"
+                      className="feed-select acf-rail-select"
+                      value={academicYearFilter}
+                      onChange={(e) => {
+                        setAcademicYearFilter(e.target.value);
+                        setPagination(prev => ({ ...prev, page: 1 }));
+                      }}
+                    >
+                      <option value="all">All School Years</option>
+                      {academicYearsList.map(ay => (
+                        <option key={ay.id} value={ay.id}>
+                          SY {ay.label}{ay.is_active ? ' (Active)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="acf-filter-field">
+                    <label htmlFor="category-select">Category</label>
+                    <select
+                      id="category-select"
+                      className="feed-select acf-rail-select"
+                      value={categoryFilter}
+                      onChange={(e) => {
+                        setCategoryFilter(e.target.value);
+                        setPagination(prev => ({ ...prev, page: 1 }));
+                      }}
+                    >
+                      <option value="all">All Categories</option>
+                      {categoriesList.length > 0 ? (
+                        categoriesList.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))
+                      ) : (
+                        <>
+                          <option value="General">General</option>
+                          <option value="Academic">Academic</option>
+                          <option value="Urgent">Urgent</option>
+                          <option value="Campus Life">Campus Life</option>
+                          <option value="Sports">Sports</option>
+                          <option value="Scholarship">Scholarship</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="acf-filter-field">
+                    <label htmlFor="acf-college-select">College / Office</label>
+                    <select
+                      id="acf-college-select"
+                      className="feed-select acf-rail-select"
+                      value={collegeFilter}
+                      onChange={(e) => {
+                        setCollegeFilter(e.target.value);
+                        setPagination(prev => ({ ...prev, page: 1 }));
+                      }}
+                    >
+                      <option value="all">All Colleges / Offices</option>
+                      {collegesList.map(col => (
+                        <option key={col.id} value={col.name}>
+                          {col.code ? `${col.code} — ${col.name}` : col.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="acf-filter-field">
+                    <label htmlFor="acf-status-select">Status</label>
+                    <select
+                      id="acf-status-select"
+                      className="feed-select acf-rail-select"
+                      value={statusFilter}
+                      onChange={(e) => {
+                        setStatusFilter(e.target.value);
+                        setPagination(prev => ({ ...prev, page: 1 }));
+                      }}
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="Published">Published</option>
+                      <option value="Upcoming">Upcoming</option>
+                      <option value="Ongoing">Ongoing</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Archived">Archived</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+                  </div>
+
+                  <div className="acf-filter-row-split">
+                    <div className="acf-filter-field">
+                      <label htmlFor="acf-date-input">Date</label>
+                      <input
+                        id="acf-date-input"
+                        type="date"
+                        className="feed-select acf-rail-select"
+                        value={dateFilter}
+                        onChange={(e) => {
+                          setDateFilter(e.target.value);
+                          setPagination(prev => ({ ...prev, page: 1 }));
+                        }}
+                        title="Filter by Event or Publication Date"
+                      />
+                    </div>
+
+                    <div className="acf-filter-field">
+                      <label htmlFor="sort-select">Sort</label>
+                      <select
+                        id="sort-select"
+                        className="feed-select acf-rail-select"
+                        value={sortOrder}
+                        onChange={(e) => {
+                          setSortOrder(e.target.value);
+                          setPagination(prev => ({ ...prev, page: 1 }));
+                        }}
+                      >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </aside>
+
+          {/* CENTER SCROLLABLE STREAM (FEED VIEW AT 680px OR GRID VIEW) */}
+          <section className="acf-center-track" aria-label="Announcements and Events stream">
+            <div className="acf-center-inner">
+
+              {/* Mobile Spotlight slot (< 1080px) */}
+              <div className="acf-mobile-spotlight-slot">
+                <UniversityWideSpotlight role="admin" variant="mobile" />
+              </div>
+
+              {/* FEEDBACK ALERT BANNER */}
+              {feedback && (
+                <div className={`feed-alert-banner ${feedback.type}`}>
+                  <div className="alert-content">
+                    <i className={`fa-solid ${feedback.type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`}></i>
+                    <span>{feedback.message}</span>
+                  </div>
+                  <button type="button" className="close-alert-btn" onClick={() => setFeedback(null)}>
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+              )}
+
+              {/* CONTENT LISTING */}
+              {loading ? (
+                <div className={viewMode === 'student_feed' ? 'csf-main' : 'feed-skeleton-grid'}>
+                  {[1, 2, 3].map(n => (
+                    <div key={n} className="skeleton-card">
+                      <div className="skeleton-line width-40 height-20"></div>
+                      <div className="skeleton-line width-80 height-24"></div>
+                      <div className="skeleton-line width-100 height-60"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : error ? (
+                <div className="feed-empty-state">
+                  <i className="fa-solid fa-triangle-exclamation empty-icon text-rose"></i>
+                  <h3 className="empty-title">Error Loading Content</h3>
+                  <p className="empty-desc">{error}</p>
+                  <button type="button" className="btn-feed-primary" onClick={fetchFeedData}>Retry</button>
+                </div>
+              ) : items.length === 0 ? (
+                <div className="feed-empty-state">
+                  <i className="fa-solid fa-box-open empty-icon"></i>
+                  <h3 className="empty-title">No Content Records Found</h3>
+                  <p className="empty-desc">
+                    {hasActiveFilters
+                      ? 'No items match your active search or filter criteria.'
+                      : 'There are no items currently listed in this view.'}
+                  </p>
+                </div>
+              ) : viewMode === 'student_feed' ? (
+                <div className="csf-main">
+                  {items.map((item) => {
+                    const isEvent = item.type === 'event';
+                    const deptName = item.page_name || item.department_name || 'University Notice';
+                    const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+                    const postTimestamp = formatPostTimestamp(item.created_at);
+                    const postKey = `${item.type}-${item.id}`;
+                    const avatarSrc = resolveMediaUrl(item.page_avatar_url);
+                    const postImage = resolveMediaUrl(item.image_url);
+                    const avatarFailed = Boolean(failedImages[`avatar-${postKey}`]);
+                    const mediaFailed = Boolean(failedImages[`media-${postKey}`]);
+                    const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
+                    const isTakenDown = String(item.status).toLowerCase() === 'rejected';
+                    const descriptionText = item.description || item.body || 'No description provided.';
+
+                    return (
+                      <article key={postKey} className="csf-post-card">
+                        {/* 1. Student/Staff-Matched Post Header */}
+                        <div className="csf-post-header">
+                          <div
+                            className={`csf-author-wrap ${item.page_id ? 'is-clickable' : ''}`}
+                            onClick={() => item.page_id && navigate(`/page/${item.page_id}`)}
+                            title={item.page_id ? `View ${deptName} page` : undefined}
+                          >
+                            <div className="csf-avatar">
+                              {avatarSrc && !avatarFailed ? (
+                                <img
+                                  src={avatarSrc}
+                                  alt={deptName}
+                                  onError={() => markImageFailed(`avatar-${postKey}`)}
+                                />
+                              ) : (
+                                avatarText
+                              )}
+                            </div>
+
+                            <div className="csf-author-meta">
+                              <div className="csf-badges-row">
+                                <h4 className="csf-page-name">{deptName}</h4>
+                                {item.is_university_wide && (
+                                  <span className="csf-pill-uw">University-Wide</span>
+                                )}
+                                {item.is_pinned && (
+                                  <span className="csf-pill-pinned">Pinned</span>
+                                )}
+                                <span className="category-pill">{item.category || 'General'}</span>
+                              </div>
+
+                              <div className="csf-submeta">
+                                {isEvent ? (
+                                  <>
+                                    <span><i className="fa-solid fa-users"></i> {item.registered_count || 0} / {item.capacity || 'Unlimited'} registered</span>
+                                    <span>•</span>
+                                    <span><i className="fa-solid fa-location-dot"></i> {item.venue || item.location || 'University Campus'}</span>
+                                    <span>•</span>
+                                    <span><i className="fa-solid fa-clock"></i> {postTimestamp}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span><i className="fa-solid fa-clock"></i> Announcement • {postTimestamp}</span>
+                                    {item.author_name && (
+                                      <>
+                                        <span>•</span>
+                                        <span>By {item.author_name}</span>
+                                      </>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="csf-submeta">
-                            {isEvent ? (
+                          <span className={`workflow-status-badge status-${String(item.status).toLowerCase()}`}>
+                            {item.status}
+                          </span>
+                        </div>
+
+                        {/* 2. Student/Staff-Matched Full-Bleed Media + Content */}
+                        {postImage && !mediaFailed ? (
+                          <>
+                            <div className="csf-post-media">
+                              <img
+                                src={postImage}
+                                alt={item.title}
+                                loading="lazy"
+                                onError={() => markImageFailed(`media-${postKey}`)}
+                              />
+                            </div>
+                            <div className="csf-post-body-wrap">
+                              <h3 className="csf-post-title">{item.title}</h3>
+                              <p className="csf-post-text">{descriptionText}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="csf-post-body-wrap csf-text-only-body">
+                            <h3 className="csf-post-title is-uppercase">{item.title}</h3>
+                            <p className="csf-post-text">{descriptionText}</p>
+                            {postImage && mediaFailed && (
+                              <div className="csf-image-fallback">
+                                <i className="fa-solid fa-image"></i>
+                                <span>Attachment image could not be loaded for this post.</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 3. Admin Moderation Footer */}
+                        <div className="csf-post-footer">
+                          <span className="csf-post-meta-id">
+                            Post #{item.id} • Audience: {item.audience || 'All Campus'}
+                            {item.academic_year_label ? ` • SY ${item.academic_year_label}` : ''}
+                          </span>
+
+                          <div className="csf-footer-actions">
+                            <button
+                              type="button"
+                              className="csf-action-pill"
+                              onClick={() => handleOpenPreview(item)}
+                            >
+                              <i className="fa-solid fa-eye"></i>
+                              <span>View Details</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="csf-action-pill"
+                              onClick={() => handleOpenEdit(item)}
+                            >
+                              <i className="fa-solid fa-pen-to-square"></i>
+                              <span>Edit</span>
+                            </button>
+
+                            {isArchived || isTakenDown ? (
                               <>
-                                <span><i className="fa-solid fa-users"></i> {item.registered_count || 0} / {item.capacity || 'Unlimited'} registered</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-location-dot"></i> {item.venue || item.location || 'University Campus'}</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-clock"></i> {postTimestamp}</span>
+                                <button
+                                  type="button"
+                                  className="csf-btn-restore"
+                                  onClick={() => handleOpenConfirm('restore', item)}
+                                >
+                                  <i className="fa-solid fa-rotate-left"></i>
+                                  <span>Restore</span>
+                                </button>
+                                {isArchived && (
+                                  <button
+                                    type="button"
+                                    className="csf-btn-archive"
+                                    onClick={() => handleOpenConfirm('delete', item)}
+                                  >
+                                    <i className="fa-solid fa-trash-can"></i>
+                                    <span>Delete</span>
+                                  </button>
+                                )}
                               </>
                             ) : (
                               <>
-                                <span><i className="fa-solid fa-clock"></i> Announcement • {postTimestamp}</span>
-                                {item.author_name && (
-                                  <>
-                                    <span>•</span>
-                                    <span>By {item.author_name}</span>
-                                  </>
-                                )}
+                                <button
+                                  type="button"
+                                  className="csf-btn-archive"
+                                  title="Archive post, record reason in Audit Logs, and notify creator"
+                                  onClick={() => handleOpenConfirm('archive', item)}
+                                >
+                                  <i className="fa-solid fa-box-archive"></i>
+                                  <span>Archive</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="csf-btn-takedown"
+                                  title="Take down & archive post for policy violation"
+                                  onClick={() => handleOpenConfirm('takedown', item)}
+                                >
+                                  <i className="fa-solid fa-shield-halved"></i>
+                                  <span>Take Down</span>
+                                </button>
                               </>
                             )}
                           </div>
                         </div>
-                      </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="feed-cards-grid">
+                  {items.map(item => {
+                    const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
+                    const isTakenDown = String(item.status).toLowerCase() === 'rejected';
+                    const mgmtKey = `mgmt-${item.type}-${item.id}`;
+                    const cardThumb = resolveMediaUrl(item.image_url);
+                    const thumbFailed = Boolean(failedImages[mgmtKey]);
 
-                      <span className={`workflow-status-badge status-${String(item.status).toLowerCase()}`}>
-                        {item.status}
-                      </span>
-                    </div>
+                    return (
+                      <div key={`${item.type}-${item.id}`} className="feed-item-card">
 
-                    {/* Title & Body BEFORE Media for immediate scannability */}
-                    <div className="csf-post-body-wrap">
-                      <h3 className="csf-post-title">{item.title}</h3>
-                      <p className="csf-post-text">
-                        {item.description || item.body || 'No description provided.'}
-                      </p>
-                    </div>
+                        {/* Card Top Metadata Header */}
+                        <div className="card-top-bar">
+                          <div className="card-type-group">
+                            <span className={`type-badge ${item.type}`}>
+                              <i className={`fa-solid ${item.type === 'event' ? 'fa-calendar-days' : 'fa-bullhorn'}`}></i>
+                              {item.type}
+                            </span>
+                            <span className="category-pill">{item.category || 'General'}</span>
+                            {item.academic_year_label && (
+                              <span className="category-pill" style={{ background: '#fff1f2', color: '#7b0d1e' }}>
+                                SY {item.academic_year_label}
+                              </span>
+                            )}
+                          </div>
 
-                    {/* Post Media */}
-                    {postImage && !mediaFailed && (
-                      <div className="csf-post-media">
-                        <img
-                          src={postImage}
-                          alt={item.title}
-                          loading="lazy"
-                          onError={() => markImageFailed(`media-${postKey}`)}
-                        />
-                      </div>
-                    )}
+                          <span className={`workflow-status-badge status-${String(item.status).toLowerCase()}`}>
+                            {item.status}
+                          </span>
+                        </div>
 
-                    {postImage && mediaFailed && (
-                      <div className="csf-image-fallback">
-                        <i className="fa-solid fa-image"></i>
-                        <span>Attachment image could not be loaded for this post.</span>
-                      </div>
-                    )}
-
-                    {/* Admin Moderation Footer */}
-                    <div className="csf-post-footer">
-                      <span className="csf-post-meta-id">
-                        Post #{item.id} • Audience: {item.audience || 'All Campus'}
-                      </span>
-
-                      <div className="csf-footer-actions">
-                        <button
-                          type="button"
-                          className="btn-feed-secondary"
-                          style={{ padding: '0.38rem 0.78rem', fontSize: '0.78rem' }}
-                          onClick={() => handleOpenPreview(item)}
-                        >
-                          <i className="fa-solid fa-eye"></i>
-                          <span>View Details</span>
-                        </button>
-
-                        {!isArchived ? (
-                          <button
-                            type="button"
-                            className="csf-btn-archive"
-                            title="Archive violating or unwanted post, record reason in Audit Logs, and notify creator"
-                            onClick={() => handleOpenConfirm('archive', item)}
-                          >
-                            <i className="fa-solid fa-box-archive"></i>
-                            <span>Archive Post</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="csf-btn-restore"
-                            onClick={() => handleOpenConfirm('restore', item)}
-                          >
-                            <i className="fa-solid fa-rotate-left"></i>
-                            <span>Restore Post</span>
-                          </button>
+                        {cardThumb && !thumbFailed && (
+                          <div className="card-media-thumb">
+                            <img
+                              src={cardThumb}
+                              alt={item.title}
+                              loading="lazy"
+                              onError={() => markImageFailed(mgmtKey)}
+                            />
+                          </div>
                         )}
+
+                        {/* Card Title & Content Body */}
+                        <h2 className="card-item-title">{item.title}</h2>
+                        <p className="card-item-snippet">
+                          {item.description || item.body ? (
+                            (item.description || item.body).length > 140
+                              ? `${(item.description || item.body).substring(0, 140)}...`
+                              : (item.description || item.body)
+                          ) : 'No description provided.'}
+                        </p>
+
+                        {/* Event Specific Metadata Bar */}
+                        {item.type === 'event' && (
+                          <div className="event-meta-box">
+                            <div className="meta-row">
+                              <i className="fa-solid fa-clock meta-icon"></i>
+                              <span>{item.event_start ? new Date(item.event_start).toLocaleString() : 'Date TBD'}</span>
+                            </div>
+                            {item.venue && (
+                              <div className="meta-row">
+                                <i className="fa-solid fa-location-dot meta-icon"></i>
+                                <span>{item.venue}</span>
+                              </div>
+                            )}
+                            <div className="meta-row">
+                              <i className="fa-solid fa-users meta-icon"></i>
+                              <span>
+                                <strong>{item.registered_count || 0}</strong>{item.capacity ? `/${item.capacity}` : ''} Registered •{' '}
+                                <strong>{item.attended_count || 0}</strong> Attended
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Author & Creation Info */}
+                        <div className="card-author-footer">
+                          <div className="author-details">
+                            <span className="author-name">
+                              {item.page_name || item.department_name || 'University Administration'} • {item.author_name || 'Admin'}
+                            </span>
+                            <span className="post-date">{new Date(item.created_at).toLocaleDateString()}</span>
+                          </div>
+
+                          {/* Action Buttons Toolbar */}
+                          <div className="card-actions-row" style={{ flexWrap: 'wrap', gap: '0.35rem' }}>
+                            <button
+                              type="button"
+                              className="card-icon-btn"
+                              style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                              title="View Details & Attendance"
+                              onClick={() => handleOpenPreview(item)}
+                            >
+                              <i className="fa-solid fa-eye"></i>
+                              <span>View</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="card-icon-btn"
+                              style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                              title="Edit Record"
+                              onClick={() => handleOpenEdit(item)}
+                            >
+                              <i className="fa-solid fa-pen-to-square"></i>
+                              <span>Edit</span>
+                            </button>
+
+                            {isArchived || isTakenDown ? (
+                              <button
+                                type="button"
+                                className="card-icon-btn text-emerald"
+                                style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                                title="Restore Item"
+                                onClick={() => handleOpenConfirm('restore', item)}
+                              >
+                                <i className="fa-solid fa-rotate-left"></i>
+                                <span>Restore</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  className="card-icon-btn text-amber"
+                                  style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                                  title="Archive Item"
+                                  onClick={() => handleOpenConfirm('archive', item)}
+                                >
+                                  <i className="fa-solid fa-box-archive"></i>
+                                  <span>Archive</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="card-icon-btn text-rose"
+                                  style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                                  title="Take Down & Archive"
+                                  onClick={() => handleOpenConfirm('takedown', item)}
+                                >
+                                  <i className="fa-solid fa-shield-halved"></i>
+                                  <span>Take Down</span>
+                                </button>
+                              </>
+                            )}
+
+                            {isArchived && (
+                              <button
+                                type="button"
+                                className="card-icon-btn text-rose"
+                                style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
+                                title="Permanently Delete Archived Post (also available in Audit Logs)"
+                                onClick={() => handleOpenConfirm('delete', item)}
+                              >
+                                <i className="fa-solid fa-trash-can"></i>
+                                <span>Delete</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* GLOBAL PAGINATION BAR */}
+              {!loading && (
+                <div className="acf-pagination-wrap">
+                  <Pagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.totalPages}
+                    totalRecords={pagination.total}
+                    pageSize={pagination.limit}
+                    onPageChange={(nextPage) => setPagination(prev => ({ ...prev, page: nextPage }))}
+                    onPageSizeChange={(nextLimit) => setPagination(prev => ({ ...prev, limit: nextLimit, page: 1 }))}
+                    loading={loading}
+                    itemLabel="posts"
+                  />
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* RIGHT BORDERLESS RAIL: UNIVERSITY-WIDE SPOTLIGHT, DEPARTMENT PAGES & MODERATION */}
+          <aside className="acf-right-rail">
+            <UniversityWideSpotlight role="admin" variant="desktop" />
+
+            <div className="acf-right-divider">
+              <DepartmentPagesSidebarList
+                departments={approvedPages}
+                loadingDepts={loadingPages}
+                pageBasePath="/page"
+              />
             </div>
 
-            {/* Right Sticky Rail: Compact Student Spotlight + Moderation Guidance */}
-            <aside className="csf-rail">
-              <UniversityWideSpotlight role="student" />
-
+            <div className="acf-right-divider">
               <div className="csf-guidance-card">
                 <div className="csf-guidance-header">
                   <i className="fa-solid fa-shield-halved"></i>
                   <span>Moderation Policy</span>
                 </div>
                 <p className="csf-guidance-text">
-                  Removing a post archives it first with your moderation reason, records the event in Audit Logs, and notifies the creator.
+                  Removing a post archives it first with your moderation reason, records the action in Audit Logs, and notifies the creator.
                 </p>
                 <button
                   type="button"
@@ -958,187 +1260,10 @@ const ContentFeed = () => {
                   <span>Open Audit Logs</span>
                 </button>
               </div>
-            </aside>
-          </div>
-        ) : (
-          <div className="feed-cards-grid">
-            {items.map(item => {
-              const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
-              const isTakenDown = String(item.status).toLowerCase() === 'rejected';
-              const mgmtKey = `mgmt-${item.type}-${item.id}`;
-              const cardThumb = resolveMediaUrl(item.image_url);
-              const thumbFailed = Boolean(failedImages[mgmtKey]);
+            </div>
+          </aside>
 
-              return (
-                <div key={`${item.type}-${item.id}`} className="feed-item-card">
-                  
-                  {/* Card Top Metadata Header */}
-                  <div className="card-top-bar">
-                    <div className="card-type-group">
-                      <span className={`type-badge ${item.type}`}>
-                        <i className={`fa-solid ${item.type === 'event' ? 'fa-calendar-days' : 'fa-bullhorn'}`}></i>
-                        {item.type}
-                      </span>
-                      <span className="category-pill">{item.category || 'General'}</span>
-                      {item.academic_year_label && (
-                        <span className="category-pill" style={{ background: '#fff1f2', color: '#7b0d1e' }}>
-                          SY {item.academic_year_label}
-                        </span>
-                      )}
-                    </div>
-
-                    <span className={`workflow-status-badge status-${String(item.status).toLowerCase()}`}>
-                      {item.status}
-                    </span>
-                  </div>
-
-                  {cardThumb && !thumbFailed && (
-                    <div className="card-media-thumb">
-                      <img
-                        src={cardThumb}
-                        alt={item.title}
-                        loading="lazy"
-                        onError={() => markImageFailed(mgmtKey)}
-                      />
-                    </div>
-                  )}
-
-                  {/* Card Title & Content Body */}
-                  <h2 className="card-item-title">{item.title}</h2>
-                  <p className="card-item-snippet">
-                    {item.description || item.body ? (
-                      (item.description || item.body).length > 140 
-                        ? `${(item.description || item.body).substring(0, 140)}...` 
-                        : (item.description || item.body)
-                    ) : 'No description provided.'}
-                  </p>
-
-                  {/* Event Specific Metadata Bar */}
-                  {item.type === 'event' && (
-                    <div className="event-meta-box">
-                      <div className="meta-row">
-                        <i className="fa-solid fa-clock meta-icon"></i>
-                        <span>{item.event_start ? new Date(item.event_start).toLocaleString() : 'Date TBD'}</span>
-                      </div>
-                      {item.venue && (
-                        <div className="meta-row">
-                          <i className="fa-solid fa-location-dot meta-icon"></i>
-                          <span>{item.venue}</span>
-                        </div>
-                      )}
-                      <div className="meta-row">
-                        <i className="fa-solid fa-users meta-icon"></i>
-                        <span>
-                          <strong>{item.registered_count || 0}</strong>{item.capacity ? `/${item.capacity}` : ''} Registered •{' '}
-                          <strong>{item.attended_count || 0}</strong> Attended
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Author & Creation Info */}
-                  <div className="card-author-footer">
-                    <div className="author-details">
-                      <span className="author-name">
-                        {item.page_name || item.department_name || 'University Administration'} • {item.author_name || 'Admin'}
-                      </span>
-                      <span className="post-date">{new Date(item.created_at).toLocaleDateString()}</span>
-                    </div>
-
-                    {/* Action Buttons Toolbar */}
-                    <div className="card-actions-row" style={{ flexWrap: 'wrap', gap: '0.35rem' }}>
-                      <button 
-                        type="button" 
-                        className="card-icon-btn" 
-                        style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                        title="View Details & Attendance"
-                        onClick={() => handleOpenPreview(item)}
-                      >
-                        <i className="fa-solid fa-eye"></i>
-                        <span>View</span>
-                      </button>
-
-                      <button 
-                        type="button" 
-                        className="card-icon-btn" 
-                        style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                        title="Edit Record"
-                        onClick={() => handleOpenEdit(item)}
-                      >
-                        <i className="fa-solid fa-pen-to-square"></i>
-                        <span>Edit</span>
-                      </button>
-
-                      {isArchived || isTakenDown ? (
-                        <button 
-                          type="button" 
-                          className="card-icon-btn text-emerald" 
-                          style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                          title="Restore Item"
-                          onClick={() => handleOpenConfirm('restore', item)}
-                        >
-                          <i className="fa-solid fa-rotate-left"></i>
-                          <span>Restore</span>
-                        </button>
-                      ) : (
-                        <>
-                          <button 
-                            type="button" 
-                            className="card-icon-btn text-amber" 
-                            style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                            title="Archive Item"
-                            onClick={() => handleOpenConfirm('archive', item)}
-                          >
-                            <i className="fa-solid fa-box-archive"></i>
-                            <span>Archive</span>
-                          </button>
-                          <button 
-                            type="button" 
-                            className="card-icon-btn text-rose" 
-                            style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                            title="Take Down & Archive"
-                            onClick={() => handleOpenConfirm('takedown', item)}
-                          >
-                            <i className="fa-solid fa-shield-halved"></i>
-                            <span>Take Down</span>
-                          </button>
-                        </>
-                      )}
-
-                      {isArchived && (
-                        <button
-                          type="button"
-                          className="card-icon-btn text-rose"
-                          style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                          title="Permanently Delete Archived Post (also available in Audit Logs)"
-                          onClick={() => handleOpenConfirm('delete', item)}
-                        >
-                          <i className="fa-solid fa-trash-can"></i>
-                          <span>Delete</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ================= GLOBAL PAGINATION BAR (PART 5) ================= */}
-        {!loading && (
-          <Pagination
-            currentPage={pagination.page}
-            totalPages={pagination.totalPages}
-            totalRecords={pagination.total}
-            pageSize={pagination.limit}
-            onPageChange={(nextPage) => setPagination(prev => ({ ...prev, page: nextPage }))}
-            onPageSizeChange={(nextLimit) => setPagination(prev => ({ ...prev, limit: nextLimit, page: 1 }))}
-            loading={loading}
-            itemLabel="posts"
-          />
-        )}
+        </div>
 
         {/* ================= MODALS & DRAWERS ================= */}
 

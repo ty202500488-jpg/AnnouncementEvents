@@ -217,6 +217,15 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
     return () => clearInterval(timer);
   }, [activeItems.length, isPaused, selectedPost]);
 
+  const handleNavigateToPage = useCallback((pageId) => {
+    setSelectedPost(null);
+    if (role === 'admin') {
+      navigate(`/page/${pageId}`);
+      return;
+    }
+    navigate(`/${role === 'staff' ? 'staff' : 'student'}/page/${pageId}`);
+  }, [navigate, role]);
+
   // Dynamically collapse when there are no active University-Wide items
   if (activeItems.length === 0) {
     return selectedPost ? (
@@ -224,10 +233,7 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
         key={selectedPost.id}
         item={selectedPost}
         onClose={() => setSelectedPost(null)}
-        onNavigateToPage={(pageId) => {
-          setSelectedPost(null);
-          navigate(`/${role === 'staff' ? 'staff' : 'student'}/page/${pageId}`);
-        }}
+        onNavigateToPage={handleNavigateToPage}
       />
     ) : null;
   }
@@ -245,11 +251,6 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
   const handleNext = (e) => {
     e.stopPropagation();
     setCurrentIndex((prev) => (prev + 1) % activeItems.length);
-  };
-
-  const handleNavigateToPage = (pageId) => {
-    setSelectedPost(null);
-    navigate(`/${role === 'staff' ? 'staff' : 'student'}/page/${pageId}`);
   };
 
   if (variant === 'mobile') {
