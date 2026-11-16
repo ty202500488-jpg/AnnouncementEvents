@@ -272,10 +272,36 @@ body {
   font-size: 1.4rem;
   color: #ffffff;
   letter-spacing: 0.05em;
+  animation: logoTextReveal 0.8s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: letter-spacing 0.3s cubic-bezier(0.22, 1, 0.36, 1), text-shadow 0.3s ease;
+}
+
+.nav-logo:hover .logo-text {
+  letter-spacing: 0.09em !important;
+  text-shadow: 0 0 18px rgba(232, 216, 196, 0.35);
 }
 
 .logo-text .logo-accent {
+  background: linear-gradient(110deg, var(--color-light-cream) 0%, #ffffff 45%, #fda4af 75%, var(--color-light-cream) 100%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: var(--color-light-cream);
+  animation: shimmerFlow 6s ease-in-out infinite;
+}
+
+@keyframes logoTextReveal {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
 }
 
 .nav-brand-group {
@@ -433,7 +459,7 @@ body {
   }
 }
 
-.btn-nav {
+.landing-page-wrapper .btn-nav {
   position: relative;
   overflow: hidden;
   display: inline-flex;
@@ -453,7 +479,7 @@ body {
   animation: navBtnEnter 0.7s 0.25s cubic-bezier(0.22, 1, 0.36, 1) both, navBtnPulse 3.5s ease-in-out 1.2s infinite;
 }
 
-.btn-nav::before {
+.landing-page-wrapper .btn-nav::before {
   content: '';
   position: absolute;
   top: 0;
@@ -471,19 +497,19 @@ body {
   pointer-events: none;
 }
 
-.btn-nav:hover {
+.landing-page-wrapper .btn-nav:hover {
   transform: translateY(-2px) scale(1.03);
   box-shadow: 0 12px 30px rgba(159, 18, 57, 0.55), 0 0 16px rgba(232, 216, 196, 0.25);
   border-color: var(--color-light-cream);
 }
 
-.btn-nav:hover::before {
+.landing-page-wrapper .btn-nav:hover::before {
   animation: none;
   left: 140%;
   transition: left 0.55s ease;
 }
 
-.btn-nav:active {
+.landing-page-wrapper .btn-nav:active {
   transform: translateY(0) scale(0.97);
 }
 
@@ -516,7 +542,7 @@ body {
   }
 }
 
-.btn-nav:focus-visible {
+.landing-page-wrapper .btn-nav:focus-visible {
   outline: 2px solid var(--color-light-cream);
   outline-offset: 2px;
 }
@@ -790,14 +816,16 @@ body {
   .animate-text,
   .hero-word,
   .nav-logo,
-  .btn-nav {
+  .logo-text,
+  .landing-page-wrapper .btn-nav {
     opacity: 1;
     animation: none;
     filter: none;
     transform: none;
   }
-  .btn-nav::before,
+  .landing-page-wrapper .btn-nav::before,
   .logo-img,
+  .logo-text .logo-accent,
   .shimmer-glow-text,
   .shimmer-glow-text .hero-word {
     animation: none;

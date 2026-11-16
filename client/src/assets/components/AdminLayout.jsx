@@ -6,7 +6,7 @@ import { formatPostTimestamp } from '../../utils/dateUtils';
 import { formatNotificationDisplay } from '../../utils/notificationUtils';
 import '../../pages/styles/AdminDashboard.css';
 
-const AdminLayout = ({ children }) => {
+const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -182,7 +182,7 @@ const AdminLayout = ({ children }) => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.5rem 1rem' }}>
           
           {/* Left Logo / Mobile Trigger */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
             <Link to="/admin" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
               <img 
                 src={logo} 
@@ -191,6 +191,12 @@ const AdminLayout = ({ children }) => {
               />
             </Link>
           </div>
+
+          {headerCenter && (
+            <div className="admin-header-center">
+              {headerCenter}
+            </div>
+          )}
 
           {/* Right Header Actions */}
           <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -424,7 +430,7 @@ const AdminLayout = ({ children }) => {
         </aside>
 
         {/* MAIN VIEWPORT CANVAS */}
-        <main className="main-viewport">
+        <main className={`main-viewport ${fullBleed ? 'admin-main-fullbleed' : ''}`}>
           {children}
         </main>
       </div>

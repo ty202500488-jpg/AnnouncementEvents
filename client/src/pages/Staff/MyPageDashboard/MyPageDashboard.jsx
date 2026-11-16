@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
 import HiddenPostCard from '../../../assets/components/HiddenPostCard';
 import {
@@ -618,13 +619,14 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         </div>
 
         {/* Modal Form */}
-        {isModalOpen && (
+        {isModalOpen && createPortal(
           <div 
             style={{
               position: 'fixed',
               inset: 0,
               backgroundColor: 'rgba(15, 23, 42, 0.65)',
               backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
               zIndex: 1000,
               display: 'flex',
               alignItems: 'center',
@@ -983,7 +985,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
               </form>
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Dynamic Feed Content */}

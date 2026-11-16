@@ -105,8 +105,8 @@
 .student-dashboard-wrapper .nav-item.active.btn-nav {
     background: var(--nav-gradient);
     color: var(--color-light-cream);
-    border-color: var(--border-glow);
-    box-shadow: 0 8px 24px rgba(86, 28, 36, 0.4);
+    border-color: transparent;
+    box-shadow: none;
 }
 
 .student-dashboard-wrapper .nav-item.active.btn-nav .nav-icon {

@@ -479,7 +479,7 @@
   font-weight: 600;
   border: 1px solid rgba(203, 213, 225, 0.85);
   border-radius: 10px;
-  box-shadow: inset 3px 0 0 #881337, 0 3px 10px rgba(15, 23, 42, 0.08);
+  box-shadow: inset 3px 0 0 #881337;
   justify-content: space-between;
   min-height: 44px;
   padding: 0.45rem 0.625rem;
@@ -490,14 +490,14 @@
   background: #ffffff;
   color: #881337;
   border-color: rgba(148, 163, 184, 0.85);
-  box-shadow: inset 3px 0 0 #881337, 0 4px 12px rgba(15, 23, 42, 0.1);
+  box-shadow: inset 3px 0 0 #881337;
   transform: none;
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item.active.btn-nav .nav-icon {
   background-color: #881337;
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(136, 19, 55, 0.3);
+  box-shadow: none;
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item-logout {
