@@ -1035,6 +1035,14 @@ const handleDashboardData = async (req, res) => {
              WHERE p.post_type = 'announcement'
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
+               AND (
+                   TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) NOT IN ('followers', 'followers only', 'only followers', 'private')
+                   OR (
+                       $1::int IS NOT NULL
+                       AND pf.follow_id IS NOT NULL
+                       AND TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) IN ('followers', 'followers only', 'only followers')
+                   )
+               )
                AND ($1::int IS NULL OR NOT EXISTS (
                    SELECT 1 FROM user_hidden_posts uhp
                    WHERE uhp.user_id = $1 AND uhp.post_id = p.post_id
@@ -1070,6 +1078,7 @@ const handleDashboardData = async (req, res) => {
                     p.audience,
                     p.is_university_wide,
                     p.is_university_wide AS is_university,
+                    p.audience,
                     p.expires_at,
                     p.status,
                     p.created_at,
@@ -1095,6 +1104,15 @@ const handleDashboardData = async (req, res) => {
                         pg.created_by = $1
                         OR p.creator_user_id = $1
                         OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                    ) THEN TRUE ELSE FALSE END AS is_owner,
+                    CASE WHEN $1::int IS NOT NULL AND EXISTS(
+                        SELECT 1 FROM event_registrations er2
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
+                    ) THEN TRUE ELSE FALSE END AS is_registered,
+                    CASE WHEN $1::int IS NOT NULL AND (
+                        pg.created_by = $1
+                        OR p.creator_user_id = $1
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
                     ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
@@ -1107,6 +1125,14 @@ const handleDashboardData = async (req, res) => {
              WHERE p.post_type = 'event'
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
+               AND (
+                   TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) NOT IN ('followers', 'followers only', 'only followers', 'private')
+                   OR (
+                       $1::int IS NOT NULL
+                       AND pf.follow_id IS NOT NULL
+                       AND TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) IN ('followers', 'followers only', 'only followers')
+                   )
+               )
                AND ($1::int IS NULL OR NOT EXISTS (
                    SELECT 1 FROM user_hidden_posts uhp
                    WHERE uhp.user_id = $1 AND uhp.post_id = p.post_id
@@ -1224,6 +1250,7 @@ router.get('/events-data', async (req, res) => {
                     END AS poster_url,
                     p.is_university_wide,
                     p.is_university_wide AS is_university,
+                    p.audience,
                     p.expires_at,
                     p.status,
                     p.created_at,
@@ -1237,7 +1264,16 @@ router.get('/events-data', async (req, res) => {
                     pg.page_name AS department_name,
                     pg.avatar_url AS page_avatar_url,
                     COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count,
-                    CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed
+                    CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed,
+                    CASE WHEN $1::int IS NOT NULL AND EXISTS(
+                        SELECT 1 FROM event_registrations er2
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
+                    ) THEN TRUE ELSE FALSE END AS is_registered,
+                    CASE WHEN $1::int IS NOT NULL AND (
+                        pg.created_by = $1
+                        OR p.creator_user_id = $1
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                    ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN pages pg ON p.page_id = pg.page_id
@@ -1246,6 +1282,20 @@ router.get('/events-data', async (req, res) => {
              WHERE p.post_type = 'event'
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
+               AND (
+                   LOWER(COALESCE(p.audience, 'All Campus')) NOT IN ('followers', 'followers only', 'only followers', 'private')
+                   OR (
+                       $1::int IS NOT NULL AND (
+                           pg.created_by = $1
+                           OR p.creator_user_id = $1
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR (
+                               LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
+                               AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
+                           )
+                       )
+                   )
+               )
                AND ($1::int IS NULL OR NOT EXISTS (
                    SELECT 1 FROM user_hidden_posts uhp
                    WHERE uhp.user_id = $1 AND uhp.post_id = p.post_id
@@ -1275,7 +1325,10 @@ router.get('/my-events', async (req, res) => {
                     p.page_id,
                     p.title,
                     p.title AS event_title,
+                    p.content AS description,
                     p.content AS event_description,
+                    p.audience,
+                    p.created_at,
                     CASE
                         WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
                             THEN 'data:' || p.post_image_mime || ';base64,' || ENCODE(p.post_image, 'base64')
@@ -1296,7 +1349,17 @@ router.get('/my-events', async (req, res) => {
                     er.registration_id,
                     er.status AS registration_status,
                     er.registered_at,
-                    CASE WHEN pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed
+                    TRUE AS is_registered,
+                    COALESCE((
+                        SELECT COUNT(*)::int FROM event_registrations er_all
+                        WHERE er_all.event_post_id = p.post_id AND LOWER(er_all.status) != 'cancelled'
+                    ), 0) AS registered_count,
+                    CASE WHEN pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed,
+                    CASE WHEN (
+                        pg.created_by = $1
+                        OR p.creator_user_id = $1
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                    ) THEN TRUE ELSE FALSE END AS is_owner
              FROM event_registrations er
              JOIN event_details ed ON er.event_post_id = ed.post_id
              JOIN posts p ON ed.post_id = p.post_id
@@ -1477,7 +1540,7 @@ router.get('/notifications', async (req, res) => {
             `SELECT n.notification_id, n.recipient_user_id, n.actor_user_id,
                     n.page_id, n.post_id, n.notification_scope, n.type,
                     n.title, n.message, n.is_read, n.read_at, n.is_archived, n.created_at,
-                    pg.page_name, po.post_type
+                    pg.page_name, pg.page_code, pg.avatar_url AS page_avatar_url, po.post_type
              FROM notifications n
              LEFT JOIN pages pg ON n.page_id = pg.page_id
              LEFT JOIN posts po ON n.post_id = po.post_id

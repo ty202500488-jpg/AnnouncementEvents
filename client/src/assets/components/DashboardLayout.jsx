@@ -6,6 +6,7 @@ import UniversityWideSpotlight from './UniversityWideSpotlight';
 import {
   PortalNavbar,
   DepartmentPagesSidebarList,
+  buildPortalProfileMenuItems,
   getInitials,
 } from './PortalShellElements';
 
@@ -291,7 +292,11 @@ export default function DashboardLayout({ children, activePage }) {
         loadingNotifs={loadingNotifs}
         unreadNotifCount={unreadNotifCount}
         showNotifDropdown={showNotifDropdown}
-        onToggleNotifDropdown={() => setShowNotifDropdown(!showNotifDropdown)}
+        onToggleNotifDropdown={() => {
+          const next = !showNotifDropdown;
+          setShowNotifDropdown(next);
+          if (next) fetchNotifications();
+        }}
         onMarkAllAsRead={handleMarkAllAsRead}
         onNotifClick={handleNotifClick}
         notifDropdownRef={notifDropdownRef}
@@ -302,10 +307,7 @@ export default function DashboardLayout({ children, activePage }) {
         onToggleProfileDropdown={() => setShowProfileDropdown(!showProfileDropdown)}
         onCloseProfileDropdown={() => setShowProfileDropdown(false)}
         profileDropdownRef={profileDropdownRef}
-        profileMenuItems={[
-          { label: 'Profile', href: '/student/profile', icon: 'fa-solid fa-user' },
-          { label: 'Settings', href: '/student/settings', icon: 'fa-solid fa-gear' },
-        ]}
+        profileMenuItems={buildPortalProfileMenuItems({ role: 'student' })}
         onLogout={handleLogout}
       />
 

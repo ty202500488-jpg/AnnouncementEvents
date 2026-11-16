@@ -11,60 +11,49 @@
   background-color: var(--bg-main);
 }
 
-@keyframes fb-star-twinkle-a {
+@keyframes fb-star-twinkle {
   0%, 100% {
-    opacity: 0.3;
+    opacity: 0.2;
+    transform: scale(0.85);
   }
   50% {
     opacity: 1;
+    transform: scale(1.1);
   }
 }
 
-@keyframes fb-star-twinkle-b {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.25;
-  }
-}
-
-.student-dashboard-wrapper.fb-shell-layout::before,
-.student-dashboard-wrapper.fb-shell-layout::after {
-  content: '';
-  position: absolute;
+.student-dashboard-wrapper.fb-shell-layout .fb-shell-backdrop {
+  position: fixed;
   inset: 0;
   pointer-events: none;
   z-index: 0;
+  overflow: hidden;
 }
 
-.student-dashboard-wrapper.fb-shell-layout::before {
-  background-image:
-    radial-gradient(circle 2px at 24px 36px, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 55%, transparent 100%),
-    radial-gradient(circle 2px at 88px 112px, rgba(100, 116, 139, 0.6) 0%, rgba(100, 116, 139, 0.6) 55%, transparent 100%),
-    radial-gradient(circle 2.5px at 148px 54px, rgba(136, 19, 55, 0.45) 0%, rgba(136, 19, 55, 0.45) 55%, transparent 100%),
-    radial-gradient(circle 2px at 196px 168px, rgba(100, 116, 139, 0.55) 0%, rgba(100, 116, 139, 0.55) 55%, transparent 100%),
-    radial-gradient(circle 2.5px at 56px 198px, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 55%, transparent 100%),
-    radial-gradient(circle 1.75px at 132px 146px, rgba(136, 19, 55, 0.4) 0%, rgba(136, 19, 55, 0.4) 55%, transparent 100%);
-  background-size: 220px 220px;
-  animation: fb-star-twinkle-a 4s ease-in-out infinite;
+.student-dashboard-wrapper.fb-shell-layout .fb-shell-star {
+  position: absolute;
+  border-radius: 50%;
+  animation-name: fb-star-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  will-change: opacity, transform;
 }
 
-.student-dashboard-wrapper.fb-shell-layout::after {
-  background-image:
-    radial-gradient(circle 2px at 42px 84px, rgba(100, 116, 139, 0.55) 0%, rgba(100, 116, 139, 0.55) 55%, transparent 100%),
-    radial-gradient(circle 2.5px at 118px 28px, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 55%, transparent 100%),
-    radial-gradient(circle 2px at 212px 96px, rgba(136, 19, 55, 0.42) 0%, rgba(136, 19, 55, 0.42) 55%, transparent 100%),
-    radial-gradient(circle 2px at 268px 214px, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 55%, transparent 100%),
-    radial-gradient(circle 2px at 164px 256px, rgba(100, 116, 139, 0.6) 0%, rgba(100, 116, 139, 0.6) 55%, transparent 100%),
-    radial-gradient(circle 2.5px at 74px 278px, rgba(136, 19, 55, 0.38) 0%, rgba(136, 19, 55, 0.38) 55%, transparent 100%);
-  background-size: 310px 310px;
-  animation: fb-star-twinkle-b 5.5s ease-in-out infinite;
+.student-dashboard-wrapper.fb-shell-layout .fb-shell-star--white {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.75);
+}
+
+.student-dashboard-wrapper.fb-shell-layout .fb-shell-star--slate {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+.student-dashboard-wrapper.fb-shell-layout .fb-shell-star--maroon {
+  background: rgba(136, 19, 55, 0.45);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .student-dashboard-wrapper.fb-shell-layout::before,
-  .student-dashboard-wrapper.fb-shell-layout::after {
+  .student-dashboard-wrapper.fb-shell-layout .fb-shell-star {
     animation: none;
     opacity: 0.6;
   }
@@ -599,9 +588,9 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background-color: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  color: #881337;
+  background: linear-gradient(135deg, #9f1239 0%, #881337 100%);
+  border: 1px solid rgba(136, 19, 55, 0.18);
+  color: #ffffff;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -609,13 +598,13 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .student-dashboard-wrapper.fb-shell-layout .dept-item:hover .dept-badge {
-  background-color: #fff1f2;
-  color: #881337;
-  border-color: #fecdd3;
+  background: linear-gradient(135deg, #be123c 0%, #9f1239 100%);
+  color: #ffffff;
+  border-color: #9f1239;
 }
 
 .student-dashboard-wrapper.fb-shell-layout .dept-title {
@@ -878,8 +867,8 @@
   width: 4.5rem;
   height: 4.5rem;
   border-radius: 50%;
-  background-color: #fbe4e8;
-  color: #8c1030;
+  background: linear-gradient(135deg, #9f1239 0%, #881337 100%);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;

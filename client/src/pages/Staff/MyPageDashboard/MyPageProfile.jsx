@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/PageView.css';
 import '../../styles/StudentDashboard.css';
-import { PortalNavbar, getInitials } from '../../../assets/components/PortalShellElements';
+import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, PostAudienceBadge, getInitials } from '../../../assets/components/PortalShellElements';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
 
 export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashboard = false }) {
@@ -444,27 +444,27 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
   const avatarFallback = getInitials(pageName, pageCode);
   const unreadNotifCount = notifications.filter((n) => !n.is_read).length;
 
-  const profileMenuItems = [
-    {
-      label: 'MyPage Feed',
-      icon: 'fa-solid fa-house',
-      onClick: () => navigate('/staff/mypage/dashboard'),
+  const profileMenuItems = buildPortalProfileMenuItems({
+    role: 'staff',
+    hasApprovedPage: true,
+    swapDashboardHref: '/staff/dashboard',
+    onSwapDashboard: () => {
+      if (onSwitchToStaffDashboard) onSwitchToStaffDashboard();
+      else navigate('/staff/dashboard');
     },
-    {
-      label: 'Page Settings',
-      icon: 'fa-solid fa-gear',
-      onClick: () => navigate('/staff/mypage/settings'),
-    },
-    ...(onSwitchToStaffDashboard
-      ? [
-          {
-            label: 'Staff Dashboard',
-            icon: 'fa-solid fa-repeat',
-            onClick: onSwitchToStaffDashboard,
-          },
-        ]
-      : []),
-  ];
+    extraItems: [
+      {
+        label: 'MyPage Feed',
+        href: '/staff/mypage/dashboard',
+        icon: 'fa-solid fa-house',
+      },
+      {
+        label: 'Page Settings',
+        href: '/staff/mypage/settings',
+        icon: 'fa-solid fa-sliders',
+      },
+    ],
+  });
 
   const navbarBlock = (
     <div
@@ -717,24 +717,26 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                 return (
                   <article
                     key={postId}
+                    className="card card-interactive"
                     style={{
+                      padding: '1rem 0',
                       backgroundColor: '#ffffff',
-                      borderRadius: '0.75rem',
-                      border: '1px solid #e6ebf0',
-                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
+                      borderRadius: '1.25rem',
+                      border: '1px solid var(--slate-200, #e2e8f0)',
+                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
                       overflow: 'hidden',
                       marginBottom: '0.75rem',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.875rem 1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0 1rem 0.875rem 1rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
                         <div
                           style={{
                             width: '2.5rem',
                             height: '2.5rem',
                             borderRadius: '50%',
-                            backgroundColor: '#fbe4e8',
-                            color: '#8c1030',
+                            background: 'linear-gradient(135deg, #9f1239 0%, #881337 100%)',
+                            color: '#ffffff',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -757,17 +759,17 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                           </h4>
                           <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                             {isEvent ? (
-                              <>
-                                <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
-                              </>
+                              <EventPostMeta
+                                registeredCount={currentRegistered}
+                                capacity={item.max_capacity || item.capacity}
+                                createdAt={item.created_at}
+                                audience={item.audience}
+                              />
                             ) : (
                               <>
-                                <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
+                                <span>•</span>
+                                <PostAudienceBadge audience={item.audience} />
                               </>
                             )}
                           </div>
@@ -934,38 +936,6 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                 </li>
               </ul>
             </div>
-
-            {eventsList.length > 0 && (
-              <div className="fb-card">
-                <h3 className="fb-card-title">
-                  <i className="fa-solid fa-calendar-check"></i>
-                  Upcoming Events
-                </h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {eventsList.slice(0, 3).map((ev, i) => {
-                    const evDate = ev.event_date || ev.eventDate ? new Date(ev.event_date || ev.eventDate) : new Date();
-                    const monthStr = evDate.toLocaleString('en-US', { month: 'short' });
-                    const dayStr = evDate.getDate();
-
-                    return (
-                      <div key={ev.id || ev.event_id || i} className="fb-mini-event-item">
-                        <div className="fb-mini-event-datebox">
-                          <span className="fb-mini-event-month">{monthStr}</span>
-                          <span className="fb-mini-event-day">{dayStr}</span>
-                        </div>
-                        <div className="fb-mini-event-details">
-                          <h4 className="fb-mini-event-title">{ev.title || ev.event_title}</h4>
-                          <div className="fb-mini-event-sub">
-                            <i className="fa-solid fa-location-dot" style={{ marginRight: '0.25rem', color: '#94a3b8' }}></i>
-                            {ev.location || ev.venue || 'Campus'}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             <div className="fb-card" style={{ backgroundColor: '#f8fafc' }}>
               <h3 className="fb-card-title">

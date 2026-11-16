@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import {
+  PostPageAvatar,
+  PostAudienceBadge,
+  PostOwnerActionMenu,
+  PostEditDeleteModals,
+  updatePostRequest,
+  deletePostRequest,
+} from '../../assets/components/PortalShellElements';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import '../styles/StaffDashboard.css';
@@ -7,8 +15,62 @@ import '../styles/StaffDashboard.css';
 export default function StaffAnnouncements() {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeMenuKey, setActiveMenuKey] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [postTitle, setPostTitle] = useState('');
+  const [postContent, setPostContent] = useState('');
+  const [submittingPost, setSubmittingPost] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(null);
   const highlightedPostId = useHighlightedPost(!loading && announcements.length > 0);
   const token = localStorage.getItem('token');
+
+  const handleOpenEditPost = (item) => {
+    setEditingPost(item);
+    setPostTitle(item.title || '');
+    setPostContent(item.content || item.description || '');
+    setActiveMenuKey(null);
+  };
+
+  const handleSavePostEdit = async (e) => {
+    e.preventDefault();
+    if (!editingPost) return;
+    setSubmittingPost(true);
+    try {
+      const result = await updatePostRequest(editingPost, { title: postTitle, content: postContent });
+      if (result.ok) {
+        setAnnouncements((prev) =>
+          prev.map((p) =>
+            (p.id || p.post_id) === result.id
+              ? { ...p, title: postTitle, content: postContent, description: postContent }
+              : p
+          )
+        );
+        setEditingPost(null);
+      } else {
+        alert(result.message || 'Failed to update post.');
+      }
+    } catch {
+      alert('Network error while updating post.');
+    } finally {
+      setSubmittingPost(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!deletingPost) return;
+    try {
+      const result = await deletePostRequest(deletingPost);
+      if (result.ok) {
+        setAnnouncements((prev) => prev.filter((p) => (p.id || p.post_id) !== result.id));
+      } else {
+        alert(result.message || 'Failed to delete post.');
+      }
+    } catch {
+      alert('Network error while deleting post.');
+    } finally {
+      setDeletingPost(null);
+    }
+  };
 
   useEffect(() => {
     const fetchAnnouncements = async () => {
@@ -22,7 +84,7 @@ export default function StaffAnnouncements() {
         });
         const data = await response.json();
         if (response.ok && data.announcements) {
-          setAnnouncements(data.announcements);
+          setAnnouncements(data.announcements.filter((item) => item.is_followed || item.is_owner));
         }
       } catch (err) {
         console.error('Failed to fetch staff announcements:', err);
@@ -112,23 +174,11 @@ export default function StaffAnnouncements() {
                   {/* Post Header */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem 0.875rem 1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                      <div 
-                        style={{ 
-                          width: '2.5rem', 
-                          height: '2.5rem', 
-                          borderRadius: '50%', 
-                          backgroundColor: '#fbe4e8', 
-                          color: '#8c1030', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'center', 
-                          fontWeight: 800, 
-                          fontSize: '0.8rem',
-                          flexShrink: 0
-                        }}
-                      >
-                        {avatarText}
-                      </div>
+                      <PostPageAvatar
+                        avatarUrl={item.page_avatar_url}
+                        label={deptName}
+                        fallbackCode={item.code || item.department_code}
+                      />
 
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
@@ -160,30 +210,29 @@ export default function StaffAnnouncements() {
                           )}
                         </div>
                         <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
+                          <span>•</span>
+                          <PostAudienceBadge audience={item.audience} />
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-
-                      <button 
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#16162b',
-                          cursor: 'pointer',
-                          padding: '0.25rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="More options"
-                      >
-                        <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
-                      </button>
-                    </div>
+                    {item.is_owner && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                        <PostOwnerActionMenu
+                          isOpen={activeMenuKey === (item.id || item.post_id || index)}
+                          onToggle={() => {
+                            const key = item.id || item.post_id || index;
+                            setActiveMenuKey((prev) => (prev === key ? null : key));
+                          }}
+                          onEdit={() => handleOpenEditPost(item)}
+                          onDelete={() => {
+                            setDeletingPost(item);
+                            setActiveMenuKey(null);
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Post Media or Clean Text Body */}
@@ -231,6 +280,19 @@ export default function StaffAnnouncements() {
           </div>
         )}
       </main>
+      <PostEditDeleteModals
+        editingPost={editingPost}
+        postTitle={postTitle}
+        postContent={postContent}
+        onChangeTitle={setPostTitle}
+        onChangeContent={setPostContent}
+        onCloseEdit={() => setEditingPost(null)}
+        onSubmitEdit={handleSavePostEdit}
+        submitting={submittingPost}
+        deletingPost={deletingPost}
+        onCloseDelete={() => setDeletingPost(null)}
+        onConfirmDelete={handleDeletePost}
+      />
     </StaffDashboardLayout>
   );
 }

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
 import MyPageProfile from './MyPageDashboard/MyPageProfile';
 import { formatPostTimestamp } from '../../utils/dateUtils';
+import { EventPostMeta, PostAudienceBadge } from '../../assets/components/PortalShellElements';
 import '../styles/StaffDashboard.css';
 import '../styles/MyPage.css';
 
@@ -440,7 +441,7 @@ export default function StaffMyPage() {
               <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start', paddingRight: '220px', flexWrap: 'wrap' }}>
                 
                 {/* Profile Image Avatar */}
-                <div style={{ width: '4.5rem', height: '4.5rem', borderRadius: '50%', backgroundColor: '#fbe4e8', color: '#8c1030', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.125rem', flexShrink: 0, overflow: 'hidden', border: '2px solid var(--slate-200)' }}>
+                <div style={{ width: '4.5rem', height: '4.5rem', borderRadius: '50%', background: 'linear-gradient(135deg, #9f1239 0%, #881337 100%)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.125rem', flexShrink: 0, overflow: 'hidden', border: '2px solid var(--slate-200)' }}>
                   {pageData.profileImage ? (
                     <img src={pageData.profileImage} alt={pageData.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
@@ -521,8 +522,8 @@ export default function StaffMyPage() {
                             width: '2.5rem', 
                             height: '2.5rem', 
                             borderRadius: '50%', 
-                            backgroundColor: '#fbe4e8', 
-                            color: '#8c1030', 
+                            background: 'linear-gradient(135deg, #9f1239 0%, #881337 100%)', 
+                            color: '#ffffff', 
                             display: 'flex', 
                             alignItems: 'center', 
                             justifyContent: 'center', 
@@ -545,17 +546,17 @@ export default function StaffMyPage() {
                           </h4>
                           <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                             {isEvent ? (
-                              <>
-                                <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {formattedDate}</span>
-                              </>
+                              <EventPostMeta
+                                registeredCount={currentRegistered}
+                                capacity={post.max_capacity || post.capacity}
+                                createdAt={post.created_at || post.date}
+                                audience={post.audience}
+                              />
                             ) : (
                               <>
-                                <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.type || 'Announcement'} • {formattedDate}</span>
+                                <span>•</span>
+                                <PostAudienceBadge audience={post.audience} />
                               </>
                             )}
                           </div>

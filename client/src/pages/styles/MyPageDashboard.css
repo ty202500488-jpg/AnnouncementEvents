@@ -647,8 +647,8 @@
 
 .mypage-composer-input-wrap:focus-within {
     background-color: #ffffff;
-    border-color: var(--color-accent, #9f1239);
-    box-shadow: 0 0 0 3px rgba(159, 18, 57, 0.12);
+    border-color: var(--slate-300, #cbd5e1);
+    box-shadow: none;
 }
 
 .mypage-composer-input {
@@ -662,6 +662,12 @@
     line-height: 1.4;
     padding: 0.35rem 0;
     font-family: inherit;
+}
+
+.student-dashboard-wrapper .mypage-composer-input:focus,
+.student-dashboard-wrapper .mypage-composer-input:focus-visible {
+    outline: none;
+    box-shadow: none;
 }
 
 .mypage-composer-input::placeholder {

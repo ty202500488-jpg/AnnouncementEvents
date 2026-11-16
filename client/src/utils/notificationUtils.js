@@ -70,6 +70,31 @@ export function dispatchNotificationsUpdated() {
   window.dispatchEvent(new CustomEvent('notifications-updated'));
 }
 
+export function cleanNotificationTitle(title) {
+  return String(title || '').replace(/^(?:New Campus Event|New Announcement):\s*/i, '').trim();
+}
+
+export function formatNotificationDisplay(notif) {
+  const pageName = notif?.page_name || 'Campus System';
+  const title = cleanNotificationTitle(notif?.title);
+  const rawMessage = String(notif?.message || '').trim();
+  const isRedundantPostMsg =
+    /posted:\s*".*"\.?$/i.test(rawMessage) ||
+    /published a new event:\s*".*"\.?$/i.test(rawMessage);
+
+  const summary = isRedundantPostMsg
+    ? (String(notif?.type || '').toLowerCase() === 'event'
+        ? 'Published a new event'
+        : 'Published a new announcement')
+    : rawMessage;
+
+  return {
+    pageName,
+    title: title && title.toLowerCase() !== pageName.toLowerCase() ? title : '',
+    summary,
+  };
+}
+
 export function getNotificationMeta(type) {
   const key = String(type || 'announcement').toLowerCase();
   return NOTIFICATION_META_MAP[key] || {
@@ -92,8 +117,7 @@ export function useNotificationCenter(baseEndpoint) {
     }
 
     try {
-      const sep = baseEndpoint.includes('?') ? '&' : '?';
-      const response = await fetch(`${baseEndpoint}${sep}includeArchived=true`, {
+      const response = await fetch(baseEndpoint, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -113,6 +137,13 @@ export function useNotificationCenter(baseEndpoint) {
 
   useEffect(() => {
     fetchNotifications();
+    const onRefresh = () => fetchNotifications();
+    window.addEventListener('notifications-updated', onRefresh);
+    window.addEventListener('focus', onRefresh);
+    return () => {
+      window.removeEventListener('notifications-updated', onRefresh);
+      window.removeEventListener('focus', onRefresh);
+    };
   }, [fetchNotifications]);
 
   const handleMarkAsRead = async (notifId, e) => {

@@ -35,6 +35,8 @@ const fetchScopedNotifications = async (req, res, scopes) => {
                     n.is_archived,
                     n.created_at,
                     pg.page_name,
+                    pg.page_code,
+                    pg.avatar_url AS page_avatar_url,
                     po.post_type
              FROM notifications n
              LEFT JOIN pages pg ON n.page_id = pg.page_id

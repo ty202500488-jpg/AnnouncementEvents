@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
 import HiddenPostCard from '../../../assets/components/HiddenPostCard';
+import {
+  PostPageAvatar,
+  EventPostMeta,
+  EventPostActionBar,
+  PostAudienceBadge,
+  toggleEventRegistrationRequest,
+  applyEventRegistrationUpdate,
+} from '../../../assets/components/PortalShellElements';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
 import {
   shuffleFeedItems,
@@ -18,6 +26,27 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [feed, setFeed] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [registeringEventId, setRegisteringEventId] = useState(null);
+
+  const handleEventRegister = async (eventId, isAlreadyRegistered) => {
+    setRegisteringEventId(eventId);
+    try {
+      const result = await toggleEventRegistrationRequest(eventId, isAlreadyRegistered);
+      if (result.unauthenticated) {
+        window.location.href = '/auth';
+        return;
+      }
+      if (result.ok) {
+        setFeed((prev) => applyEventRegistrationUpdate(prev, eventId, !isAlreadyRegistered));
+      } else {
+        alert(result.message || 'Failed to update event registration.');
+      }
+    } catch {
+      alert('Network error while updating event registration.');
+    } finally {
+      setRegisteringEventId(null);
+    }
+  };
 
   // Modal & Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,6 +63,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
   const [isUniversityWide, setIsUniversityWide] = useState(false);
   const [spotlightExpiresAt, setSpotlightExpiresAt] = useState('');
+  const [modalPickerView, setModalPickerView] = useState(null); // null | 'postType' | 'category' | 'audience'
   const fileInputRef = useRef(null);
 
   const [editingPost, setEditingPost] = useState(null);
@@ -145,6 +175,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             item.page_id === pageId ? { ...item, is_followed: !currentFollowState } : item
           )
         );
+        fetchPageAndFeedData();
       }
     } catch (err) {
       console.error('Failed to update follow status:', err);
@@ -196,8 +227,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   });
 
   const handleDeletePost = async () => {
+    const token = localStorage.getItem('token');
     if (!deletingPost || !token) return;
-    const isEvent = deletingPost._type === 'Event';
+    const isEvent = deletingPost._type === 'Event' || deletingPost.post_type === 'event';
     const deleteId = deletingPost.event_id || deletingPost.announcement_id || deletingPost.id || deletingPost.post_id;
     const deleteEndpoint = isEvent
       ? `http://localhost:5000/api/events/${deleteId}`
@@ -214,9 +246,13 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             return !(pId === deleteId && p._type === deletingPost._type);
           })
         );
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || 'Failed to delete post.');
       }
     } catch (err) {
       console.error('Error deleting post:', err);
+      alert('Network error while deleting post.');
     } finally {
       setDeletingPost(null);
     }
@@ -308,6 +344,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     setIsUniversityWide(false);
     setSpotlightExpiresAt('');
     setEditingPost(null);
+    setModalPickerView(null);
     setIsModalOpen(false);
   };
 
@@ -376,8 +413,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         }
         fetchPageAndFeedData();
         window.dispatchEvent(new Event('spotlight:refresh'));
-        if (isUniversityWide) {
-          alert('Changes saved and sent for Admin University-Wide Spotlight approval.');
+        const updatedMod = data.announcement?.moderation_status || data.event?.moderation_status;
+        if (String(updatedMod || '').toLowerCase() === 'pending') {
+          alert('Changes saved and submitted for Admin approval before appearing publicly.');
         }
       } else {
         if (postType === 'announcement') {
@@ -400,8 +438,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             return;
           }
           fetchPageAndFeedData();
-          if (isUniversityWide) {
-            alert(data.message || 'University-Wide Spotlight request submitted for Admin approval.');
+          window.dispatchEvent(new Event('spotlight:refresh'));
+          if (String(data.announcement?.moderation_status || '').toLowerCase() === 'pending') {
+            alert('Your public post has been submitted for Admin approval.');
           }
         } else {
           const response = await fetch('http://localhost:5000/api/events', {
@@ -425,8 +464,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
             return;
           }
           fetchPageAndFeedData();
-          if (isUniversityWide) {
-            alert(data.message || 'University-Wide Spotlight event request submitted for Admin approval.');
+          window.dispatchEvent(new Event('spotlight:refresh'));
+          if (String(data.event?.moderation_status || '').toLowerCase() === 'pending') {
+            alert('Your public event has been submitted for Admin approval.');
           }
         }
       }
@@ -607,8 +647,26 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
               onClick={(e) => e.stopPropagation()}
             >
               <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+                {modalPickerView && (
+                  <button
+                    type="button"
+                    onClick={() => setModalPickerView(null)}
+                    aria-label="Back to Create Post"
+                    style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f1f5f9', border: 'none', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <i className="fa-solid fa-arrow-left" style={{ fontSize: '0.9rem' }}></i>
+                  </button>
+                )}
                 <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0f172a', textAlign: 'center', width: '100%', margin: 0 }}>
-                  {editingPost ? 'Edit Post' : 'Create Post'}
+                  {modalPickerView === 'postType'
+                    ? 'Post Type'
+                    : modalPickerView === 'category'
+                      ? 'Select Category'
+                      : modalPickerView === 'audience'
+                        ? 'Post Audience'
+                        : editingPost
+                          ? 'Edit Post'
+                          : 'Create Post'}
                 </h3>
                 <button 
                   type="button" 
@@ -619,52 +677,174 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 </button>
               </div>
 
-              <form onSubmit={handlePublishPost} style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#0f172a', lineHeight: 1.2 }}>
-                    {pageName}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
-                    <select 
-                      id="post-type-select"
-                      name="postType"
-                      value={postType} 
-                      onChange={(e) => setPostType(e.target.value)}
-                      style={{ backgroundColor: '#f1f5f9', border: 'none', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '11px', fontWeight: 700, color: '#881337', cursor: 'pointer', outline: 'none' }}
-                    >
-                      <option value="announcement">Announcement</option>
-                      <option value="event">Event</option>
-                    </select>
-
-                    {postType === 'announcement' && (
-                      <select 
-                        id="category-select"
-                        name="categoryId"
-                        value={categoryId} 
-                        onChange={(e) => setCategoryId(e.target.value)}
-                        style={{ backgroundColor: '#f1f5f9', border: 'none', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '11px', fontWeight: 600, color: '#334155', cursor: 'pointer', outline: 'none' }}
+              {modalPickerView ? (
+                <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {(modalPickerView === 'postType'
+                    ? [
+                        { value: 'announcement', label: 'Announcement', desc: 'Share campus news, updates, or reminders.', icon: 'fa-solid fa-bullhorn' },
+                        { value: 'event', label: 'Event', desc: 'Host an event with date, venue, and registration.', icon: 'fa-solid fa-calendar-days' },
+                      ]
+                    : modalPickerView === 'audience'
+                      ? [
+                          { value: 'All Campus', label: 'Public', desc: 'Anyone on or off the portal can see this post.', icon: 'fa-solid fa-earth-americas' },
+                          { value: 'University-Wide', label: 'University-Wide Spotlight', desc: 'Rotates in the Student & Staff Spotlight after Admin approval.', icon: 'fa-solid fa-bullhorn' },
+                          { value: 'Followers Only', label: 'Followers', desc: 'Only users who follow your page can see this post.', icon: 'fa-solid fa-user-group' },
+                          { value: 'Private', label: 'Private', desc: 'Only page admins and members can see this post.', icon: 'fa-solid fa-lock' },
+                        ]
+                      : [
+                          { value: '', label: 'General', desc: 'No specific category', icon: 'fa-solid fa-tag' },
+                          ...categories.map((cat) => ({
+                            value: String(cat.category_id),
+                            label: cat.category_name,
+                            desc: 'Announcement category',
+                            icon: 'fa-solid fa-folder-open',
+                          })),
+                        ]
+                  ).map((opt) => {
+                    const currentVal =
+                      modalPickerView === 'postType'
+                        ? postType
+                        : modalPickerView === 'audience'
+                          ? (isUniversityWide ? 'University-Wide' : audience)
+                          : String(categoryId || '');
+                    const isSelected = currentVal === opt.value;
+                    return (
+                      <button
+                        key={opt.value || 'general'}
+                        type="button"
+                        onClick={() => {
+                          if (modalPickerView === 'postType') {
+                            setPostType(opt.value);
+                          } else if (modalPickerView === 'audience') {
+                            if (opt.value === 'University-Wide') {
+                              setAudience('All Campus');
+                              handleToggleUniversityWide(true);
+                            } else {
+                              setAudience(opt.value);
+                              handleToggleUniversityWide(false);
+                            }
+                          } else {
+                            setCategoryId(opt.value);
+                          }
+                          setModalPickerView(null);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '0.75rem',
+                          width: '100%',
+                          padding: '0.75rem 0.875rem',
+                          borderRadius: '0.75rem',
+                          border: `1.5px solid ${isSelected ? '#881337' : '#e2e8f0'}`,
+                          backgroundColor: isSelected ? '#fff1f2' : '#ffffff',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                        }}
                       >
-                        <option value="">Select Category...</option>
-                        {categories.map((cat) => (
-                          <option key={cat.category_id} value={cat.category_id}>
-                            {cat.category_name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                          <div
+                            style={{
+                              width: '2.25rem',
+                              height: '2.25rem',
+                              borderRadius: '50%',
+                              backgroundColor: isSelected ? '#881337' : '#f1f5f9',
+                              color: isSelected ? '#ffffff' : '#334155',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <i className={opt.icon} style={{ fontSize: '0.9rem' }}></i>
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>{opt.label}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{opt.desc}</div>
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            border: `2px solid ${isSelected ? '#881337' : '#cbd5e1'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {isSelected && (
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#881337' }} />
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+              <form onSubmit={handlePublishPost} style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <PostPageAvatar
+                    avatarUrl={pageAvatarUrl}
+                    label={pageName}
+                    fallbackCode={pageCode}
+                  />
 
-                    <select 
-                      id="audience-select"
-                      name="audience"
-                      value={audience} 
-                      onChange={(e) => setAudience(e.target.value)}
-                      style={{ backgroundColor: '#f1f5f9', border: 'none', borderRadius: '0.375rem', padding: '0.25rem 0.5rem', fontSize: '11px', fontWeight: 600, color: '#334155', cursor: 'pointer', outline: 'none' }}
-                    >
-                      <option value="All Campus">All Campus</option>
-                      <option value="Students Only">Students Only</option>
-                      <option value="Faculty Only">Faculty Only</option>
-                    </select>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#0f172a', lineHeight: 1.2 }}>
+                      {pageName}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.45rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setModalPickerView('postType')}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.8125rem', fontWeight: 700, color: '#881337', cursor: 'pointer' }}
+                      >
+                        <i className={postType === 'event' ? 'fa-solid fa-calendar-days' : 'fa-solid fa-bullhorn'}></i>
+                        <span>{postType === 'event' ? 'Event' : 'Announcement'}</span>
+                        <i className="fa-solid fa-caret-down" style={{ fontSize: '0.75rem' }}></i>
+                      </button>
+
+                      {postType === 'announcement' && (
+                        <button
+                          type="button"
+                          onClick={() => setModalPickerView('category')}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}
+                        >
+                          <i className="fa-solid fa-tag" style={{ fontSize: '0.75rem', color: '#64748b' }}></i>
+                          <span>
+                            {categories.find((c) => String(c.category_id) === String(categoryId))?.category_name || 'Category'}
+                          </span>
+                          <i className="fa-solid fa-caret-down" style={{ fontSize: '0.75rem' }}></i>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setModalPickerView('audience')}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: isUniversityWide ? '#fff1f2' : '#f1f5f9', border: `1px solid ${isUniversityWide ? '#fecdd3' : '#e2e8f0'}`, borderRadius: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: isUniversityWide ? '#881337' : '#334155', cursor: 'pointer' }}
+                      >
+                        <i
+                          className={
+                            isUniversityWide
+                              ? 'fa-solid fa-bullhorn'
+                              : audience === 'Private'
+                                ? 'fa-solid fa-lock'
+                                : audience === 'Followers Only'
+                                  ? 'fa-solid fa-user-group'
+                                  : 'fa-solid fa-earth-americas'
+                          }
+                          style={{ fontSize: '0.75rem', color: isUniversityWide ? '#881337' : '#64748b' }}
+                        ></i>
+                        <span>
+                          {isUniversityWide ? 'University-Wide' : audience === 'Private' ? 'Private' : audience === 'Followers Only' ? 'Followers' : 'Public'}
+                        </span>
+                        <i className="fa-solid fa-caret-down" style={{ fontSize: '0.75rem' }}></i>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -731,81 +911,62 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   </div>
                 </div>
 
-                {/* University-Wide Spotlight Request Section */}
-                <div style={{ background: isUniversityWide ? '#fff1f2' : '#f8fafc', border: `1px solid ${isUniversityWide ? '#fecdd3' : '#e2e8f0'}`, borderRadius: '0.625rem', padding: '0.75rem 0.9rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                  <label htmlFor="request-university-wide" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', margin: 0 }}>
-                    <input
-                      id="request-university-wide"
-                      type="checkbox"
-                      checked={isUniversityWide}
-                      onChange={(e) => handleToggleUniversityWide(e.target.checked)}
-                      style={{ marginTop: '0.15rem', accentColor: '#881337', width: '16px', height: '16px', cursor: 'pointer' }}
-                    />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                      <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0f172a' }}>
-                        Request University-Wide Spotlight (Admin Approval)
-                      </span>
-                      <span style={{ fontSize: '0.74rem', color: '#64748b', lineHeight: 1.35 }}>
-                        Once approved by Admin, this post rotates in the Student &amp; Staff Spotlight. Posts without an image display the WMSU logo.
-                      </span>
-                    </div>
-                  </label>
-
-                  {isUniversityWide && (
-                    <div style={{ paddingTop: '0.45rem', borderTop: '1px solid #fecdd3', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem' }}>
-                        <label htmlFor="spotlight-expires-at" style={{ fontSize: '0.72rem', fontWeight: 700, color: '#881337', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                          Active Until (Required) *
-                        </label>
-                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          {[
-                            { label: '24h', hours: 24 },
-                            { label: '3 Days', hours: 72 },
-                            { label: '7 Days', hours: 168 },
-                            { label: '14 Days', hours: 336 },
-                          ].map((preset) => (
-                            <button
-                              key={preset.label}
-                              type="button"
-                              onClick={() => setSpotlightExpiresAt(getLocalDateTimeValue(preset.hours))}
-                              style={{
-                                padding: '0.2rem 0.5rem',
-                                borderRadius: '9999px',
-                                border: '1px solid #fda4af',
-                                background: '#ffffff',
-                                color: '#881337',
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              {preset.label}
-                            </button>
-                          ))}
-                        </div>
+                {/* University-Wide Spotlight Expiration (shown when Audience is University-Wide) */}
+                {isUniversityWide && (
+                  <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '0.625rem', padding: '0.75rem 0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem' }}>
+                      <label htmlFor="spotlight-expires-at" style={{ fontSize: '0.72rem', fontWeight: 700, color: '#881337', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                        Spotlight Active Until (Required) *
+                      </label>
+                      <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                        {[
+                          { label: '24h', hours: 24 },
+                          { label: '3 Days', hours: 72 },
+                          { label: '7 Days', hours: 168 },
+                          { label: '14 Days', hours: 336 },
+                        ].map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => setSpotlightExpiresAt(getLocalDateTimeValue(preset.hours))}
+                            style={{
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '9999px',
+                              border: '1px solid #fda4af',
+                              background: '#ffffff',
+                              color: '#881337',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
                       </div>
-
-                      <input
-                        id="spotlight-expires-at"
-                        type="datetime-local"
-                        value={spotlightExpiresAt}
-                        min={getLocalDateTimeValue(0)}
-                        onChange={(e) => setSpotlightExpiresAt(e.target.value)}
-                        required
-                        style={{
-                          width: '100%',
-                          padding: '0.45rem 0.65rem',
-                          borderRadius: '0.4rem',
-                          border: '1px solid #fda4af',
-                          backgroundColor: '#ffffff',
-                          color: '#0f172a',
-                          fontSize: '0.8125rem',
-                          fontWeight: 600,
-                        }}
-                      />
                     </div>
-                  )}
-                </div>
+
+                    <input
+                      id="spotlight-expires-at"
+                      type="datetime-local"
+                      value={spotlightExpiresAt}
+                      min={getLocalDateTimeValue(0)}
+                      onChange={(e) => setSpotlightExpiresAt(e.target.value)}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.4rem',
+                        border: '1px solid #fda4af',
+                        backgroundColor: '#ffffff',
+                        color: '#0f172a',
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                )}
 
                 <button 
                   type="submit" 
@@ -813,9 +974,14 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 >
                   {editingPost
                     ? (isUniversityWide ? 'Save & Submit for Spotlight Approval' : 'Save Changes')
-                    : (isUniversityWide ? 'Submit University-Wide Spotlight Request' : 'Post')}
+                    : isUniversityWide
+                      ? 'Submit University-Wide Spotlight Request'
+                      : !['Followers Only', 'Private'].includes(audience)
+                        ? 'Submit for Admin Approval'
+                        : 'Post'}
                 </button>
               </form>
+              )}
             </div>
           </div>
         )}
@@ -890,23 +1056,11 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 {/* 1. POST HEADER */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 1rem 0.875rem 1rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
-                    <div 
-                      style={{ 
-                        width: '2.5rem', 
-                        height: '2.5rem', 
-                        borderRadius: '50%', 
-                        backgroundColor: '#fbe4e8', 
-                        color: '#8c1030', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        fontWeight: 800, 
-                        fontSize: '0.8rem',
-                        flexShrink: 0
-                      }}
-                    >
-                      {avatarText}
-                    </div>
+                    <PostPageAvatar
+                      avatarUrl={item.page_avatar_url || (isMyOwnPage ? pageAvatarUrl : null)}
+                      label={deptName}
+                      fallbackCode={item.code || (isMyOwnPage ? pageCode : null)}
+                    />
 
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
@@ -940,17 +1094,17 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                       </div>
                       <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {isEvent ? (
-                          <>
-                            <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
-                            <span>•</span>
-                            <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
-                            <span>•</span>
-                            <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
-                          </>
+                          <EventPostMeta
+                            registeredCount={currentRegistered}
+                            capacity={item.max_capacity || item.capacity}
+                            createdAt={item.created_at}
+                            audience={item.audience}
+                          />
                         ) : (
                           <>
-                            <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
+                            <span>•</span>
+                            <PostAudienceBadge audience={item.audience} />
                           </>
                         )}
                       </div>
@@ -1116,34 +1270,20 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   </div>
                 )}
 
-                {/* 3. OPTIONAL ATTENDANCE SCAN BAR FOR REGISTERED EVENTS */}
-                {isEvent && item.is_registered && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0.75rem 1rem 0.25rem 1rem', paddingTop: '0.75rem', borderTop: '1px solid #e6ebf0' }}>
-                    <button
-                      onClick={() => {
-                        const token = prompt("Scan or enter event QR token:");
-                        if (token) {
-                          const clean = token.trim().split('/').pop();
-                          window.location.href = `/staff/attendance/check-in/${clean}`;
-                        }
-                      }}
-                      style={{ 
-                        backgroundColor: '#ffffff', 
-                        color: '#475569', 
-                        border: '1px solid #e2e8f0', 
-                        padding: '0.4rem 0.875rem', 
-                        borderRadius: '0.5rem', 
-                        fontSize: '0.8125rem', 
-                        fontWeight: 600, 
-                        cursor: 'pointer', 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
-                        gap: '0.4rem'
-                      }}
-                    >
-                      <i className="fa-solid fa-qrcode"></i> Scan Attendance
-                    </button>
-                  </div>
+                {/* 3. EVENT REGISTRATION & ATTENDANCE BAR */}
+                {isEvent && (
+                  <EventPostActionBar
+                    isRegistered={Boolean(item.is_registered)}
+                    isRegistering={registeringEventId === postId}
+                    onToggleRegister={() => handleEventRegister(postId, Boolean(item.is_registered))}
+                    onScanAttendance={() => {
+                      const scanToken = prompt("Scan or enter event QR token:");
+                      if (scanToken) {
+                        const clean = scanToken.trim().split('/').pop();
+                        window.location.href = `/staff/attendance/check-in/${clean}`;
+                      }
+                    }}
+                  />
                 )}
               </article>
             );

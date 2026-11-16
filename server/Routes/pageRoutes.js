@@ -471,11 +471,26 @@ router.get('/spotlight', async (req, res) => {
              LEFT JOIN organizations o ON pg.organization_id = o.organization_id
              LEFT JOIN post_categories pc ON p.category_id = pc.category_id
              LEFT JOIN event_details ed ON p.post_id = ed.post_id
-             WHERE p.is_university_wide = TRUE
-               AND p.is_archived = FALSE
+             WHERE p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
                AND (p.expires_at IS NULL OR p.expires_at > NOW())
-             ORDER BY COALESCE(p.published_at, p.created_at) DESC, p.post_id DESC
+               AND (
+                   TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) NOT IN ('followers', 'followers only', 'only followers', 'private')
+                   OR (
+                       p.is_university_wide = TRUE
+                       AND $1::int IS NOT NULL
+                       AND (
+                           pg.created_by = $1
+                           OR p.creator_user_id = $1
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR (
+                               TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) IN ('followers', 'followers only', 'only followers')
+                               AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
+                           )
+                       )
+                   )
+               )
+             ORDER BY p.is_university_wide DESC, COALESCE(p.published_at, p.created_at) DESC, p.post_id DESC
              LIMIT 20`,
             [userId || null]
         );
@@ -497,6 +512,7 @@ router.get('/spotlight', async (req, res) => {
 const handleDashboardFetch = async (req, res) => {
     try {
         await ensureUniversityWideColumn(pool);
+        const userId = await resolveUserId(req);
         const annRes = await pool.query(
             `SELECT p.post_id AS id,
                     p.post_id AS announcement_id,
@@ -519,14 +535,30 @@ const handleDashboardFetch = async (req, res) => {
                     p.status,
                     COALESCE(pc.category_name, 'General') AS category_name,
                     COALESCE(pg.page_name, 'Student Affairs Office') AS page_name,
-                    COALESCE(pg.page_name, 'Student Affairs Office') AS department_name
+                    COALESCE(pg.page_name, 'Student Affairs Office') AS department_name,
+                    pg.avatar_url AS page_avatar_url
              FROM posts p
              LEFT JOIN pages pg ON p.page_id = pg.page_id
              LEFT JOIN post_categories pc ON p.category_id = pc.category_id
              WHERE p.post_type = 'announcement'
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
-             ORDER BY p.is_pinned DESC, p.created_at DESC`
+               AND (
+                   LOWER(COALESCE(p.audience, 'All Campus')) NOT IN ('followers', 'followers only', 'only followers', 'private')
+                   OR (
+                       $1::int IS NOT NULL AND (
+                           pg.created_by = $1
+                           OR p.creator_user_id = $1
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR (
+                               LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
+                               AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
+                           )
+                       )
+                   )
+               )
+             ORDER BY p.is_pinned DESC, p.created_at DESC`,
+            [userId || null]
         );
 
         const evRes = await pool.query(
@@ -564,6 +596,7 @@ const handleDashboardFetch = async (req, res) => {
                     COALESCE(pc.category_name, 'General') AS category_name,
                     COALESCE(pg.page_name, 'Student Affairs Office') AS page_name,
                     COALESCE(pg.page_name, 'Student Affairs Office') AS department_name,
+                    pg.avatar_url AS page_avatar_url,
                     COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
@@ -573,8 +606,23 @@ const handleDashboardFetch = async (req, res) => {
              WHERE p.post_type = 'event'
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
+               AND (
+                   LOWER(COALESCE(p.audience, 'All Campus')) NOT IN ('followers', 'followers only', 'only followers', 'private')
+                   OR (
+                       $1::int IS NOT NULL AND (
+                           pg.created_by = $1
+                           OR p.creator_user_id = $1
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR (
+                               LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
+                               AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
+                           )
+                       )
+                   )
+               )
              GROUP BY p.post_id, ed.post_id, pg.page_id, pc.category_id
-             ORDER BY p.created_at DESC`
+             ORDER BY p.created_at DESC`,
+            [userId || null]
         );
 
         return res.status(200).json({
@@ -703,6 +751,14 @@ router.get('/categories', async (req, res) => {
     }
 });
 
+function requiresPublicAdminApproval(audience, user) {
+    if (String(user?.role || '').toLowerCase() === 'admin') {
+        return false;
+    }
+    const normalized = String(audience || 'All Campus').trim().toLowerCase();
+    return !['followers', 'followers only', 'only followers', 'private'].includes(normalized);
+}
+
 // -------- CREATE ANNOUNCEMENT (UNIFIED POSTS TABLE) -------- //
 router.post('/announcements', async (req, res) => {
     try {
@@ -745,8 +801,10 @@ router.post('/announcements', async (req, res) => {
             return res.status(400).json({ message: spotlight.error });
         }
 
+        const finalAudience = audience || 'All Campus';
         const needsModeration = Boolean(
             spotlight.isUniversityWide ||
+            requiresPublicAdminApproval(finalAudience, user) ||
             req.body.require_approval ||
             String(req.body.moderation_status || '').toLowerCase() === 'pending'
         );
@@ -899,8 +957,10 @@ router.post('/events', async (req, res) => {
         const eDate = event_date || new Date().toISOString();
         const eLocation = (location || venue || 'University Campus').trim();
         const capNum = capacity ? Number(capacity) : null;
+        const finalAudience = audience || 'All Campus';
         const needsModeration = Boolean(
             spotlight.isUniversityWide ||
+            requiresPublicAdminApproval(finalAudience, user) ||
             req.body.require_approval ||
             String(req.body.moderation_status || '').toLowerCase() === 'pending'
         );
@@ -1019,6 +1079,40 @@ router.post('/events', async (req, res) => {
     }
 });
 
+async function assertCanModifyPost(db, postId, postType, user) {
+    if (!postId || Number.isNaN(postId)) {
+        return { ok: false, status: 400, message: 'Invalid post ID' };
+    }
+    const checkRes = await db.query(
+        `SELECT p.post_id,
+                p.page_id,
+                p.creator_user_id,
+                pg.created_by AS page_created_by,
+                EXISTS(
+                    SELECT 1 FROM page_members pm
+                    WHERE pm.page_id = p.page_id AND pm.user_id = $3
+                ) AS is_page_member
+         FROM posts p
+         LEFT JOIN pages pg ON p.page_id = pg.page_id
+         WHERE p.post_id = $1 AND p.post_type = $2`,
+        [postId, postType, user.user_id]
+    );
+    if (checkRes.rows.length === 0) {
+        return { ok: false, status: 404, message: 'Post not found' };
+    }
+    const row = checkRes.rows[0];
+    const isAdmin = String(user.role || '').toLowerCase() === 'admin';
+    const isOwner =
+        isAdmin ||
+        Number(row.creator_user_id) === Number(user.user_id) ||
+        Number(row.page_created_by) === Number(user.user_id) ||
+        Boolean(row.is_page_member);
+    if (!isOwner) {
+        return { ok: false, status: 403, message: 'Not authorized to modify this post' };
+    }
+    return { ok: true, post: row };
+}
+
 // -------- EDIT ANNOUNCEMENT -------- //
 router.put('/announcements/:id', async (req, res) => {
     try {
@@ -1027,6 +1121,10 @@ router.put('/announcements/:id', async (req, res) => {
 
         await ensureUniversityWideColumn(pool);
         const postId = Number(req.params.id);
+        const authCheck = await assertCanModifyPost(pool, postId, 'announcement', user);
+        if (!authCheck.ok) {
+            return res.status(authCheck.status).json({ message: authCheck.message });
+        }
         const { title, content, description, category_id, image_data, image_url, is_pinned, audience, remove_image } = req.body;
         const bodyText = content || description || '';
 
@@ -1049,6 +1147,8 @@ router.put('/announcements/:id', async (req, res) => {
             }
         }
 
+        const requiresApprovalOnEdit = audience !== undefined && requiresPublicAdminApproval(audience, user);
+
         const result = await pool.query(
             `UPDATE posts
              SET title = COALESCE($1, title),
@@ -1061,9 +1161,9 @@ router.put('/announcements/:id', async (req, res) => {
                  image_url = CASE WHEN $6::boolean OR $7 IS NOT NULL THEN NULL ELSE image_url END,
                  is_university_wide = CASE WHEN $10::boolean THEN $11::boolean ELSE is_university_wide END,
                  expires_at = CASE WHEN $10::boolean THEN $12::timestamptz ELSE expires_at END,
-                 moderation_status = CASE WHEN $10::boolean AND $11::boolean THEN 'Pending' ELSE moderation_status END,
-                 status = CASE WHEN $10::boolean AND $11::boolean THEN 'Pending' ELSE status END,
-                 published_at = CASE WHEN $10::boolean AND $11::boolean THEN NULL ELSE published_at END
+                 moderation_status = CASE WHEN ($10::boolean AND $11::boolean) OR $13::boolean THEN 'Pending' ELSE moderation_status END,
+                 status = CASE WHEN ($10::boolean AND $11::boolean) OR $13::boolean THEN 'Pending' ELSE status END,
+                 published_at = CASE WHEN ($10::boolean AND $11::boolean) OR $13::boolean THEN NULL ELSE published_at END
              WHERE post_id = $9 AND post_type = 'announcement'
              RETURNING *, post_id AS id, post_id AS announcement_id, content AS description`,
             [
@@ -1078,7 +1178,8 @@ router.put('/announcements/:id', async (req, res) => {
                 postId,
                 hasSpotlightToggle,
                 spotlight.isUniversityWide,
-                spotlight.expiresAt
+                spotlight.expiresAt,
+                requiresApprovalOnEdit
             ]
         );
 
@@ -1090,6 +1191,14 @@ router.put('/announcements/:id', async (req, res) => {
                 postType: 'announcement',
                 title: result.rows[0].title,
                 expiresAt: spotlight.expiresAt
+            });
+        } else if (result.rowCount > 0 && requiresApprovalOnEdit) {
+            await notifyAdminsPendingContent(pool, {
+                actorUserId: user.user_id,
+                pageId: result.rows[0].page_id,
+                postId,
+                targetType: 'announcement',
+                title: result.rows[0].title
             });
         }
 
@@ -1113,6 +1222,10 @@ router.put('/events/:id', async (req, res) => {
 
         await ensureUniversityWideColumn(pool);
         const postId = Number(req.params.id);
+        const authCheck = await assertCanModifyPost(client, postId, 'event', user);
+        if (!authCheck.ok) {
+            return res.status(authCheck.status).json({ message: authCheck.message });
+        }
         const { event_title, title, event_description, description, content, event_date, location, venue, capacity, audience, image_data, image_url, poster_url, remove_image } = req.body;
         const eTitle = event_title || title || null;
         const eDesc = event_description || description || content || null;
@@ -1137,6 +1250,8 @@ router.put('/events/:id', async (req, res) => {
             }
         }
 
+        const requiresApprovalOnEdit = audience !== undefined && requiresPublicAdminApproval(audience, user);
+
         await client.query('BEGIN');
 
         const postRes = await client.query(
@@ -1149,9 +1264,9 @@ router.put('/events/:id', async (req, res) => {
                  image_url = CASE WHEN $4::boolean OR $5 IS NOT NULL THEN NULL ELSE image_url END,
                  is_university_wide = CASE WHEN $8::boolean THEN $9::boolean ELSE is_university_wide END,
                  expires_at = CASE WHEN $8::boolean THEN $10::timestamptz ELSE expires_at END,
-                 moderation_status = CASE WHEN $8::boolean AND $9::boolean THEN 'Pending' ELSE moderation_status END,
-                 status = CASE WHEN $8::boolean AND $9::boolean THEN 'Pending' ELSE status END,
-                 published_at = CASE WHEN $8::boolean AND $9::boolean THEN NULL ELSE published_at END
+                 moderation_status = CASE WHEN ($8::boolean AND $9::boolean) OR $11::boolean THEN 'Pending' ELSE moderation_status END,
+                 status = CASE WHEN ($8::boolean AND $9::boolean) OR $11::boolean THEN 'Pending' ELSE status END,
+                 published_at = CASE WHEN ($8::boolean AND $9::boolean) OR $11::boolean THEN NULL ELSE published_at END
              WHERE post_id = $7 AND post_type = 'event'
              RETURNING *`,
             [
@@ -1164,22 +1279,25 @@ router.put('/events/:id', async (req, res) => {
                 postId,
                 hasSpotlightToggle,
                 spotlight.isUniversityWide,
-                spotlight.expiresAt
+                spotlight.expiresAt,
+                requiresApprovalOnEdit
             ]
         );
 
+        const hasCapacityField = Object.prototype.hasOwnProperty.call(req.body, 'capacity');
         const detailRes = await client.query(
             `UPDATE event_details
              SET event_date = COALESCE($1, event_date),
                  location = COALESCE($2, location),
-                 capacity = $3
+                 capacity = CASE WHEN $5::boolean THEN $3 ELSE capacity END
              WHERE post_id = $4
              RETURNING *`,
             [
                 event_date || null,
                 eLoc,
                 capacity ? Number(capacity) : null,
-                postId
+                postId,
+                hasCapacityField
             ]
         );
 
@@ -1193,6 +1311,14 @@ router.put('/events/:id', async (req, res) => {
                 postType: 'event',
                 title: postRes.rows[0].title,
                 expiresAt: spotlight.expiresAt
+            });
+        } else if (postRes.rowCount > 0 && requiresApprovalOnEdit) {
+            await notifyAdminsPendingContent(pool, {
+                actorUserId: user.user_id,
+                pageId: postRes.rows[0].page_id,
+                postId,
+                targetType: 'event',
+                title: postRes.rows[0].title
             });
         } else if (
             postRes.rowCount > 0 &&
@@ -1234,7 +1360,12 @@ router.delete('/announcements/:id', async (req, res) => {
     try {
         const user = await authenticateUser(req, res);
         if (!user) return;
-        await pool.query(`DELETE FROM posts WHERE post_id = $1 AND post_type = 'announcement'`, [Number(req.params.id)]);
+        const postId = Number(req.params.id);
+        const authCheck = await assertCanModifyPost(pool, postId, 'announcement', user);
+        if (!authCheck.ok) {
+            return res.status(authCheck.status).json({ message: authCheck.message });
+        }
+        await pool.query(`DELETE FROM posts WHERE post_id = $1 AND post_type = 'announcement'`, [postId]);
         return res.status(200).json({ message: 'Announcement deleted successfully' });
     } catch (err) {
         return res.status(500).json({ message: err.message });
@@ -1245,7 +1376,12 @@ router.delete('/events/:id', async (req, res) => {
     try {
         const user = await authenticateUser(req, res);
         if (!user) return;
-        await pool.query(`DELETE FROM posts WHERE post_id = $1 AND post_type = 'event'`, [Number(req.params.id)]);
+        const postId = Number(req.params.id);
+        const authCheck = await assertCanModifyPost(pool, postId, 'event', user);
+        if (!authCheck.ok) {
+            return res.status(authCheck.status).json({ message: authCheck.message });
+        }
+        await pool.query(`DELETE FROM posts WHERE post_id = $1 AND post_type = 'event'`, [postId]);
         return res.status(200).json({ message: 'Event deleted successfully' });
     } catch (err) {
         return res.status(500).json({ message: err.message });
@@ -1260,6 +1396,7 @@ router.get('/approved-pages', async (req, res) => {
                     page_name AS name,
                     page_code AS code,
                     page_description AS description,
+                    avatar_url,
                     status
              FROM pages
              WHERE LOWER(status) IN ('approved', 'active')
@@ -1375,6 +1512,20 @@ async function handleGetPagePosts(req, res) {
              WHERE p.page_id = $1
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
+               AND (
+                   LOWER(COALESCE(p.audience, 'All Campus')) NOT IN ('followers', 'followers only', 'only followers', 'private')
+                   OR (
+                       $2::int IS NOT NULL AND (
+                           pg.created_by = $2
+                           OR p.creator_user_id = $2
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $2)
+                           OR (
+                               LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
+                               AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $2)
+                           )
+                       )
+                   )
+               )
              GROUP BY p.post_id, pg.page_id, pc.category_id, ed.post_id
              ORDER BY p.is_pinned DESC, p.created_at DESC`,
             [pageId, userId]

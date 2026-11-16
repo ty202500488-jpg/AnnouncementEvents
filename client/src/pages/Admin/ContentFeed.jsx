@@ -5,6 +5,7 @@ import Pagination from '../../assets/components/Pagination';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import UniversityWideSpotlight from '../../assets/components/UniversityWideSpotlight';
 import { formatPostTimestamp } from '../../utils/dateUtils';
+import { EventPostMeta, PostAudienceBadge } from '../../assets/components/PortalShellElements';
 import '../styles/ContentFeed.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -839,16 +840,17 @@ const ContentFeed = () => {
 
                           <div className="csf-submeta">
                             {isEvent ? (
-                              <>
-                                <span><i className="fa-solid fa-users"></i> {item.registered_count || 0} / {item.capacity || 'Unlimited'} registered</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-location-dot"></i> {item.venue || item.location || 'University Campus'}</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-clock"></i> {postTimestamp}</span>
-                              </>
+                              <EventPostMeta
+                                registeredCount={item.registered_count || 0}
+                                capacity={item.capacity}
+                                createdAt={item.created_at}
+                                audience={item.audience}
+                              />
                             ) : (
                               <>
-                                <span><i className="fa-solid fa-clock"></i> Announcement • {postTimestamp}</span>
+                                <span>Announcement • {postTimestamp}</span>
+                                <span>•</span>
+                                <PostAudienceBadge audience={item.audience} />
                                 {item.author_name && (
                                   <>
                                     <span>•</span>
@@ -1226,10 +1228,9 @@ const ContentFeed = () => {
                       onChange={handleInputChange}
                       className="modal-select"
                     >
-                      <option value="All Campus">All Campus</option>
-                      <option value="All Students">All Students</option>
-                      <option value="Staff Only">Staff Only</option>
-                      <option value="University-Wide">University-Wide</option>
+                      <option value="All Campus">Public</option>
+                      <option value="Followers Only">Followers</option>
+                      <option value="Private">Private</option>
                     </select>
                   </div>
                 </div>

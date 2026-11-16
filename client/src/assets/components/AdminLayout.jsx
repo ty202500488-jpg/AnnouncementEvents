@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../../assets/images/logo.jpg';
+import { PostPageAvatar } from './PortalShellElements';
+import { formatPostTimestamp } from '../../utils/dateUtils';
+import { formatNotificationDisplay } from '../../utils/notificationUtils';
 import '../../pages/styles/AdminDashboard.css';
 
 const AdminLayout = ({ children }) => {
@@ -244,7 +247,7 @@ const AdminLayout = ({ children }) => {
                     gap: '0.5rem'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid #cbd5e1' }}>
                     <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>
                       Admin Notifications
                     </span>
@@ -268,13 +271,16 @@ const AdminLayout = ({ children }) => {
                         No pending notifications
                       </div>
                     ) : (
-                      notifications.filter(n => !n.is_archived).map(notif => (
+                      notifications.filter(n => !n.is_archived).map(notif => {
+                        const { pageName, title: displayTitle, summary } = formatNotificationDisplay(notif);
+                        return (
                         <div
                           key={notif.id}
                           onClick={() => handleAdminNotifClick(notif)}
                           style={{
                             padding: '0.625rem 0.75rem',
                             borderRadius: '0.5rem',
+                            borderBottom: '1px solid #e2e8f0',
                             backgroundColor: !notif.is_read ? '#fff5f6' : 'transparent',
                             cursor: 'pointer',
                             display: 'flex',
@@ -282,19 +288,37 @@ const AdminLayout = ({ children }) => {
                             gap: '0.2rem'
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-                            <span style={{ fontWeight: !notif.is_read ? 700 : 600, fontSize: '0.8125rem', color: '#1e293b', lineHeight: 1.25 }}>
-                              {notif.title || 'Admin Alert'}
-                            </span>
-                            <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap' }}>
-                              {notif.created_at ? new Date(notif.created_at).toLocaleDateString() : 'Recent'}
-                            </span>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.625rem' }}>
+                            <PostPageAvatar
+                              avatarUrl={notif.page_avatar_url}
+                              label={pageName}
+                              fallbackCode={notif.page_code}
+                              size="2rem"
+                            />
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ fontWeight: !notif.is_read ? 700 : 600, fontSize: '0.8125rem', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {pageName}
+                                </span>
+                                <span style={{ fontSize: '10px', color: '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                  {formatPostTimestamp(notif.created_at)}
+                                </span>
+                              </div>
+                              {displayTitle && (
+                                <div style={{ fontWeight: 700, fontSize: '0.78rem', color: '#0f172a', marginTop: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {displayTitle}
+                                </div>
+                              )}
+                              {summary && (
+                                <p style={{ fontSize: '0.725rem', color: '#475569', margin: '0.1rem 0 0 0', lineHeight: 1.35 }}>
+                                  {summary}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <p style={{ fontSize: '0.75rem', color: '#475569', margin: 0, lineHeight: 1.35 }}>
-                            {notif.message}
-                          </p>
                         </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>

@@ -2,7 +2,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import '../styles/PageView.css';
 import '../styles/StudentDashboard.css';
-import { PortalNavbar, getInitials } from '../../assets/components/PortalShellElements';
+import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials } from '../../assets/components/PortalShellElements';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 
 export default function PageView({ role = 'guest' }) {
@@ -61,6 +61,36 @@ export default function PageView({ role = 'guest' }) {
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const notifDropdownRef = useRef(null);
+  const [hasApprovedPage, setHasApprovedPage] = useState(false);
+
+  useEffect(() => {
+    if (!token || !isStaff) {
+      setHasApprovedPage(false);
+      return;
+    }
+
+    let cancelled = false;
+    fetch('/api/my-page-status', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) {
+          setHasApprovedPage(
+            Boolean(data.exists && (data.status === 'approved' || data.status === 'active'))
+          );
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, isStaff]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -185,18 +215,18 @@ export default function PageView({ role = 'guest' }) {
 
   const unreadNotifCount = notifications.filter((n) => !n.is_read).length;
   const profileMenuItems = token
-    ? [
-        {
-          label: 'Dashboard',
-          icon: 'fa-solid fa-house',
-          onClick: () => navigate(homeHref),
-        },
-        {
-          label: 'Profile',
-          icon: 'fa-solid fa-user',
-          onClick: () => navigate(isStaff ? '/staff/profile' : '/student/profile'),
-        },
-      ]
+    ? buildPortalProfileMenuItems({
+        role: isStaff ? 'staff' : 'student',
+        hasApprovedPage: isStaff && hasApprovedPage,
+        swapDashboardHref: '/staff/mypage/dashboard',
+        extraItems: [
+          {
+            label: 'Dashboard',
+            href: homeHref,
+            icon: 'fa-solid fa-house',
+          },
+        ],
+      })
     : [
         {
           label: 'Sign In',
@@ -283,6 +313,7 @@ export default function PageView({ role = 'guest' }) {
           is_followed: data.is_followed,
           followers_count: data.followers_count
         }));
+        fetchPageData();
         showToast(data.message || (data.is_followed ? 'Now following page!' : 'Unfollowed page.'));
       } else {
         showToast(data.message || 'Unable to update follow state.');
@@ -738,25 +769,27 @@ export default function PageView({ role = 'guest' }) {
                 return (
                   <article
                     key={item.id || item.post_id || idx}
+                    className="card card-interactive"
                     style={{
+                      padding: '1rem 0',
                       backgroundColor: '#ffffff',
-                      borderRadius: '0.75rem',
-                      border: '1px solid #e6ebf0',
-                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)',
+                      borderRadius: '1.25rem',
+                      border: '1px solid var(--slate-200, #e2e8f0)',
+                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.04)',
                       overflow: 'hidden',
                       marginBottom: '0.75rem',
                     }}
                   >
                     {/* 1. FEED-STYLE POST HEADER */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.875rem 1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0 1rem 0.875rem 1rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
                         <div
                           style={{
                             width: '2.5rem',
                             height: '2.5rem',
                             borderRadius: '50%',
-                            backgroundColor: '#fbe4e8',
-                            color: '#8c1030',
+                            background: 'linear-gradient(135deg, #9f1239 0%, #881337 100%)',
+                            color: '#ffffff',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -779,111 +812,113 @@ export default function PageView({ role = 'guest' }) {
                           </h4>
                           <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                             {isEvent ? (
-                              <>
-                                <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
-                                <span>•</span>
-                                <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
-                              </>
+                              <EventPostMeta
+                                registeredCount={currentRegistered}
+                                capacity={item.max_capacity || item.capacity}
+                                createdAt={item.created_at}
+                                audience={item.audience}
+                              />
                             ) : (
                               <>
-                                <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
+                                <span>•</span>
+                                <PostAudienceBadge audience={item.audience} />
                               </>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative', flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          aria-label="Post options"
-                          title="More options"
-                          onClick={() => {
-                            const key = item.id || item.post_id || idx;
-                            setActiveMenuId((prev) => (prev === key ? null : key));
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            color: '#16162b',
-                            cursor: 'pointer',
-                            padding: '0.25rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
-                        </button>
-
-                        {activeMenuId === (item.id || item.post_id || idx) && (
-                          <div
+                      {(page.is_owner || item.is_owner) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative', flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            aria-label="Post options"
+                            title="More options"
+                            onClick={() => {
+                              const key = item.id || item.post_id || idx;
+                              setActiveMenuId((prev) => (prev === key ? null : key));
+                            }}
                             style={{
-                              position: 'absolute',
-                              top: 'calc(100% + 0.25rem)',
-                              right: 0,
-                              minWidth: '140px',
-                              backgroundColor: '#ffffff',
-                              border: '1px solid #e2e8f0',
-                              borderRadius: '0.5rem',
-                              boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
+                              background: 'transparent',
+                              border: 'none',
+                              color: '#16162b',
+                              cursor: 'pointer',
                               padding: '0.25rem',
-                              zIndex: 30,
                               display: 'flex',
-                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                             }}
                           >
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditPost(item)}
+                            <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
+                          </button>
+
+                          {activeMenuId === (item.id || item.post_id || idx) && (
+                            <div
                               style={{
+                                position: 'absolute',
+                                top: 'calc(100% + 0.25rem)',
+                                right: 0,
+                                minWidth: '140px',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '0.5rem',
+                                boxShadow: '0 10px 25px rgba(15, 23, 42, 0.12)',
+                                padding: '0.25rem',
+                                zIndex: 30,
                                 display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                padding: '0.5rem 0.75rem',
-                                background: 'none',
-                                border: 'none',
-                                borderRadius: '0.375rem',
-                                color: '#1e293b',
-                                fontSize: '0.8125rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                textAlign: 'left',
+                                flexDirection: 'column',
                               }}
                             >
-                              <i className="fa-solid fa-pen-to-square" style={{ color: '#64748b' }}></i>
-                              <span>Edit</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDeletingPost(item);
-                                setActiveMenuId(null);
-                              }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem',
-                                padding: '0.5rem 0.75rem',
-                                background: 'none',
-                                border: 'none',
-                                borderRadius: '0.375rem',
-                                color: '#e11d48',
-                                fontSize: '0.8125rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                textAlign: 'left',
-                              }}
-                            >
-                              <i className="fa-solid fa-trash"></i>
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditPost(item)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem',
+                                  padding: '0.5rem 0.75rem',
+                                  background: 'none',
+                                  border: 'none',
+                                  borderRadius: '0.375rem',
+                                  color: '#1e293b',
+                                  fontSize: '0.8125rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <i className="fa-solid fa-pen-to-square" style={{ color: '#64748b' }}></i>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeletingPost(item);
+                                  setActiveMenuId(null);
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.5rem',
+                                  padding: '0.5rem 0.75rem',
+                                  background: 'none',
+                                  border: 'none',
+                                  borderRadius: '0.375rem',
+                                  color: '#e11d48',
+                                  fontSize: '0.8125rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  textAlign: 'left',
+                                }}
+                              >
+                                <i className="fa-solid fa-trash"></i>
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* 2. FEED-STYLE MEDIA / CONTENT CONTAINER */}
@@ -931,31 +966,20 @@ export default function PageView({ role = 'guest' }) {
                       </div>
                     )}
 
-                    {/* 3. EVENT REGISTRATION ACTION BAR */}
+                    {/* 3. EVENT REGISTRATION & ATTENDANCE BAR */}
                     {isEvent && (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0.25rem 1rem 0.875rem 1rem', paddingTop: '0.75rem', borderTop: '1px solid #e6ebf0' }}>
-                        <button
-                          type="button"
-                          onClick={() => handleEventRegister(item.id || item.post_id, isRegistered)}
-                          disabled={registeringEventId === (item.id || item.post_id)}
-                          className={`btn-fb ${isRegistered ? 'btn-fb-following' : 'btn-fb-primary'}`}
-                          style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}
-                        >
-                          {registeringEventId === (item.id || item.post_id) ? (
-                            <i className="fa-solid fa-spinner fa-spin"></i>
-                          ) : isRegistered ? (
-                            <>
-                              <i className="fa-solid fa-circle-check" style={{ color: '#059669' }}></i>
-                              <span>Registered</span>
-                            </>
-                          ) : (
-                            <>
-                              <i className="fa-solid fa-ticket"></i>
-                              <span>Register Now</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
+                      <EventPostActionBar
+                        isRegistered={isRegistered}
+                        isRegistering={registeringEventId === (item.id || item.post_id)}
+                        onToggleRegister={() => handleEventRegister(item.id || item.post_id, isRegistered)}
+                        onScanAttendance={token ? () => {
+                          const scanToken = prompt("Scan or enter event QR token:");
+                          if (scanToken) {
+                            const clean = scanToken.trim().split('/').pop();
+                            navigate(isStaff ? `/staff/attendance/check-in/${clean}` : `/student/attendance/check-in/${clean}`);
+                          }
+                        } : null}
+                      />
                     )}
                   </article>
                 );
@@ -1002,48 +1026,6 @@ export default function PageView({ role = 'guest' }) {
                 </li>
               </ul>
             </div>
-
-            {/* Upcoming Events Mini-Widget */}
-            {eventsList.length > 0 && (
-              <div className="fb-card">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
-                  <h3 className="fb-card-title" style={{ margin: 0 }}>
-                    <i className="fa-solid fa-calendar-days"></i>
-                    Upcoming Events
-                  </h3>
-                  <span 
-                    onClick={() => setActiveTab('events')} 
-                    style={{ fontSize: '0.75rem', color: '#7B0D1E', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    See all
-                  </span>
-                </div>
-
-                <div className="fb-mini-events-list">
-                  {eventsList.slice(0, 3).map((ev, i) => {
-                    const evDate = ev.event_date ? new Date(ev.event_date) : new Date();
-                    const monthStr = evDate.toLocaleString('en-US', { month: 'short' });
-                    const dayStr = evDate.getDate();
-
-                    return (
-                      <div key={ev.id || i} className="fb-mini-event-item">
-                        <div className="fb-mini-event-datebox">
-                          <span className="fb-mini-event-month">{monthStr}</span>
-                          <span className="fb-mini-event-day">{dayStr}</span>
-                        </div>
-                        <div className="fb-mini-event-details">
-                          <h4 className="fb-mini-event-title">{ev.title}</h4>
-                          <div className="fb-mini-event-sub">
-                            <i className="fa-solid fa-location-dot" style={{ marginRight: '0.25rem', color: '#94a3b8' }}></i>
-                            {ev.location || 'Campus'}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Page Statistics Card */}
             <div className="fb-card" style={{ backgroundColor: '#f8fafc' }}>

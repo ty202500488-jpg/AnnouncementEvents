@@ -4825,7 +4825,7 @@ router.get('/notifications', async (req, res) => {
             `SELECT n.notification_id, n.recipient_user_id, n.actor_user_id,
                     n.page_id, n.post_id, n.notification_scope, n.type,
                     n.title, n.message, n.is_read, n.read_at, n.is_archived, n.created_at,
-                    pg.page_name, po.post_type
+                    pg.page_name, pg.page_code, pg.avatar_url AS page_avatar_url, po.post_type
              FROM notifications n
              LEFT JOIN pages pg ON n.page_id = pg.page_id
              LEFT JOIN posts po ON n.post_id = po.post_id

@@ -7,6 +7,7 @@ import UniversityWideSpotlight from './UniversityWideSpotlight';
 import {
   PortalNavbar,
   DepartmentPagesSidebarList,
+  buildPortalProfileMenuItems,
   getInitials,
 } from './PortalShellElements';
 
@@ -319,20 +320,15 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
 
   const pageInitials = getInitials(pageInfo.name, 'MP');
 
-  const myPageProfileMenuItems = [
-    { label: 'Profile', href: '/staff/profile', icon: 'fa-solid fa-user' },
-    { label: 'My Page', href: '/staff/mypage', icon: 'fa-solid fa-flag', iconColor: '#7B0D1E' },
-    {
-      label: 'Staff Dashboard',
-      href: '/staff/dashboard',
-      icon: 'fa-solid fa-chart-line',
-      iconColor: '#7B0D1E',
-      onClick: () => {
-        if (onSwitchToStaffDashboard) onSwitchToStaffDashboard();
-        else navigate('/staff/dashboard');
-      },
+  const myPageProfileMenuItems = buildPortalProfileMenuItems({
+    role: 'staff',
+    hasApprovedPage: true,
+    swapDashboardHref: '/staff/dashboard',
+    onSwapDashboard: () => {
+      if (onSwitchToStaffDashboard) onSwitchToStaffDashboard();
+      else navigate('/staff/dashboard');
     },
-  ];
+  });
 
   return (
     <div className="staff-dashboard staff-dashboard-wrapper student-dashboard-wrapper fb-shell-layout mypage-shell">
@@ -371,7 +367,11 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
         loadingNotifs={loadingNotifs}
         unreadNotifCount={unreadNotifCount}
         showNotifDropdown={showNotifDropdown}
-        onToggleNotifDropdown={() => setShowNotifDropdown(!showNotifDropdown)}
+        onToggleNotifDropdown={() => {
+          const next = !showNotifDropdown;
+          setShowNotifDropdown(next);
+          if (next) fetchNotifications();
+        }}
         onMarkAllAsRead={handleMarkAllAsRead}
         onNotifClick={handleNotifClick}
         notifDropdownRef={notifDropdownRef}

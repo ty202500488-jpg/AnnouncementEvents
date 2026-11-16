@@ -222,7 +222,7 @@
 }
 
 .auth-page-root .login-card-wrapper.wide-mode {
-  max-width: 620px;
+  max-width: 520px;
 }
 
 .auth-page-root .card-glow-bg {
@@ -380,8 +380,8 @@
 
 /* FIXED NAME ROW GRID: proportional allocation prevents overlap */
 .auth-page-root .form-row.grid-name-row {
-  grid-template-columns: 1.15fr 0.85fr 1.15fr;
-  gap: 0.65rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
 }
 
 .auth-page-root .optional-tag {
@@ -719,11 +719,64 @@
 /* ====================================================
    MULTI-STEP REGISTRATION, LIVE CAMERA & EMAIL WAIT
    ==================================================== */
+.auth-page-root .reg-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(199, 183, 163, 0.04);
+  margin-bottom: 0.25rem;
+}
+
+.auth-page-root .reg-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--color-muted-beige);
+}
+
+.auth-page-root .reg-progress-step-text strong {
+  color: var(--color-light-cream);
+  font-weight: 700;
+}
+
+.auth-page-root .reg-progress-pct {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  background: rgba(109, 41, 50, 0.55);
+  border: 1px solid var(--border-glow);
+  color: var(--color-light-cream);
+  letter-spacing: 0.02em;
+}
+
+.auth-page-root .reg-progress-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 9999px;
+  background: rgba(232, 216, 196, 0.12);
+  overflow: hidden;
+  position: relative;
+}
+
+.auth-page-root .reg-progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #9f1239 0%, #c7b7a3 100%);
+  box-shadow: 0 0 10px rgba(199, 183, 163, 0.45);
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .auth-page-root .reg-stepper {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 0.5rem;
-  margin-bottom: 0.4rem;
+  margin-top: 0.1rem;
 }
 
 .auth-page-root .reg-step-pill {
@@ -731,10 +784,10 @@
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.45rem 0.5rem;
+  padding: 0.48rem 0.5rem;
   border-radius: 9px;
   border: 1px solid var(--border-subtle);
-  background: rgba(199, 183, 163, 0.05);
+  background: rgba(199, 183, 163, 0.04);
   color: var(--color-muted-beige);
   font-size: 0.74rem;
   font-weight: 600;
@@ -744,7 +797,7 @@
 
 .auth-page-root .reg-step-pill.active {
   opacity: 1;
-  background: rgba(109, 41, 50, 0.55);
+  background: rgba(109, 41, 50, 0.62);
   border-color: var(--border-glow);
   color: var(--color-light-cream);
   box-shadow: 0 4px 12px rgba(86, 28, 36, 0.35);
@@ -758,8 +811,8 @@
 }
 
 .auth-page-root .reg-step-num {
-  width: 18px;
-  height: 18px;
+  width: 19px;
+  height: 19px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
@@ -767,6 +820,7 @@
   font-size: 0.68rem;
   font-weight: 700;
   background: rgba(232, 216, 196, 0.15);
+  flex-shrink: 0;
 }
 
 .auth-page-root .reg-step-pill.active .reg-step-num {

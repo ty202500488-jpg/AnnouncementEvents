@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../assets/components/DashboardLayout';
 import HiddenPostCard from '../../assets/components/HiddenPostCard';
+import {
+  EventPostMeta,
+  EventPostActionBar,
+  PostAudienceBadge,
+  normalizePostAudience,
+  toggleEventRegistrationRequest,
+  applyEventRegistrationUpdate,
+} from '../../assets/components/PortalShellElements';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import {
@@ -25,7 +33,28 @@ export default function StudentDashboard() {
   const [postContent, setPostContent] = useState('');
   const [submittingPost, setSubmittingPost] = useState(false);
   const [deletingPost, setDeletingPost] = useState(null);
+  const [registeringEventId, setRegisteringEventId] = useState(null);
   const highlightedPostId = useHighlightedPost(!loading && feed.length > 0);
+
+  const handleEventRegister = async (eventId, isAlreadyRegistered) => {
+    setRegisteringEventId(eventId);
+    try {
+      const result = await toggleEventRegistrationRequest(eventId, isAlreadyRegistered);
+      if (result.unauthenticated) {
+        navigate('/auth');
+        return;
+      }
+      if (result.ok) {
+        setFeed((prev) => applyEventRegistrationUpdate(prev, eventId, !isAlreadyRegistered));
+      } else {
+        alert(result.message || 'Failed to update event registration.');
+      }
+    } catch {
+      alert('Network error while updating event registration.');
+    } finally {
+      setRegisteringEventId(null);
+    }
+  };
 
   const token = localStorage.getItem('token');
 
@@ -77,13 +106,10 @@ export default function StudentDashboard() {
       });
 
       if (response.ok) {
-        // Update follow state across all feed items belonging to this page
-        setFeed(prev => prev.map(item => {
-          if (item.page_id === pageId) {
-            return { ...item, is_followed: !currentFollowState };
-          }
-          return item;
-        }));
+        setFeed(prev => prev.map(item => (
+          item.page_id === pageId ? { ...item, is_followed: !currentFollowState } : item
+        )));
+        fetchDashboardContent();
       }
     } catch (err) {
       console.error('Error toggling follow from feed:', err);
@@ -166,9 +192,13 @@ export default function StudentDashboard() {
           })
         );
         setEditingPost(null);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || 'Failed to update post.');
       }
     } catch (err) {
       console.error('Error updating post:', err);
+      alert('Network error while updating post.');
     } finally {
       setSubmittingPost(false);
     }
@@ -192,9 +222,13 @@ export default function StudentDashboard() {
         setFeed(prev =>
           prev.filter(p => !((p.id || p.post_id) === deleteId && p._type === deletingPost._type))
         );
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData.message || 'Failed to delete post.');
       }
     } catch (err) {
       console.error('Error deleting post:', err);
+      alert('Network error while deleting post.');
     } finally {
       setDeletingPost(null);
     }
@@ -204,7 +238,12 @@ export default function StudentDashboard() {
     const key = `${item._type}-${item.id || idx}`;
     const pageKey = item.page_id || item.department_name || item.page_name;
     if (pageKey && hiddenPageKeys.includes(pageKey)) return false;
-    return !hiddenPosts[key]?.dismissed;
+    if (hiddenPosts[key]?.dismissed) return false;
+
+    const audienceKind = normalizePostAudience(item.audience);
+    if (audienceKind === 'private') return false;
+    if (audienceKind === 'followers') return !!item.is_followed;
+    return true;
   });
 
   return (
@@ -310,8 +349,8 @@ export default function StudentDashboard() {
                         width: '2.5rem', 
                         height: '2.5rem', 
                         borderRadius: '50%', 
-                        backgroundColor: '#fbe4e8', 
-                        color: '#8c1030', 
+                        background: 'linear-gradient(135deg, #9f1239 0%, #881337 100%)', 
+                        color: '#ffffff', 
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center', 
@@ -364,17 +403,17 @@ export default function StudentDashboard() {
 
                       <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {isEvent ? (
-                          <>
-                            <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
-                            <span>•</span>
-                            <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
-                            <span>•</span>
-                            <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
-                          </>
+                          <EventPostMeta
+                            registeredCount={currentRegistered}
+                            capacity={item.max_capacity || item.capacity}
+                            createdAt={item.created_at}
+                            audience={item.audience}
+                          />
                         ) : (
                           <>
-                            <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
+                            <span>•</span>
+                            <PostAudienceBadge audience={item.audience} />
                           </>
                         )}
                       </div>
@@ -538,34 +577,20 @@ export default function StudentDashboard() {
                   </div>
                 )}
 
-                {/* 3. OPTIONAL ATTENDANCE SCAN BAR FOR REGISTERED EVENTS */}
-                {isEvent && item.is_registered && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0.75rem 1rem 0.25rem 1rem', paddingTop: '0.75rem', borderTop: '1px solid #e6ebf0' }}>
-                    <button
-                      onClick={() => {
-                        const scanToken = prompt("Scan or enter event QR token:");
-                        if (scanToken) {
-                          const clean = scanToken.trim().split('/').pop();
-                          navigate(`/student/attendance/check-in/${clean}`);
-                        }
-                      }}
-                      style={{ 
-                        backgroundColor: '#ffffff', 
-                        color: '#475569', 
-                        border: '1px solid #e2e8f0', 
-                        padding: '0.4rem 0.875rem', 
-                        borderRadius: '0.5rem', 
-                        fontSize: '0.8125rem', 
-                        fontWeight: 600, 
-                        cursor: 'pointer', 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
-                        gap: '0.4rem'
-                      }}
-                    >
-                      <i className="fa-solid fa-qrcode"></i> Scan Attendance
-                    </button>
-                  </div>
+                {/* 3. EVENT REGISTRATION & ATTENDANCE BAR */}
+                {isEvent && (
+                  <EventPostActionBar
+                    isRegistered={Boolean(item.is_registered)}
+                    isRegistering={registeringEventId === postId}
+                    onToggleRegister={() => handleEventRegister(postId, Boolean(item.is_registered))}
+                    onScanAttendance={() => {
+                      const scanToken = prompt("Scan or enter event QR token:");
+                      if (scanToken) {
+                        const clean = scanToken.trim().split('/').pop();
+                        navigate(`/student/attendance/check-in/${clean}`);
+                      }
+                    }}
+                  />
                 )}
               </article>
             );

@@ -830,48 +830,61 @@ export default function Auth() {
             <form onSubmit={handleRegisterSubmit} className={`auth-form ${activeTab === 'register' ? 'active' : ''}`}>
               <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-              {regStep !== 'awaiting_confirmation' && (
-                <div className="reg-stepper" aria-label="Registration Steps">
-                  {[
-                    { step: 1, label: 'Personal' },
-                    { step: 2, label: 'Academic' },
-                    { step: 3, label: 'COR & ID' },
-                    { step: 4, label: 'Account' }
-                  ].map((item) => {
-                    const isCompleted = typeof regStep === 'number' && regStep > item.step;
-                    const isCurrent = regStep === item.step;
-                    return (
+              {regStep !== 'awaiting_confirmation' && (() => {
+                const steps = [
+                  { step: 1, label: 'Personal' },
+                  { step: 2, label: 'Academic' },
+                  { step: 3, label: 'COR & ID' },
+                  { step: 4, label: 'Account' }
+                ];
+                const currentStepNum = typeof regStep === 'number' ? regStep : 1;
+                const progressPct = Math.round((currentStepNum / steps.length) * 100);
+                const currentLabel = steps.find((s) => s.step === currentStepNum)?.label || 'Personal';
+
+                return (
+                  <div className="reg-progress-wrap" aria-label="Registration Progress">
+                    <div className="reg-progress-meta">
+                      <span className="reg-progress-step-text">
+                        Step {currentStepNum} of {steps.length} &middot; <strong>{currentLabel}</strong>
+                      </span>
+                      <span className="reg-progress-pct">{progressPct}%</span>
+                    </div>
+
+                    <div
+                      className="reg-progress-track"
+                      role="progressbar"
+                      aria-valuenow={progressPct}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
                       <div
-                        key={item.step}
-                        className={`reg-step-pill ${isCurrent ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-                      >
-                        <span className="reg-step-num">{isCompleted ? '✓' : item.step}</span>
-                        <span className="reg-step-label">{item.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                        className="reg-progress-fill"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* STEP 1: PERSONAL INFORMATION */}
               {regStep === 1 && (
                 <div className="reg-step-panel">
                   <div className="form-section-title">Step 1 — Personal Information</div>
 
-                  <div className="form-group">
-                    <label className="form-label">Student ID</label>
-                    <div className="input-container">
-                      <input
-                        type="text"
-                        placeholder="e.g., 2024-01234"
-                        value={regData.studentId}
-                        onChange={(e) => setRegData({ ...regData, studentId: e.target.value })}
-                        required
-                      />
+                  <div className="form-row two-cols">
+                    <div className="form-group">
+                      <label className="form-label">Student ID</label>
+                      <div className="input-container">
+                        <input
+                          type="text"
+                          placeholder="e.g., 2024-01234"
+                          value={regData.studentId}
+                          onChange={(e) => setRegData({ ...regData, studentId: e.target.value })}
+                          required
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="form-row grid-name-row">
                     <div className="form-group">
                       <label className="form-label">First Name</label>
                       <div className="input-container">

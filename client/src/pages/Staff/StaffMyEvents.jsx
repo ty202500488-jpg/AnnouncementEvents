@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import {
+  EventPostMeta,
+  EventPostActionBar,
+  PostOwnerActionMenu,
+  PostEditDeleteModals,
+  updatePostRequest,
+  deletePostRequest,
+} from '../../assets/components/PortalShellElements';
 import '../styles/StaffDashboard.css';
 
 export default function StaffMyEvents() {
@@ -9,7 +17,61 @@ export default function StaffMyEvents() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [togglingPageId, setTogglingPageId] = useState(null);
+  const [activeMenuKey, setActiveMenuKey] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [postTitle, setPostTitle] = useState('');
+  const [postContent, setPostContent] = useState('');
+  const [submittingPost, setSubmittingPost] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(null);
   const token = localStorage.getItem('token');
+
+  const handleOpenEditPost = (item) => {
+    setEditingPost(item);
+    setPostTitle(item.title || item.event_title || '');
+    setPostContent(item.description || item.event_description || item.content || '');
+    setActiveMenuKey(null);
+  };
+
+  const handleSavePostEdit = async (e) => {
+    e.preventDefault();
+    if (!editingPost) return;
+    setSubmittingPost(true);
+    try {
+      const result = await updatePostRequest(editingPost, { title: postTitle, content: postContent });
+      if (result.ok) {
+        setMyEvents((prev) =>
+          prev.map((p) =>
+            (p.id || p.event_id) === result.id
+              ? { ...p, title: postTitle, event_title: postTitle, content: postContent, description: postContent, event_description: postContent }
+              : p
+          )
+        );
+        setEditingPost(null);
+      } else {
+        alert(result.message || 'Failed to update post.');
+      }
+    } catch {
+      alert('Network error while updating post.');
+    } finally {
+      setSubmittingPost(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!deletingPost) return;
+    try {
+      const result = await deletePostRequest(deletingPost);
+      if (result.ok) {
+        setMyEvents((prev) => prev.filter((p) => (p.id || p.event_id) !== result.id));
+      } else {
+        alert(result.message || 'Failed to delete post.');
+      }
+    } catch {
+      alert('Network error while deleting post.');
+    } finally {
+      setDeletingPost(null);
+    }
+  };
 
   useEffect(() => {
     const fetchMyEvents = async () => {
@@ -109,49 +171,6 @@ export default function StaffMyEvents() {
           }
         `}</style>
 
-        {/* Compact Title & Filter Header */}
-        <div 
-          className="flex items-center justify-between" 
-          style={{ 
-            marginBottom: '1.25rem', 
-            paddingBottom: '0.625rem', 
-            borderBottom: '1px solid var(--slate-200, #e2e8f0)' 
-          }}
-        >
-          <div>
-            <h3 style={{ fontWeight: 700, color: 'var(--slate-900)', fontSize: '1.0625rem' }}>My Registered Events</h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '0.125rem' }}>
-              Track your upcoming schedule, event registration statuses, and scan attendance QR codes.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-1" style={{ backgroundColor: '#ffffff', padding: '0.2rem', borderRadius: '0.5rem', border: '1px solid var(--slate-200)' }}>
-            {['all', 'completed'].map((type) => {
-              const isActive = statusFilter === type;
-              return (
-                <button
-                  key={type}
-                  onClick={() => setStatusFilter(type)}
-                  style={{
-                    padding: '0.3rem 0.625rem',
-                    borderRadius: '0.375rem',
-                    backgroundColor: isActive ? '#8c1030' : 'transparent',
-                    color: isActive ? '#ffffff' : 'var(--slate-600)',
-                    fontWeight: 600,
-                    fontSize: '0.75rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textTransform: 'capitalize',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  {type}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
         {loading ? (
           <div style={{ textAlign: 'center', color: 'var(--slate-500)', padding: '2rem 1rem' }}>
             <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#8c1030' }}></i>
@@ -217,17 +236,22 @@ export default function StaffMyEvents() {
                           width: '2.5rem', 
                           height: '2.5rem', 
                           borderRadius: '50%', 
-                          backgroundColor: '#fbe4e8', 
-                          color: '#8c1030', 
+                          background: 'linear-gradient(135deg, #9f1239 0%, #881337 100%)', 
+                          color: '#ffffff', 
                           display: 'flex', 
                           alignItems: 'center', 
                           justifyContent: 'center', 
                           fontWeight: 800, 
                           fontSize: '0.8rem',
-                          flexShrink: 0
+                          flexShrink: 0,
+                          overflow: 'hidden'
                         }}
                       >
-                        {avatarText}
+                        {item.page_avatar_url ? (
+                          <img src={item.page_avatar_url} alt={deptName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          avatarText
+                        )}
                       </div>
 
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -274,33 +298,32 @@ export default function StaffMyEvents() {
                           </span>
                         </div>
                         <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
-                          <span>•</span>
-                          <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
-                          <span>•</span>
-                          <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                          <EventPostMeta
+                            registeredCount={currentRegistered}
+                            capacity={item.max_capacity || item.capacity}
+                            createdAt={item.created_at}
+                            audience={item.audience}
+                          />
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-
-                      <button 
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#16162b',
-                          cursor: 'pointer',
-                          padding: '0.25rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="More options"
-                      >
-                        <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
-                      </button>
-                    </div>
+                    {item.is_owner && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                        <PostOwnerActionMenu
+                          isOpen={activeMenuKey === (item.id || item.event_id)}
+                          onToggle={() => {
+                            const key = item.id || item.event_id;
+                            setActiveMenuKey((prev) => (prev === key ? null : key));
+                          }}
+                          onEdit={() => handleOpenEditPost(item)}
+                          onDelete={() => {
+                            setDeletingPost(item);
+                            setActiveMenuKey(null);
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Post Media or Clean Text Body */}
@@ -343,60 +366,37 @@ export default function StaffMyEvents() {
                     </div>
                   )}
 
-                  {/* Inline Action Bar (Scan / Cancel Registration) */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0.75rem 1rem 0.25rem 1rem', paddingTop: '0.75rem', borderTop: '1px solid #e6ebf0', gap: '0.75rem' }}>
-                    {isUpcoming && (
-                      <button
-                        onClick={() => {
-                          const token = prompt("Scan or enter event QR token:");
-                          if (token) {
-                            const clean = token.trim().split('/').pop();
-                            navigate(`/staff/attendance/check-in/${clean}`);
-                          }
-                        }}
-                        style={{ 
-                          backgroundColor: '#ffffff', 
-                          color: '#475569', 
-                          border: '1px solid #e2e8f0', 
-                          padding: '0.4rem 0.875rem', 
-                          borderRadius: '0.5rem', 
-                          fontSize: '0.8125rem', 
-                          fontWeight: 600, 
-                          cursor: 'pointer', 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '0.4rem'
-                        }}
-                      >
-                        <i className="fa-solid fa-qrcode"></i> Scan Attendance
-                      </button>
-                    )}
-
-                    {isUpcoming && (
-                      <button 
-                        onClick={() => handleCancelRegistration(item.id)}
-                        style={{ 
-                          background: 'transparent', 
-                          border: '1px solid #fecdd3', 
-                          color: '#e11d48', 
-                          fontSize: '0.8125rem', 
-                          fontWeight: 600, 
-                          cursor: 'pointer', 
-                          padding: '0.4rem 0.875rem', 
-                          borderRadius: '0.5rem',
-                          transition: 'background-color 0.15s ease'
-                        }}
-                      >
-                        Cancel Registration
-                      </button>
-                    )}
-                  </div>
+                  {/* Inline Action Bar (Scan / Unregister) */}
+                  <EventPostActionBar
+                    isRegistered={true}
+                    onToggleRegister={isUpcoming ? () => handleCancelRegistration(item.id) : null}
+                    onScanAttendance={isUpcoming ? () => {
+                      const scanToken = prompt("Scan or enter event QR token:");
+                      if (scanToken) {
+                        const clean = scanToken.trim().split('/').pop();
+                        navigate(`/staff/attendance/check-in/${clean}`);
+                      }
+                    } : null}
+                  />
                 </article>
               );
             })}
           </div>
         )}
       </main>
+      <PostEditDeleteModals
+        editingPost={editingPost}
+        postTitle={postTitle}
+        postContent={postContent}
+        onChangeTitle={setPostTitle}
+        onChangeContent={setPostContent}
+        onCloseEdit={() => setEditingPost(null)}
+        onSubmitEdit={handleSavePostEdit}
+        submitting={submittingPost}
+        deletingPost={deletingPost}
+        onCloseDelete={() => setDeletingPost(null)}
+        onConfirmDelete={handleDeletePost}
+      />
     </StaffDashboardLayout>
   );
 }

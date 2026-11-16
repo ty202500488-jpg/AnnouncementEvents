@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
 import Pagination from '../../assets/components/Pagination';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
+import { PostAudienceBadge } from '../../assets/components/PortalShellElements';
 import '../styles/PostApproval.css';
 
 const PostApproval = () => {
@@ -438,7 +439,9 @@ const PostApproval = () => {
                       </td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
-                          <span className="pa-audience-pill">{item.audience || 'All Students'}</span>
+                          <span className="pa-audience-pill">
+                            <PostAudienceBadge audience={item.audience} showLabel />
+                          </span>
                           {item.is_university_wide && item.expires_at && (
                             <span className="pa-spotlight-expiry">
                               Until {new Date(item.expires_at).toLocaleDateString()}
@@ -543,7 +546,7 @@ const PostApproval = () => {
                     <div><strong>Submitted By:</strong> {selectedItem.submitted_by || selectedItem.author_name || 'Staff Member'}</div>
                     <div><strong>Organization / Page:</strong> {selectedItem.page_name || 'University Office'}</div>
                     <div><strong>Category:</strong> {selectedItem.category || 'General'}</div>
-                    <div><strong>Audience / Scope:</strong> {selectedItem.audience || 'All Students'}</div>
+                    <div><strong>Audience / Scope:</strong> <PostAudienceBadge audience={selectedItem.audience} showLabel /></div>
                     {selectedItem.is_university_wide && (
                       <>
                         <div>

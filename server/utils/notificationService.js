@@ -265,6 +265,8 @@ function formatNotificationRow(row) {
         title: row.title || row.page_name || 'Campus Notification',
         message: row.message,
         page_name: row.page_name || 'Campus System',
+        page_code: row.page_code || null,
+        page_avatar_url: row.page_avatar_url || null,
         is_read: Boolean(row.is_read),
         read_at: row.read_at || null,
         is_archived: Boolean(row.is_archived),
@@ -491,10 +493,9 @@ async function notifyPublishedPost(db, { post, page = null, actorUserId = null }
         );
 
         const notifType = isEvent ? 'event' : 'announcement';
-        const titlePrefix = isSpotlightPost
-            ? (isEvent ? 'University-Wide Event' : 'University-Wide Announcement')
-            : (isEvent ? 'New Campus Event' : 'New Announcement');
-        const notifTitle = `${titlePrefix}: ${post.title}`;
+        const notifTitle = isSpotlightPost
+            ? `${isEvent ? 'University-Wide Event' : 'University-Wide Announcement'}: ${post.title}`
+            : post.title;
         const notifMsg = isEvent
             ? `${pageInfo.page_name} published a new event: "${post.title}".`
             : `${pageInfo.page_name} posted: "${post.title}".`;

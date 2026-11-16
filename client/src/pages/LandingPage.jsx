@@ -59,13 +59,14 @@ export default function LandingPage() {
         <div className="nav-container">
           <a href="#" className="nav-logo">
             <img src={logo} alt="CRIMSON Logo" className="logo-img" />
-            <span className="logo-text" style={{ fontFamily: 'Bungee, sans-serif' }}>
+            <span className="logo-text" style={{ fontFamily: "'Unbounded', sans-serif", fontWeight: 800, letterSpacing: '0.05em' }}>
               CRIM<span className="logo-accent">SON</span>
             </span>
           </a>
-        
+
           <div className="nav-actions">
-            <Link to="/auth" className="btn-nav">Sign In</Link>
+            <Link to="/auth" className="btn-nav-ghost">Sign In</Link>
+            <Link to="/auth" className="btn-nav">Get Started</Link>
           </div>
         </div>
       </header>
@@ -109,14 +110,23 @@ export default function LandingPage() {
           </div>
 
           <div className="hero-content">
-            <h1 className="hero-title animate-text">
-              Your Campus,<br />
-              <span className="shimmer-glow-text">In One Place.</span>
+            <h1 className="hero-title">
+              <span className="hero-title-line">
+                <span className="hero-word word-1">Your</span>{' '}
+                <span className="hero-word word-2">Campus,</span>
+              </span>
+              <span className="hero-title-line">
+                <span className="shimmer-glow-text">
+                  <span className="hero-word word-3">In</span>{' '}
+                  <span className="hero-word word-4">One</span>{' '}
+                  <span className="hero-word word-5">Place.</span>
+                </span>
+              </span>
             </h1>
-            <p className="hero-subtitle animate-text delay-1">
+            <p className="hero-subtitle animate-text delay-2">
               Stay updated with the latest announcements, events, deadlines, and activities happening around campus.
             </p>
-            <div className="hero-actions animate-text delay-2">
+            <div className="hero-actions animate-text delay-3">
               <Link to="/auth" className="btn-primary1">Explore Events</Link>
               <Link to="/auth" className="btn-secondary">View Announcements</Link>
             </div>

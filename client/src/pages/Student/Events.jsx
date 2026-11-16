@@ -1,16 +1,100 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../assets/components/DashboardLayout';
+import {
+  EventPostMeta,
+  EventPostActionBar,
+  PostOwnerActionMenu,
+  PostEditDeleteModals,
+  toggleEventRegistrationRequest,
+  applyEventRegistrationUpdate,
+  updatePostRequest,
+  deletePostRequest,
+} from '../../assets/components/PortalShellElements';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
-import { formatPostTimestamp, formatScheduledDate } from '../../utils/dateUtils';
 import '../styles/StudentDashboard.css';
 
 export default function Events() {
   const navigate = useNavigate();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [registeringEventId, setRegisteringEventId] = useState(null);
+  const [activeMenuKey, setActiveMenuKey] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [postTitle, setPostTitle] = useState('');
+  const [postContent, setPostContent] = useState('');
+  const [submittingPost, setSubmittingPost] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(null);
   const highlightedPostId = useHighlightedPost(!loading && events.length > 0);
   const token = localStorage.getItem('token');
+
+  const handleOpenEditPost = (item) => {
+    setEditingPost(item);
+    setPostTitle(item.title || '');
+    setPostContent(item.content || item.description || '');
+    setActiveMenuKey(null);
+  };
+
+  const handleSavePostEdit = async (e) => {
+    e.preventDefault();
+    if (!editingPost) return;
+    setSubmittingPost(true);
+    try {
+      const result = await updatePostRequest(editingPost, { title: postTitle, content: postContent });
+      if (result.ok) {
+        setEvents((prev) =>
+          prev.map((p) =>
+            (p.id || p.post_id) === result.id
+              ? { ...p, title: postTitle, content: postContent, description: postContent }
+              : p
+          )
+        );
+        setEditingPost(null);
+      } else {
+        alert(result.message || 'Failed to update post.');
+      }
+    } catch {
+      alert('Network error while updating post.');
+    } finally {
+      setSubmittingPost(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!deletingPost) return;
+    try {
+      const result = await deletePostRequest(deletingPost);
+      if (result.ok) {
+        setEvents((prev) => prev.filter((p) => (p.id || p.post_id) !== result.id));
+      } else {
+        alert(result.message || 'Failed to delete post.');
+      }
+    } catch {
+      alert('Network error while deleting post.');
+    } finally {
+      setDeletingPost(null);
+    }
+  };
+
+  const handleEventRegister = async (eventId, isAlreadyRegistered) => {
+    setRegisteringEventId(eventId);
+    try {
+      const result = await toggleEventRegistrationRequest(eventId, isAlreadyRegistered);
+      if (result.unauthenticated) {
+        navigate('/auth');
+        return;
+      }
+      if (result.ok) {
+        setEvents((prev) => applyEventRegistrationUpdate(prev, eventId, !isAlreadyRegistered));
+      } else {
+        alert(result.message || 'Failed to update event registration.');
+      }
+    } catch {
+      alert('Network error while updating event registration.');
+    } finally {
+      setRegisteringEventId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -24,7 +108,7 @@ export default function Events() {
         });
         const data = await response.json();
         if (response.ok && data.events) {
-          setEvents(data.events);
+          setEvents(data.events.filter((item) => item.is_followed || item.is_owner));
         }
       } catch (err) {
         console.error('Failed to fetch events:', err);
@@ -95,12 +179,9 @@ export default function Events() {
               const deptName = item.department_name || 'University Office';
               const avatarText = deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
               const isFollowed = !!item.is_followed;
-              const postDate = formatScheduledDate(item.event_date || item.date);
-              const postedAt = item.created_at ? formatPostTimestamp(item.created_at) : null;
               const postImage = item.image_url || item.image || null;
               
               const currentRegistered = item.registered_count ?? item.current_registered ?? 0;
-              const maxCapacity = item.max_capacity || item.capacity || 'Unlimited';
               const locationText = item.location || 'University Campus';
               const { domId, highlightStyle } = getHighlightedCardProps(item, highlightedPostId);
 
@@ -127,17 +208,22 @@ export default function Events() {
                           width: '2.5rem', 
                           height: '2.5rem', 
                           borderRadius: '50%', 
-                          backgroundColor: '#fbe4e8', 
-                          color: '#8c1030', 
+                          background: 'linear-gradient(135deg, #9f1239 0%, #881337 100%)', 
+                          color: '#ffffff', 
                           display: 'flex', 
                           alignItems: 'center', 
                           justifyContent: 'center', 
                           fontWeight: 800, 
                           fontSize: '0.8rem',
-                          flexShrink: 0
+                          flexShrink: 0,
+                          overflow: 'hidden'
                         }}
                       >
-                        {avatarText}
+                        {item.page_avatar_url ? (
+                          <img src={item.page_avatar_url} alt={deptName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                          avatarText
+                        )}
                       </div>
 
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -173,39 +259,32 @@ export default function Events() {
                           )}
                         </div>
                         <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          <span><i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {currentRegistered} / {maxCapacity} registered</span>
-                          <span>•</span>
-                          <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
-                          <span>•</span>
-                          <span><i className="fa-solid fa-calendar" style={{ color: '#94a3b8' }}></i> {postDate}</span>
-                          {postedAt && (
-                            <>
-                              <span>•</span>
-                              <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> Posted {postedAt}</span>
-                            </>
-                          )}
+                          <EventPostMeta
+                            registeredCount={currentRegistered}
+                            capacity={item.max_capacity || item.capacity}
+                            createdAt={item.created_at}
+                            audience={item.audience}
+                          />
                         </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-
-                      <button 
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#16162b',
-                          cursor: 'pointer',
-                          padding: '0.25rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="More options"
-                      >
-                        <i className="fa-solid fa-ellipsis-vertical" style={{ fontSize: '1rem' }}></i>
-                      </button>
-                    </div>
+                    {item.is_owner && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                        <PostOwnerActionMenu
+                          isOpen={activeMenuKey === (item.id || item.post_id || index)}
+                          onToggle={() => {
+                            const key = item.id || item.post_id || index;
+                            setActiveMenuKey((prev) => (prev === key ? null : key));
+                          }}
+                          onEdit={() => handleOpenEditPost(item)}
+                          onDelete={() => {
+                            setDeletingPost(item);
+                            setActiveMenuKey(null);
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Post Media or Clean Text Body */}
@@ -248,41 +327,38 @@ export default function Events() {
                     </div>
                   )}
 
-                  {/* Optional Attendance Scan Bar if registered */}
-                  {item.is_registered && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', margin: '0.75rem 1rem 0.25rem 1rem', paddingTop: '0.75rem', borderTop: '1px solid #e6ebf0' }}>
-                      <button
-                        onClick={() => {
-                          const token = prompt("Scan or enter event QR token:");
-                          if (token) {
-                            const clean = token.trim().split('/').pop();
-                            navigate(`/student/attendance/check-in/${clean}`);
-                          }
-                        }}
-                        style={{ 
-                          backgroundColor: '#ffffff', 
-                          color: '#475569', 
-                          border: '1px solid #e2e8f0', 
-                          padding: '0.4rem 0.875rem', 
-                          borderRadius: '0.5rem', 
-                          fontSize: '0.8125rem', 
-                          fontWeight: 600, 
-                          cursor: 'pointer', 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '0.4rem'
-                        }}
-                      >
-                        <i className="fa-solid fa-qrcode"></i> Scan Attendance
-                      </button>
-                    </div>
-                  )}
+                  {/* Event Registration & Attendance Bar */}
+                  <EventPostActionBar
+                    isRegistered={Boolean(item.is_registered)}
+                    isRegistering={registeringEventId === (item.id || item.post_id)}
+                    onToggleRegister={() => handleEventRegister(item.id || item.post_id, Boolean(item.is_registered))}
+                    onScanAttendance={() => {
+                      const scanToken = prompt("Scan or enter event QR token:");
+                      if (scanToken) {
+                        const clean = scanToken.trim().split('/').pop();
+                        navigate(`/student/attendance/check-in/${clean}`);
+                      }
+                    }}
+                  />
                 </article>
               );
             })}
           </div>
         )}
       </main>
+      <PostEditDeleteModals
+        editingPost={editingPost}
+        postTitle={postTitle}
+        postContent={postContent}
+        onChangeTitle={setPostTitle}
+        onChangeContent={setPostContent}
+        onCloseEdit={() => setEditingPost(null)}
+        onSubmitEdit={handleSavePostEdit}
+        submitting={submittingPost}
+        deletingPost={deletingPost}
+        onCloseDelete={() => setDeletingPost(null)}
+        onConfirmDelete={handleDeletePost}
+      />
     </DashboardLayout>
   );
 }
