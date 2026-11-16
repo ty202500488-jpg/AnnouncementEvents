@@ -355,11 +355,11 @@ export default function StaffDashboard() {
                             <span>•</span>
                             <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
                             <span>•</span>
-                            <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                            <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
                           </>
                         ) : (
                           <>
-                            <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                            <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
                           </>
                         )}
@@ -427,7 +427,7 @@ export default function StaffDashboard() {
                                 gap: '0.5rem'
                               }}
                             >
-                              <i className="fa-regular fa-pen-to-square"></i> Edit
+                              <i className="fa-solid fa-pen-to-square"></i> Edit
                             </button>
                             <button
                               type="button"
@@ -451,7 +451,7 @@ export default function StaffDashboard() {
                                 gap: '0.5rem'
                               }}
                             >
-                              <i className="fa-regular fa-trash-can"></i> Delete
+                              <i className="fa-solid fa-trash-can"></i> Delete
                             </button>
                           </div>
                         )}

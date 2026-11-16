@@ -699,7 +699,7 @@ export default function PageView({ role = 'guest' }) {
                   )}
                   {page.contact_email && (
                     <li className="fb-about-item">
-                      <i className="fa-regular fa-envelope"></i>
+                      <i className="fa-solid fa-envelope"></i>
                       <div>
                         <span className="fb-about-label">Contact Email</span>
                         <a href={`mailto:${page.contact_email}`} style={{ color: '#7B0D1E', textDecoration: 'none' }}>
@@ -709,7 +709,7 @@ export default function PageView({ role = 'guest' }) {
                     </li>
                   )}
                   <li className="fb-about-item">
-                    <i className="fa-regular fa-calendar-check"></i>
+                    <i className="fa-solid fa-calendar-check"></i>
                     <div>
                       <span className="fb-about-label">Page Established</span>
                       <span>{page.created_at ? new Date(page.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Official Campus Unit'}</span>
@@ -720,7 +720,7 @@ export default function PageView({ role = 'guest' }) {
             ) : filteredPosts.length === 0 ? (
               /* EMPTY POSTS STATE */
               <div className="fb-empty-feed">
-                <i className="fa-regular fa-folder-open fb-empty-icon"></i>
+                <i className="fa-solid fa-folder-open fb-empty-icon"></i>
                 <h4>No {activeTab === 'all' ? 'posts' : activeTab} published yet</h4>
                 <p>Check back later for new announcements and upcoming campus events from this page.</p>
               </div>
@@ -784,11 +784,11 @@ export default function PageView({ role = 'guest' }) {
                                 <span>•</span>
                                 <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
                                 <span>•</span>
-                                <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                                <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
                               </>
                             ) : (
                               <>
-                                <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                                <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
                               </>
                             )}
@@ -986,7 +986,7 @@ export default function PageView({ role = 'guest' }) {
                 </li>
                 {page.contact_email && (
                   <li className="fb-about-item">
-                    <i className="fa-regular fa-envelope"></i>
+                    <i className="fa-solid fa-envelope"></i>
                     <div>
                       <span className="fb-about-label">Contact</span>
                       <span>{page.contact_email}</span>
@@ -1008,7 +1008,7 @@ export default function PageView({ role = 'guest' }) {
               <div className="fb-card">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
                   <h3 className="fb-card-title" style={{ margin: 0 }}>
-                    <i className="fa-regular fa-calendar-days"></i>
+                    <i className="fa-solid fa-calendar-days"></i>
                     Upcoming Events
                   </h3>
                   <span 

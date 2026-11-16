@@ -692,7 +692,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
               </article>
             ) : filteredPosts.length === 0 ? (
               <div className="fb-card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#64748b' }}>
-                <i className="fa-regular fa-folder-open" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '0.75rem' }}></i>
+                <i className="fa-solid fa-folder-open" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '0.75rem' }}></i>
                 <h3 style={{ margin: '0 0 0.25rem 0', color: '#334155', fontSize: '1.05rem' }}>No posts yet</h3>
                 <p style={{ margin: 0, fontSize: '0.875rem' }}>
                   {activeTab === 'events'
@@ -762,11 +762,11 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                                 <span>•</span>
                                 <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
                                 <span>•</span>
-                                <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                                <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
                               </>
                             ) : (
                               <>
-                                <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                                <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
                               </>
                             )}

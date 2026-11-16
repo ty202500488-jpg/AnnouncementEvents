@@ -112,12 +112,12 @@ function SpotlightDetailModal({ item, onClose, onNavigateToPage }) {
                 <strong>{item.page_name || 'University Office'}</strong>
               </span>
               <span className="uw-modal-meta-item">
-                <i className="fa-regular fa-clock" style={{ color: '#64748b' }}></i>
+                <i className="fa-solid fa-clock" style={{ color: '#64748b' }}></i>
                 Posted {formatPostTimestamp(item.published_at || item.created_at)}
               </span>
               {item.expires_at && (
                 <span className="uw-modal-meta-item">
-                  <i className="fa-regular fa-hourglass-half" style={{ color: '#800020' }}></i>
+                  <i className="fa-solid fa-hourglass-half" style={{ color: '#800020' }}></i>
                   Active until {formatReadableDate(item.expires_at, true)}
                 </span>
               )}
@@ -127,7 +127,7 @@ function SpotlightDetailModal({ item, onClose, onNavigateToPage }) {
               <div className="uw-modal-event-box">
                 <div>
                   <strong>Event Date:</strong>
-                  <div>{formatReadableDate(item.event_date, true)}</div>
+                  <div>{formatReadableDate(item.event_date, false)}</div>
                 </div>
                 <div>
                   <strong>Location:</strong>

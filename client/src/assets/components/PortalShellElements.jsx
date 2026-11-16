@@ -197,58 +197,52 @@ export function PortalNavbar({
 
         {/* Center: Search Bar */}
         <div className="search-container" ref={searchContainerRef}>
-          <div className="search-wrapper" style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-            <i className="fa-solid fa-magnifying-glass search-icon"></i>
+          <div className="search-wrapper">
+            <i className="fa-solid fa-magnifying-glass search-icon" aria-hidden="true"></i>
             <input
               type="text"
               placeholder={searchPlaceholder || `Search ${filterCategory === 'all' ? 'Announcements, Events, Departments...' : filterCategory + '...'}`}
               className="search-input"
-              style={{ width: '100%', fontSize: '0.8125rem' }}
+              aria-label="Search portal"
               value={searchQuery}
               onChange={onSearchChange}
               onFocus={() => searchQuery.trim() && onSelectSearchResult && onSelectSearchResult(null, true)}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => onSearchChange({ target: { value: '' } })}
+                title="Clear search"
+                aria-label="Clear search"
+              >
+                <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+              </button>
+            )}
             <button
               type="button"
-              className="filter-btn"
+              className={`filter-btn ${filterCategory !== 'all' ? 'is-filtered' : ''}`}
               onClick={onToggleFilter}
-              title={`Current Filter: ${filterCategory.toUpperCase()}`}
-              style={{
-                color: filterCategory !== 'all' ? '#881337' : 'inherit',
-                fontWeight: filterCategory !== 'all' ? 700 : 400,
-                background: 'none',
-                border: 'none',
-                padding: '0.25rem',
-              }}
+              title={`Filter: ${filterCategory.toUpperCase()} (click to switch)`}
+              aria-label={`Filter search by category: ${filterCategory}`}
             >
-              <i className="fa-sliders fa-solid" style={{ fontSize: '0.75rem' }}></i>
+              <i className="fa-solid fa-sliders" aria-hidden="true"></i>
+              <span className="filter-btn-label">
+                {filterCategory === 'all' ? 'All' : filterCategory.charAt(0).toUpperCase() + filterCategory.slice(1)}
+              </span>
             </button>
           </div>
 
           {showSearchDropdown && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                marginTop: '0.5rem',
-                backgroundColor: '#ffffff',
-                borderRadius: '0.5rem',
-                border: '1px solid var(--slate-200, #e2e8f0)',
-                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
-                zIndex: 50,
-                maxHeight: '300px',
-                overflowY: 'auto',
-                padding: '0.5rem',
-              }}
-            >
+            <div className="search-dropdown">
               {isSearching ? (
-                <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>
+                <p style={{ padding: '0.875rem', fontSize: '0.8125rem', color: '#64748b', textAlign: 'center', margin: 0 }}>
+                  <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: '0.5rem', color: '#881337' }} aria-hidden="true"></i>
                   Searching database...
                 </p>
               ) : searchResults.length === 0 ? (
-                <p style={{ padding: '0.75rem', fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>
+                <p style={{ padding: '0.875rem', fontSize: '0.8125rem', color: '#64748b', textAlign: 'center', margin: 0 }}>
+                  <i className="fa-regular fa-folder-open" style={{ marginRight: '0.5rem', color: '#94a3b8' }} aria-hidden="true"></i>
                   No matching records found in system
                 </p>
               ) : (
@@ -256,32 +250,22 @@ export function PortalNavbar({
                   <a
                     key={result.id}
                     href={result.url}
+                    className="search-result-item"
                     onClick={(e) => {
                       e.preventDefault();
                       if (onSelectSearchResult) onSelectSearchResult(result, false);
                       navigate(result.url);
                     }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '0.625rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      textDecoration: 'none',
-                      transition: 'background-color 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--slate-50, #f8fafc)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: 'var(--slate-800, #1e293b)' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#1e293b' }}>
                         {result.title}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--slate-400, #94a3b8)' }}>
+                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '0.1rem' }}>
                         {result.type}
                       </div>
                     </div>
-                    <i className="fa-solid fa-chevron-right" style={{ fontSize: '10px', color: 'var(--slate-300)' }}></i>
+                    <i className="fa-solid fa-chevron-right" style={{ fontSize: '10px', color: '#94a3b8' }} aria-hidden="true"></i>
                   </a>
                 ))
               )}
@@ -311,7 +295,7 @@ export function PortalNavbar({
               onClick={onToggleNotifDropdown}
               aria-label="Notifications"
             >
-              <i className="fa-regular fa-bell" style={{ fontSize: '1.05rem' }}></i>
+              <i className="fa-solid fa-bell" style={{ fontSize: '1.05rem' }}></i>
               {unreadNotifCount > 0 && <span className="badge-dot"></span>}
             </button>
 

@@ -263,11 +263,6 @@ export default function StaffSettings() {
           </div>
         )}
 
-        {/* Clean Header Area */}
-        <div className="lp-header-wrap">
-          <h1 className="lp-title">Settings</h1>
-        </div>
-
         {/* Gray Segmented Tab Bar */}
         <div className="lp-segmented-nav">
           <button
@@ -436,7 +431,7 @@ export default function StaffSettings() {
                       className="lp-eye-action"
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                     >
-                      <i className={`fa-regular ${showCurrentPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      <i className={`fa-solid ${showCurrentPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </button>
                   </div>
                 </div>
@@ -456,7 +451,7 @@ export default function StaffSettings() {
                       className="lp-eye-action"
                       onClick={() => setShowNewPassword(!showNewPassword)}
                     >
-                      <i className={`fa-regular ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      <i className={`fa-solid ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </button>
                   </div>
                 </div>

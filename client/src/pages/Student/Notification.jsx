@@ -45,7 +45,7 @@ export default function Notifications() {
           </div>
         ) : visibleNotifications.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)', backgroundColor: '#ffffff', borderRadius: '0.625rem', border: '1px solid var(--slate-200)' }}>
-            <i className="fa-regular fa-bell-slash" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
+            <i className="fa-solid fa-bell-slash" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
             <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>
               No announcement or event notifications yet.
             </p>
@@ -100,7 +100,7 @@ export default function Notifications() {
                         title="Mark as read"
                         style={{ background: 'transparent', border: 'none', color: 'var(--slate-400)', cursor: 'pointer', padding: '0.25rem' }}
                       >
-                        <i className="fa-regular fa-circle-check"></i>
+                        <i className="fa-solid fa-circle-check"></i>
                       </button>
                     )}
                     <button
@@ -117,7 +117,7 @@ export default function Notifications() {
                       title="Delete"
                       style={{ background: 'transparent', border: 'none', color: 'var(--rose-600, #e11d48)', cursor: 'pointer', padding: '0.25rem' }}
                     >
-                      <i className="fa-regular fa-trash-can"></i>
+                      <i className="fa-solid fa-trash-can"></i>
                     </button>
                   </div>
                 </div>

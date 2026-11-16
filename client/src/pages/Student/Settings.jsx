@@ -265,11 +265,6 @@ export default function Settings() {
           </div>
         )}
 
-        {/* Clean Header Area */}
-        <div className="lp-header-wrap">
-          <h1 className="lp-title">Settings</h1>
-        </div>
-
         {/* Gray Segmented Tab Bar with Floating Active Pill */}
         <div className="lp-segmented-nav">
           <button
@@ -423,7 +418,7 @@ export default function Settings() {
                       className="lp-eye-action"
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                     >
-                      <i className={`fa-regular ${showCurrentPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      <i className={`fa-solid ${showCurrentPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </button>
                   </div>
                 </div>
@@ -443,7 +438,7 @@ export default function Settings() {
                       className="lp-eye-action"
                       onClick={() => setShowNewPassword(!showNewPassword)}
                     >
-                      <i className={`fa-regular ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      <i className={`fa-solid ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                     </button>
                   </div>
                 </div>

@@ -50,7 +50,7 @@ export default function HiddenPostCard({
             fontSize: '0.9rem',
           }}
         >
-          <i className="fa-regular fa-eye-slash" style={{ color: '#64748b' }}></i>
+          <i className="fa-solid fa-eye-slash" style={{ color: '#64748b' }}></i>
           <span>Post hidden</span>
         </div>
         <button
@@ -162,7 +162,7 @@ export default function HiddenPostCard({
               cursor: 'pointer',
             }}
           >
-            <i className="fa-regular fa-circle-xmark" style={{ color: '#64748b', width: '16px' }}></i>
+            <i className="fa-solid fa-circle-xmark" style={{ color: '#64748b', width: '16px' }}></i>
             <span>Hide all posts from {deptName}</span>
           </button>
           {pageId && onViewPage && (
@@ -185,7 +185,7 @@ export default function HiddenPostCard({
                 cursor: 'pointer',
               }}
             >
-              <i className="fa-regular fa-flag" style={{ color: '#64748b', width: '16px' }}></i>
+              <i className="fa-solid fa-flag" style={{ color: '#64748b', width: '16px' }}></i>
               <span>View {deptName}</span>
             </button>
           )}

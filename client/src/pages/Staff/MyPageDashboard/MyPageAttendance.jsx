@@ -265,7 +265,7 @@ export default function MyPageAttendance() {
 
               <div className="event-info-grid">
                 <div className="event-info-item">
-                  <i className="fa-regular fa-calendar"></i>
+                  <i className="fa-solid fa-calendar"></i>
                   <span>{new Date(eventData.event.event_date).toLocaleString()}</span>
                 </div>
                 <div className="event-info-item">

@@ -550,11 +550,11 @@ export default function StaffMyPage() {
                                 <span>•</span>
                                 <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
                                 <span>•</span>
-                                <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {formattedDate}</span>
+                                <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {formattedDate}</span>
                               </>
                             ) : (
                               <>
-                                <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                                <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.type || 'Announcement'} • {formattedDate}</span>
                               </>
                             )}

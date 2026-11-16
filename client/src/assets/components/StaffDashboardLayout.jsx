@@ -283,7 +283,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
   const userInitials = getInitials(`${user.firstName} ${user.lastName}`, 'ST');
 
   const staffProfileMenuItems = [
-    { label: 'Profile', href: '/staff/profile', icon: 'fa-regular fa-user' },
+    { label: 'Profile', href: '/staff/profile', icon: 'fa-solid fa-user' },
     { label: 'My Page', href: '/staff/mypage', icon: 'fa-solid fa-flag', iconColor: '#7B0D1E' },
     ...(isPageApproved
       ? [{ label: 'Page Dashboard', href: '/staff/mypage/dashboard', icon: 'fa-solid fa-chart-line', iconColor: '#7B0D1E' }]
@@ -423,7 +423,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
                 </a>
                 <a href="/staff/events" className={`nav-item ${activePage === 'events' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
-                    <i className="fa-regular fa-calendar-days nav-icon"></i>
+                    <i className="fa-solid fa-calendar-days nav-icon"></i>
                     <span>Events</span>
                   </div>
                 </a>
@@ -441,13 +441,13 @@ export default function StaffDashboardLayout({ children, activePage }) {
               <nav className="space-y-1">
                 <a href="/staff/profile" className={`nav-item ${activePage === 'profile' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
-                    <i className="fa-regular fa-user nav-icon"></i>
+                    <i className="fa-solid fa-user nav-icon"></i>
                     <span>Profile</span>
                   </div>
                 </a>
                 <a href="/staff/notifications" className={`nav-item ${activePage === 'notifications' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
-                    <i className="fa-regular fa-bell nav-icon"></i>
+                    <i className="fa-solid fa-bell nav-icon"></i>
                     <span>Notifications</span>
                   </div>
                   {unreadNotifCount > 0 && (
@@ -568,7 +568,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
             color: activePage === 'events' ? '#881337' : 'var(--slate-500, #64748b)'
           }}
         >
-          <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
+          <i className="fa-solid fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
         </a>
 
         <a 
@@ -600,7 +600,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
             color: activePage === 'profile' ? '#881337' : 'var(--slate-500, #64748b)'
           }}
         >
-          <i className="fa-regular fa-user" style={{ fontSize: '1.1rem' }}></i>
+          <i className="fa-solid fa-user" style={{ fontSize: '1.1rem' }}></i>
         </a>
       </nav>
     </div>

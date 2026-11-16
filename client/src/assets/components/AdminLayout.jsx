@@ -205,7 +205,7 @@ const AdminLayout = ({ children }) => {
                 aria-label="Notifications"
                 style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none' }}
               >
-                <i className="fa-regular fa-bell" style={{ fontSize: '1.25rem' }}></i>
+                <i className="fa-solid fa-bell" style={{ fontSize: '1.25rem' }}></i>
                 {unreadNotifCount > 0 && (
                   <span
                     style={{

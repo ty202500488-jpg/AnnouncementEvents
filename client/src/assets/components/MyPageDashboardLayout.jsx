@@ -320,7 +320,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
   const pageInitials = getInitials(pageInfo.name, 'MP');
 
   const myPageProfileMenuItems = [
-    { label: 'Profile', href: '/staff/profile', icon: 'fa-regular fa-user' },
+    { label: 'Profile', href: '/staff/profile', icon: 'fa-solid fa-user' },
     { label: 'My Page', href: '/staff/mypage', icon: 'fa-solid fa-flag', iconColor: '#7B0D1E' },
     {
       label: 'Staff Dashboard',
@@ -478,7 +478,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
                   className={`nav-item ${activeTab === 'events' ? 'active btn-nav' : ''}`}
                 >
                   <div className="nav-item-content">
-                    <i className="fa-regular fa-calendar-days nav-icon"></i>
+                    <i className="fa-solid fa-calendar-days nav-icon"></i>
                     <span>Events</span>
                   </div>
                 </a>
@@ -672,7 +672,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
             color: activeTab === 'events' ? '#881337' : 'var(--slate-500, #64748b)'
           }}
         >
-          <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.25rem' }}></i>
+          <i className="fa-solid fa-calendar-days" style={{ fontSize: '1.25rem' }}></i>
         </a>
 
         <a 

@@ -908,7 +908,7 @@ const AdminDashboard = () => {
                   Date Range
                 </label>
                 <div className="ov-select-wrap">
-                  <i className="fa-regular fa-calendar ov-select-icon" aria-hidden="true"></i>
+                  <i className="fa-solid fa-calendar ov-select-icon" aria-hidden="true"></i>
                   <select
                     id="ov-date-preset-select"
                     className="ov-select"
@@ -963,7 +963,7 @@ const AdminDashboard = () => {
           {/* Active Reporting Period Sub-bar / Validation Feedback */}
           <div className="ov-header-meta-bar">
             <div className="ov-period-summary">
-              <i className="fa-regular fa-clock" aria-hidden="true"></i>
+              <i className="fa-solid fa-clock" aria-hidden="true"></i>
               <span>Showing data for:</span>
               <strong>{formattedPeriodLabel || 'Active School Year'}</strong>
               {overviewLoading && (

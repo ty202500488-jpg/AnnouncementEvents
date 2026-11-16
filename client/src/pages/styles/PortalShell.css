@@ -1,11 +1,78 @@
 /* Shared Facebook-inspired edge-pinned shell for Student & Staff portals (.fb-shell-layout) */
 .student-dashboard-wrapper.fb-shell-layout {
-  --bg-main: #f0f2f5;
-  --fb-divider: #b8c2d0;
-  --fb-hover: rgba(15, 23, 42, 0.055);
+  --bg-main: #e6e9ef;
+  --fb-divider: #64748b;
+  --fb-hover: rgba(15, 23, 42, 0.065);
   --fb-active-bg: rgba(136, 19, 55, 0.1);
   --fb-active-hover: rgba(136, 19, 55, 0.14);
+  --shadow-card: 0 2px 6px rgba(15, 23, 42, 0.08), 0 10px 24px -6px rgba(15, 23, 42, 0.1);
+  --shadow-card-hover: 0 8px 18px -4px rgba(15, 23, 42, 0.12), 0 18px 36px -8px rgba(15, 23, 42, 0.12);
+  position: relative;
   background-color: var(--bg-main);
+}
+
+@keyframes fb-star-twinkle-a {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes fb-star-twinkle-b {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.student-dashboard-wrapper.fb-shell-layout::before,
+.student-dashboard-wrapper.fb-shell-layout::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.student-dashboard-wrapper.fb-shell-layout::before {
+  background-image:
+    radial-gradient(circle 2px at 24px 36px, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 55%, transparent 100%),
+    radial-gradient(circle 2px at 88px 112px, rgba(100, 116, 139, 0.6) 0%, rgba(100, 116, 139, 0.6) 55%, transparent 100%),
+    radial-gradient(circle 2.5px at 148px 54px, rgba(136, 19, 55, 0.45) 0%, rgba(136, 19, 55, 0.45) 55%, transparent 100%),
+    radial-gradient(circle 2px at 196px 168px, rgba(100, 116, 139, 0.55) 0%, rgba(100, 116, 139, 0.55) 55%, transparent 100%),
+    radial-gradient(circle 2.5px at 56px 198px, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 55%, transparent 100%),
+    radial-gradient(circle 1.75px at 132px 146px, rgba(136, 19, 55, 0.4) 0%, rgba(136, 19, 55, 0.4) 55%, transparent 100%);
+  background-size: 220px 220px;
+  animation: fb-star-twinkle-a 4s ease-in-out infinite;
+}
+
+.student-dashboard-wrapper.fb-shell-layout::after {
+  background-image:
+    radial-gradient(circle 2px at 42px 84px, rgba(100, 116, 139, 0.55) 0%, rgba(100, 116, 139, 0.55) 55%, transparent 100%),
+    radial-gradient(circle 2.5px at 118px 28px, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 55%, transparent 100%),
+    radial-gradient(circle 2px at 212px 96px, rgba(136, 19, 55, 0.42) 0%, rgba(136, 19, 55, 0.42) 55%, transparent 100%),
+    radial-gradient(circle 2px at 268px 214px, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.95) 55%, transparent 100%),
+    radial-gradient(circle 2px at 164px 256px, rgba(100, 116, 139, 0.6) 0%, rgba(100, 116, 139, 0.6) 55%, transparent 100%),
+    radial-gradient(circle 2.5px at 74px 278px, rgba(136, 19, 55, 0.38) 0%, rgba(136, 19, 55, 0.38) 55%, transparent 100%);
+  background-size: 310px 310px;
+  animation: fb-star-twinkle-b 5.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .student-dashboard-wrapper.fb-shell-layout::before,
+  .student-dashboard-wrapper.fb-shell-layout::after {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+.student-dashboard-wrapper.fb-shell-layout .main-container {
+  position: relative;
+  z-index: 1;
 }
 
 /* Full-width Top Header (Standardized MyPage-Reference Navbar) */
@@ -15,11 +82,23 @@
   z-index: 40;
   width: 100%;
   min-height: 72px;
-  background-color: rgba(255, 255, 255, 0.95);
+  background-color: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid rgba(203, 213, 225, 0.9);
+  box-shadow: 0 4px 16px -2px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.06);
   padding: 0 0.75rem;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .card {
+  background-color: #ffffff;
+  border: 1px solid rgba(203, 213, 225, 0.75);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .card.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .student-dashboard-wrapper.fb-shell-layout .header-container {
@@ -55,26 +134,165 @@
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 480px;
+  max-width: 560px;
 }
 
-.student-dashboard-wrapper.fb-shell-layout .search-input {
-  min-height: 40px;
-  height: 40px;
-  background-color: rgba(241, 245, 249, 0.85);
-  border: 1px solid transparent;
-  padding: 0.5rem 2.5rem 0.5rem 2.6rem;
-  font-size: 0.8125rem;
+.student-dashboard-wrapper.fb-shell-layout .search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  height: 46px;
+  min-height: 46px;
+  padding: 0 0.45rem 0 1rem;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #f1f5f9 0%, #ffffff 100%);
+  border: 1.5px solid #94a3b8;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.09), inset 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
-.student-dashboard-wrapper.fb-shell-layout .search-input:hover {
-  background-color: #e4e6eb;
+.student-dashboard-wrapper.fb-shell-layout .search-wrapper:hover {
+  background: #ffffff;
+  border-color: #64748b;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.12);
 }
 
+.student-dashboard-wrapper.fb-shell-layout .search-wrapper:focus-within {
+  background: #ffffff;
+  border-color: #881337;
+  box-shadow: 0 0 0 4px rgba(136, 19, 55, 0.16), 0 6px 18px rgba(136, 19, 55, 0.12);
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-icon {
+  position: static;
+  transform: none;
+  flex-shrink: 0;
+  color: #881337;
+  opacity: 0.95;
+  font-size: 1rem;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-wrapper:focus-within .search-icon {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-input,
+.student-dashboard-wrapper.fb-shell-layout .search-input:hover,
 .student-dashboard-wrapper.fb-shell-layout .search-input:focus {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-input::placeholder {
+  color: #475569;
+  font-weight: 500;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-clear-btn {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 50%;
+  border: none;
+  background-color: #e2e8f0;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-clear-btn:hover {
+  background-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .filter-btn {
+  position: static;
+  transform: none;
+  min-width: auto;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid #e2e8f0;
+  background-color: #f1f5f9;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .filter-btn:hover {
+  background-color: #e2e8f0;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .filter-btn.is-filtered {
+  background-color: #fff1f2;
+  border-color: #fecdd3;
+  color: #881337;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .filter-btn.is-filtered:hover {
+  background-color: #ffe4e6;
+  border-color: #fda4af;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  right: 0;
   background-color: #ffffff;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 4px rgba(159, 18, 57, 0.12);
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 38px -8px rgba(15, 23, 42, 0.16), 0 4px 12px rgba(15, 23, 42, 0.06);
+  z-index: 60;
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.625rem;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .search-result-item:hover {
+  background-color: #fff1f2;
 }
 
 /* Header Action Cluster */
@@ -95,18 +313,21 @@
   border-radius: 50%;
   background-color: #f0f2f5;
   color: #1c1e21;
-  border: none;
+  border: 1px solid rgba(203, 213, 225, 0.65);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   position: relative;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .student-dashboard-wrapper.fb-shell-layout .fb-header-circle-btn:hover {
   background-color: #e4e6eb;
   color: #881337;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
 }
 
 .student-dashboard-wrapper.fb-shell-layout .fb-header-circle-btn.fb-qr-btn {
@@ -130,17 +351,21 @@
   gap: 0.5rem;
   min-height: 40px;
   max-width: 195px;
-  padding: 0.25rem 0.625rem 0.25rem 0.25rem;
+  padding: 0.25rem 0.75rem 0.25rem 0.25rem;
   border-radius: 9999px;
-  border: none;
-  background-color: transparent;
+  border: 1.5px solid #cbd5e1;
+  background-color: #f1f5f9;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.85);
   cursor: pointer;
   user-select: none;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .student-dashboard-wrapper.fb-shell-layout .fb-profile-trigger:hover {
-  background-color: #f0f2f5;
+  background-color: #e2e8f0;
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
 }
 
 .student-dashboard-wrapper.fb-shell-layout .fb-avatar-badge {
@@ -163,7 +388,7 @@
   display: none;
 }
 
-/* Mobile Sidebar Identity & Nav Sections */
+/* Sidebar Identity & Nav Sections */
 .student-dashboard-wrapper.fb-shell-layout .fb-sidebar-profile {
   display: flex;
   align-items: center;
@@ -175,18 +400,36 @@
 .student-dashboard-wrapper.fb-shell-layout .fb-sidebar-profile-inner {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.75rem;
   min-width: 0;
   flex: 1;
 }
 
+.student-dashboard-wrapper.fb-shell-layout .fb-sidebar-profile .fb-avatar-badge {
+  width: 42px;
+  height: 42px;
+  font-size: 0.9375rem;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .fb-sidebar-profile-inner > div > span:first-child {
+  font-size: 1.0625rem !important;
+  font-weight: 700 !important;
+}
+
+.student-dashboard-wrapper.fb-shell-layout .fb-sidebar-profile-inner > div > span:last-child {
+  font-size: 0.8125rem !important;
+  margin-top: 3px !important;
+}
+
 .student-dashboard-wrapper.fb-shell-layout .fb-nav-section {
-  border-top: 1.5px solid var(--fb-divider);
+  border-top: 1px solid var(--fb-divider);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
   padding-top: 0.75rem;
 }
 
 .student-dashboard-wrapper.fb-shell-layout .nav-group-title {
   color: var(--slate-600);
+  font-size: 0.8125rem;
   padding: 0 0.625rem;
   margin-bottom: 0.375rem;
 }
@@ -197,14 +440,14 @@
   justify-content: space-between;
   min-height: 44px;
   padding: 0.45rem 0.625rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
+  border-radius: 10px;
+  font-size: 1rem;
   font-weight: 500;
-  color: #1c1e21;
+  color: #1e293b;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   box-shadow: none;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item-content {
@@ -217,34 +460,37 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background-color: rgba(15, 23, 42, 0.05);
+  background-color: rgba(255, 255, 255, 0.72);
   color: var(--slate-700);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: 1rem;
   flex-shrink: 0;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item:hover {
-  background-color: var(--fb-hover);
-  color: #881337;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-color: rgba(203, 213, 225, 0.7);
+  color: #0f172a;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
   transform: none;
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item:hover .nav-icon {
-  background-color: rgba(136, 19, 55, 0.12);
+  background-color: #fff1f2;
   color: #881337;
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item.active.btn-nav {
-  background: var(--fb-active-bg);
+  background: #ffffff;
   color: #881337;
   font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  box-shadow: none;
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  border-radius: 10px;
+  box-shadow: inset 3px 0 0 #881337, 0 3px 10px rgba(15, 23, 42, 0.08);
   justify-content: space-between;
   min-height: 44px;
   padding: 0.45rem 0.625rem;
@@ -252,15 +498,17 @@
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item.active.btn-nav:hover {
-  background: var(--fb-active-hover);
+  background: #ffffff;
   color: #881337;
+  border-color: rgba(148, 163, 184, 0.85);
+  box-shadow: inset 3px 0 0 #881337, 0 4px 12px rgba(15, 23, 42, 0.1);
   transform: none;
-  box-shadow: none;
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item.active.btn-nav .nav-icon {
   background-color: #881337;
   color: #ffffff;
+  box-shadow: 0 2px 6px rgba(136, 19, 55, 0.3);
 }
 
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar .nav-item-logout {
@@ -293,7 +541,7 @@
 }
 
 .student-dashboard-wrapper.fb-shell-layout .dept-section-header h3 {
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   font-weight: 700;
   color: var(--slate-700);
   margin: 0;
@@ -303,7 +551,7 @@
   background: none;
   border: none;
   color: #881337;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
@@ -316,7 +564,7 @@
 }
 
 .student-dashboard-wrapper.fb-shell-layout .dept-empty-state {
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   color: var(--slate-600);
   text-align: center;
   padding: 0.875rem 0.5rem;
@@ -372,13 +620,13 @@
 
 .student-dashboard-wrapper.fb-shell-layout .dept-title {
   color: var(--slate-900);
-  font-size: 0.84375rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 
 .student-dashboard-wrapper.fb-shell-layout .dept-sub {
   color: var(--slate-600);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
@@ -391,7 +639,7 @@
   border: none;
   background-color: rgba(15, 23, 42, 0.055);
   color: var(--slate-800);
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
@@ -464,6 +712,23 @@
     padding: 0.25rem;
     gap: 0.25rem;
   }
+
+  .student-dashboard-wrapper.fb-shell-layout .search-wrapper {
+    height: 40px;
+    min-height: 40px;
+    padding: 0 0.3rem 0 0.75rem;
+    gap: 0.35rem;
+  }
+
+  .student-dashboard-wrapper.fb-shell-layout .filter-btn {
+    padding: 0 0.5rem;
+    min-height: 28px;
+    height: 28px;
+  }
+
+  .student-dashboard-wrapper.fb-shell-layout .filter-btn-label {
+    display: none;
+  }
 }
 
 @media (min-width: 768px) {
@@ -472,7 +737,7 @@
   }
 
   .student-dashboard-wrapper.fb-shell-layout .search-container {
-    max-width: 480px;
+    max-width: 560px;
   }
 }
 

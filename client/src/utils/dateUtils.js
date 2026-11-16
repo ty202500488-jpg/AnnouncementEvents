@@ -9,20 +9,24 @@ export function isSameLocalDay(dateA, dateB = new Date()) {
   );
 }
 
+const ONE_MINUTE_MS = 60 * 1000;
+const ONE_HOUR_MS = 60 * ONE_MINUTE_MS;
+const ONE_DAY_MS = 24 * ONE_HOUR_MS;
+
 /**
- * Format a post timestamp: show time (e.g. "1:38 AM") if posted on the same local day
- * as `now`, otherwise show the date (e.g. "Nov 13, 2026").
+ * Format a post timestamp: show how recently it was posted (e.g. "Just now", "5m ago", "2h ago")
+ * if within 1 day of `now`; once it exceeds 1 day, show only the date (e.g. "Nov 13, 2026").
  */
 export function formatPostTimestamp(dateValue, { fallback = 'Recent', now = new Date() } = {}) {
   if (!dateValue) return fallback;
   const parsed = new Date(dateValue);
   if (Number.isNaN(parsed.getTime())) return fallback;
 
-  if (isSameLocalDay(parsed, now)) {
-    return parsed.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit'
-    });
+  const diffMs = now.getTime() - parsed.getTime();
+  if (diffMs >= 0 && diffMs < ONE_DAY_MS) {
+    if (diffMs < ONE_MINUTE_MS) return 'Just now';
+    if (diffMs < ONE_HOUR_MS) return `${Math.floor(diffMs / ONE_MINUTE_MS)}m ago`;
+    return `${Math.floor(diffMs / ONE_HOUR_MS)}h ago`;
   }
 
   return parsed.toLocaleDateString('en-US', {

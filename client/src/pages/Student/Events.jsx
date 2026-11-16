@@ -86,7 +86,7 @@ export default function Events() {
           </div>
         ) : filteredEvents.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--slate-500)', backgroundColor: '#ffffff', borderRadius: '0.625rem', border: '1px solid var(--slate-200)' }}>
-            <i className="fa-regular fa-calendar-xmark" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
+            <i className="fa-solid fa-calendar-xmark" style={{ fontSize: '2.25rem', marginBottom: '0.625rem', color: 'var(--slate-300)' }}></i>
             <p style={{ fontSize: '0.875rem', fontWeight: 500 }}>No events from followed pages yet.</p>
           </div>
         ) : (
@@ -177,11 +177,11 @@ export default function Events() {
                           <span>•</span>
                           <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
                           <span>•</span>
-                          <span><i className="fa-regular fa-calendar" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                          <span><i className="fa-solid fa-calendar" style={{ color: '#94a3b8' }}></i> {postDate}</span>
                           {postedAt && (
                             <>
                               <span>•</span>
-                              <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> Posted {postedAt}</span>
+                              <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> Posted {postedAt}</span>
                             </>
                           )}
                         </div>

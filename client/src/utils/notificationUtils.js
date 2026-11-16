@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 
 const NOTIFICATION_META_MAP = {
-  event: { boxClass: 'event', iconClass: 'fa-regular fa-calendar-days', label: 'Event' },
-  reminder: { boxClass: 'event', iconClass: 'fa-regular fa-bell', label: 'Reminder' },
+  event: { boxClass: 'event', iconClass: 'fa-solid fa-calendar-days', label: 'Event' },
+  reminder: { boxClass: 'event', iconClass: 'fa-solid fa-bell', label: 'Reminder' },
   registration: { boxClass: 'event', iconClass: 'fa-solid fa-user-plus', label: 'Registration' },
   attendance: { boxClass: 'event', iconClass: 'fa-solid fa-clipboard-check', label: 'Attendance' },
   moderation: { boxClass: 'announcement', iconClass: 'fa-solid fa-shield-halved', label: 'Moderation' },

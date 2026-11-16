@@ -585,7 +585,7 @@ const PostApproval = () => {
                     </div>
                   ) : selectedItem.is_university_wide ? (
                     <div className="pa-spotlight-logo-note">
-                      <i className="fa-regular fa-image"></i>
+                      <i className="fa-solid fa-image"></i>
                       <span>No image attached — WMSU logo will display in the Spotlight.</span>
                     </div>
                   ) : null}

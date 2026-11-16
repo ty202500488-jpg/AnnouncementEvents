@@ -280,7 +280,7 @@ export default function MyEvents() {
                           <span>•</span>
                           <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
                           <span>•</span>
-                          <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                          <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
                         </div>
                       </div>
                     </div>

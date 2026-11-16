@@ -149,11 +149,6 @@ export default function MyPageSettings() {
           </div>
         )}
 
-        {/* Clean Header Area */}
-        <div className="lp-header-wrap">
-          <h1 className="lp-title">Page Settings</h1>
-        </div>
-
         {/* Gray Segmented Tab Bar */}
         <div className="lp-segmented-nav">
           <button

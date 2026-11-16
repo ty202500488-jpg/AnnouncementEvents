@@ -531,7 +531,7 @@ const ContentFeed = () => {
                       setActiveModal('create_event');
                     }}
                   >
-                    <i className="fa-regular fa-calendar-days icon-maroon"></i>
+                    <i className="fa-solid fa-calendar-days icon-maroon"></i>
                     <div>
                       <div className="menu-item-title">Create Event</div>
                       <div className="menu-item-sub">Schedule activities & check-ins</div>
@@ -844,11 +844,11 @@ const ContentFeed = () => {
                                 <span>•</span>
                                 <span><i className="fa-solid fa-location-dot"></i> {item.venue || item.location || 'University Campus'}</span>
                                 <span>•</span>
-                                <span><i className="fa-regular fa-clock"></i> {postTimestamp}</span>
+                                <span><i className="fa-solid fa-clock"></i> {postTimestamp}</span>
                               </>
                             ) : (
                               <>
-                                <span><i className="fa-regular fa-clock"></i> Announcement • {postTimestamp}</span>
+                                <span><i className="fa-solid fa-clock"></i> Announcement • {postTimestamp}</span>
                                 {item.author_name && (
                                   <>
                                     <span>•</span>
@@ -888,7 +888,7 @@ const ContentFeed = () => {
 
                     {postImage && mediaFailed && (
                       <div className="csf-image-fallback">
-                        <i className="fa-regular fa-image"></i>
+                        <i className="fa-solid fa-image"></i>
                         <span>Attachment image could not be loaded for this post.</span>
                       </div>
                     )}
@@ -1017,7 +1017,7 @@ const ContentFeed = () => {
                   {item.type === 'event' && (
                     <div className="event-meta-box">
                       <div className="meta-row">
-                        <i className="fa-regular fa-clock meta-icon"></i>
+                        <i className="fa-solid fa-clock meta-icon"></i>
                         <span>{item.event_start ? new Date(item.event_start).toLocaleString() : 'Date TBD'}</span>
                       </div>
                       {item.venue && (

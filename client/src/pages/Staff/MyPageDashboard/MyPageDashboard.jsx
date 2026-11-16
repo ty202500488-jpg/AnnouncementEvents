@@ -531,7 +531,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   aria-label="Create Event"
                   style={{ color: '#f7b928' }}
                 >
-                  <i className="fa-regular fa-calendar-days"></i>
+                  <i className="fa-solid fa-calendar-days"></i>
                 </button>
                 <button
                   type="button"
@@ -541,7 +541,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   aria-label="Add Photo"
                   style={{ color: '#45bd62' }}
                 >
-                  <i className="fa-regular fa-image"></i>
+                  <i className="fa-solid fa-image"></i>
                 </button>
                 <button
                   type="button"
@@ -552,7 +552,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   aria-expanded={showEmojiPicker}
                   style={{ color: '#f7b928' }}
                 >
-                  <i className="fa-regular fa-face-smile"></i>
+                  <i className="fa-solid fa-face-smile"></i>
                 </button>
               </div>
             </div>
@@ -725,8 +725,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
                   <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#334155' }}>Add to your post</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#10b981', fontSize: '1.1rem' }}><i className="fa-regular fa-image"></i></button>
-                    <button type="button" onClick={() => setPostType(postType === 'event' ? 'announcement' : 'event')} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#d97706', fontSize: '1.1rem' }}><i className="fa-regular fa-calendar-days"></i></button>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#10b981', fontSize: '1.1rem' }}><i className="fa-solid fa-image"></i></button>
+                    <button type="button" onClick={() => setPostType(postType === 'event' ? 'announcement' : 'event')} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#d97706', fontSize: '1.1rem' }}><i className="fa-solid fa-calendar-days"></i></button>
                     <button type="button" onClick={() => { const loc = prompt('Enter Location:', location); if(loc !== null) setLocation(loc); }} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#ef4444', fontSize: '1.1rem' }}><i className="fa-solid fa-location-dot"></i></button>
                   </div>
                 </div>
@@ -945,11 +945,11 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                             <span>•</span>
                             <span><i className="fa-solid fa-location-dot" style={{ color: '#94a3b8' }}></i> {locationText}</span>
                             <span>•</span>
-                            <span><i className="fa-regular fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
+                            <span><i className="fa-solid fa-clock" style={{ color: '#94a3b8' }}></i> {postDate}</span>
                           </>
                         ) : (
                           <>
-                            <i className="fa-regular fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
+                            <i className="fa-solid fa-clock" style={{ fontSize: '0.75rem', color: '#94a3b8' }}></i>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Announcement • {postDate}</span>
                           </>
                         )}
@@ -1020,7 +1020,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                                 gap: '0.5rem'
                               }}
                             >
-                              <i className="fa-regular fa-pen-to-square"></i> Edit
+                              <i className="fa-solid fa-pen-to-square"></i> Edit
                             </button>
                             <button
                               type="button"
@@ -1044,7 +1044,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                                 gap: '0.5rem'
                               }}
                             >
-                              <i className="fa-regular fa-trash-can"></i> Delete
+                              <i className="fa-solid fa-trash-can"></i> Delete
                             </button>
                           </div>
                         )}

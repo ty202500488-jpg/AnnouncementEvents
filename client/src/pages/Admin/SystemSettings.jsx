@@ -753,7 +753,7 @@ const SystemSettings = () => {
                       SY {activeSchoolYear.start_year}–{activeSchoolYear.end_year} ({activeSchoolYear.semester})
                     </span>
                     <span style={{ fontSize: '0.78rem', color: '#475569', marginTop: '0.2rem' }}>
-                      <i className="fa-regular fa-calendar"></i> Duration: <strong>{activeSchoolYear.start_date}</strong> to <strong>{activeSchoolYear.end_date}</strong>
+                      <i className="fa-solid fa-calendar"></i> Duration: <strong>{activeSchoolYear.start_date}</strong> to <strong>{activeSchoolYear.end_date}</strong>
                     </span>
                   </div>
                   <span className="status-pill status-active">

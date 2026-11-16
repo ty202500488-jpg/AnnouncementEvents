@@ -303,7 +303,7 @@ export default function DashboardLayout({ children, activePage }) {
         onCloseProfileDropdown={() => setShowProfileDropdown(false)}
         profileDropdownRef={profileDropdownRef}
         profileMenuItems={[
-          { label: 'Profile', href: '/student/profile', icon: 'fa-regular fa-user' },
+          { label: 'Profile', href: '/student/profile', icon: 'fa-solid fa-user' },
           { label: 'Settings', href: '/student/settings', icon: 'fa-solid fa-gear' },
         ]}
         onLogout={handleLogout}
@@ -389,7 +389,7 @@ export default function DashboardLayout({ children, activePage }) {
                 </a>
                 <a href="/student/events" className={`nav-item ${activePage === 'events' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
-                    <i className="fa-regular fa-calendar-days nav-icon"></i>
+                    <i className="fa-solid fa-calendar-days nav-icon"></i>
                     <span>Events</span>
                   </div>
                 </a>
@@ -401,13 +401,13 @@ export default function DashboardLayout({ children, activePage }) {
               <nav className="space-y-1">
                 <a href="/student/profile" className={`nav-item ${activePage === 'profile' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
-                    <i className="fa-regular fa-user nav-icon"></i>
+                    <i className="fa-solid fa-user nav-icon"></i>
                     <span>Profile</span>
                   </div>
                 </a>
                 <a href="/student/notifications" className={`nav-item ${activePage === 'notifications' ? 'active btn-nav' : ''}`}>
                   <div className="nav-item-content">
-                    <i className="fa-regular fa-bell nav-icon"></i>
+                    <i className="fa-solid fa-bell nav-icon"></i>
                     <span>Notifications</span>
                   </div>
                   {unreadNotifCount > 0 && (
@@ -532,7 +532,7 @@ export default function DashboardLayout({ children, activePage }) {
             color: activePage === 'events' ? '#881337' : 'var(--slate-500, #64748b)'
           }}
         >
-          <i className="fa-regular fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
+          <i className="fa-solid fa-calendar-days" style={{ fontSize: '1.1rem' }}></i>
         </a>
 
         <a 
@@ -548,7 +548,7 @@ export default function DashboardLayout({ children, activePage }) {
             color: activePage === 'profile' ? '#881337' : 'var(--slate-500, #64748b)'
           }}
         >
-          <i className="fa-regular fa-user" style={{ fontSize: '1.1rem' }}></i>
+          <i className="fa-solid fa-user" style={{ fontSize: '1.1rem' }}></i>
         </a>
       </nav>
     </div>
