@@ -569,8 +569,11 @@ const SystemSettings = () => {
         {/* Header Bar */}
         <header className="settings-header">
           <div className="header-title-area">
-            <div className="breadcrumbs">
-              <span>Admin</span> <i className="fa-solid fa-chevron-right"></i> <span>Configuration</span> <i className="fa-solid fa-chevron-right"></i> <span className="active">System Settings</span>
+            <div className="admin-page-breadcrumb">
+              <i className="fa-solid fa-house" aria-hidden="true"></i>
+              <span>Home</span>
+              <span aria-hidden="true">/</span>
+              <span className="is-current">System Settings</span>
             </div>
             <h1>
               System Settings {isDirty && <span className="unsaved-badge">Unsaved Changes</span>}

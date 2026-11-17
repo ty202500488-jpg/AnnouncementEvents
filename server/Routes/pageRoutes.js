@@ -1401,7 +1401,7 @@ router.get('/approved-pages', async (req, res) => {
                     status
              FROM pages
              WHERE LOWER(status) IN ('approved', 'active')
-             ORDER BY page_name ASC`
+             ORDER BY CASE WHEN page_code IN ('WMSU', 'ADMIN') OR LOWER(page_name) = 'western mindanao state university' THEN 0 ELSE 1 END, page_name ASC`
         );
         return res.status(200).json({ pages: result.rows });
     } catch (err) {

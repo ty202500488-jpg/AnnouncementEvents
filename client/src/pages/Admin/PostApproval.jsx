@@ -162,20 +162,28 @@ const PostApproval = () => {
         {/* ================= PAGE HEADER ================= */}
         <div className="pa-header">
           <div className="pa-header-text">
-            <h1 className="pa-title">Post Approval</h1>
-            <p className="pa-subtitle">
-              Review Staff-submitted announcements and events before they are published to the WMSU community.
-            </p>
+            <div className="pa-breadcrumb">
+              <i className="fa-solid fa-house" aria-hidden="true"></i>
+              <span>Home</span>
+              <span aria-hidden="true">/</span>
+              <span className="is-current">Post Approvals</span>
+            </div>
+            <h1 className="pa-title">Post Approvals</h1>
           </div>
 
           <div className="pa-header-actions">
-            <button 
-              type="button" 
-              className="btn-pa-secondary"
+            <span className="admin-header-amber-pill">
+              <i className="fa-solid fa-bell" aria-hidden="true"></i>
+              <span>Pending Reviews: {loading ? '...' : summaryCounts.totalPending}</span>
+            </span>
+
+            <button
+              type="button"
+              className="btn-pa-primary"
               onClick={fetchApprovalData}
               disabled={loading}
             >
-              <i className={`fa-solid fa-rotate-right ${loading ? 'pa-spin-icon' : ''}`}></i>
+              <i className={`fa-solid fa-rotate-right ${loading ? 'pa-spin-icon' : ''}`} aria-hidden="true"></i>
               <span>Refresh Queue</span>
             </button>
           </div>
@@ -194,76 +202,119 @@ const PostApproval = () => {
           </div>
         )}
 
-        {/* ================= SUMMARY METRIC CARDS ================= */}
-        <div className="pa-summary-grid">
-          
-          <div className="pa-summary-card pa-pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('all'); }}>
-            <div className="pa-card-body">
-              <div className="pa-card-info">
-                <span className="pa-card-label">Total Pending Reviews</span>
-                <div className="pa-card-value">{loading ? '...' : summaryCounts.totalPending}</div>
-                <span className="pa-card-subtext pa-status-amber-text">Requires administrative decision</span>
-              </div>
-              <div className="pa-card-icon-box pa-amber-box">
-                <i className="fa-solid fa-file-circle-check"></i>
-              </div>
+        {/* ================= CLICKABLE KPI STRIP ================= */}
+        <div className="admin-kpi-strip" role="tablist" aria-label="Approval queue filters">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'pending' && contentTypeFilter === 'all'}
+            className={`admin-kpi-tile ${activeTab === 'pending' && contentTypeFilter === 'all' ? 'is-active' : ''}`}
+            onClick={() => {
+              handleTabChange('pending');
+              setContentTypeFilter('all');
+            }}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Pending Queue</span>
+              <span className="admin-kpi-value tone-amber">{loading ? '...' : summaryCounts.totalPending}</span>
             </div>
-          </div>
+            <span className="admin-kpi-icon tone-amber" aria-hidden="true">
+              <i className="fa-solid fa-hourglass-half"></i>
+            </span>
+          </button>
 
-          <div className="pa-summary-card pa-pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('announcement'); }}>
-            <div className="pa-card-body">
-              <div className="pa-card-info">
-                <span className="pa-card-label">Pending Announcements</span>
-                <div className="pa-card-value">{loading ? '...' : summaryCounts.pendingAnnouncements}</div>
-                <span className="pa-card-subtext">Campus updates & notices</span>
-              </div>
-              <div className="pa-card-icon-box pa-maroon-box">
-                <i className="fa-solid fa-bullhorn"></i>
-              </div>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'pending' && contentTypeFilter === 'announcement'}
+            className={`admin-kpi-tile ${activeTab === 'pending' && contentTypeFilter === 'announcement' ? 'is-active' : ''}`}
+            onClick={() => {
+              handleTabChange('pending');
+              setContentTypeFilter('announcement');
+            }}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Announcements</span>
+              <span className="admin-kpi-value tone-crimson">{loading ? '...' : summaryCounts.pendingAnnouncements}</span>
             </div>
-          </div>
+            <span className="admin-kpi-icon tone-crimson" aria-hidden="true">
+              <i className="fa-solid fa-bullhorn"></i>
+            </span>
+          </button>
 
-          <div className="pa-summary-card pa-pointer-card" onClick={() => { handleTabChange('pending'); setContentTypeFilter('event'); }}>
-            <div className="pa-card-body">
-              <div className="pa-card-info">
-                <span className="pa-card-label">Pending Events</span>
-                <div className="pa-card-value">{loading ? '...' : summaryCounts.pendingEvents}</div>
-                <span className="pa-card-subtext">Activities & gatherings</span>
-              </div>
-              <div className="pa-card-icon-box pa-maroon-box">
-                <i className="fa-solid fa-calendar-days"></i>
-              </div>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'pending' && contentTypeFilter === 'event'}
+            className={`admin-kpi-tile ${activeTab === 'pending' && contentTypeFilter === 'event' ? 'is-active' : ''}`}
+            onClick={() => {
+              handleTabChange('pending');
+              setContentTypeFilter('event');
+            }}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Pending Events</span>
+              <span className="admin-kpi-value">{loading ? '...' : summaryCounts.pendingEvents}</span>
             </div>
-          </div>
+            <span className="admin-kpi-icon tone-blue" aria-hidden="true">
+              <i className="fa-solid fa-calendar-days"></i>
+            </span>
+          </button>
 
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'reviewed'}
+            className={`admin-kpi-tile ${activeTab === 'reviewed' ? 'is-active' : ''}`}
+            onClick={() => handleTabChange('reviewed')}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Reviewed</span>
+              <span className="admin-kpi-value tone-emerald" style={{ fontSize: '1rem' }}>History</span>
+            </div>
+            <span className="admin-kpi-icon tone-emerald" aria-hidden="true">
+              <i className="fa-solid fa-circle-check"></i>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'correction'}
+            className={`admin-kpi-tile ${activeTab === 'correction' ? 'is-active' : ''}`}
+            onClick={() => handleTabChange('correction')}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Corrections</span>
+              <span className="admin-kpi-value tone-rose" style={{ fontSize: '1rem' }}>Flagged</span>
+            </div>
+            <span className="admin-kpi-icon tone-rose" aria-hidden="true">
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'all'}
+            className={`admin-kpi-tile ${activeTab === 'all' ? 'is-active' : ''}`}
+            onClick={() => handleTabChange('all')}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">All Submissions</span>
+              <span className="admin-kpi-value tone-slate" style={{ fontSize: '1rem' }}>View All</span>
+            </div>
+            <span className="admin-kpi-icon tone-slate" aria-hidden="true">
+              <i className="fa-solid fa-layer-group"></i>
+            </span>
+          </button>
         </div>
 
-        {/* ================= NAVIGATION TABS & TOOLBAR ================= */}
-        <div className="pa-controls-card">
-          
-          {/* Tabs */}
-          <div className="pa-tabs-list">
-            {[
-              { id: 'pending', label: `Pending Queue (${summaryCounts.totalPending})` },
-              { id: 'reviewed', label: 'Recently Reviewed' },
-              { id: 'correction', label: 'Needs Correction' },
-              { id: 'all', label: 'All Submissions' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`pa-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => handleTabChange(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Search and Filters */}
-          <div className="pa-toolbar">
-            <div className="pa-search-box">
-              <i className="fa-solid fa-magnifying-glass pa-search-icon"></i>
+        {/* ================= SINGLE-ROW INLINE FILTER BAR ================= */}
+        <div className="admin-inline-filter-card">
+          <div className="admin-inline-filter-row">
+            <div className="admin-inline-search">
+              <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
               <input 
                 type="text" 
                 placeholder="Search title, author, or page name..."
@@ -272,13 +323,13 @@ const PostApproval = () => {
                   setSearchQuery(e.target.value);
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="pa-search-input"
+                className="admin-inline-search-input"
                 aria-label="Search submissions"
               />
               {searchQuery && (
                 <button
                   type="button"
-                  className="pa-clear-search-btn"
+                  className="admin-inline-clear-btn"
                   aria-label="Clear search"
                   onClick={() => {
                     setSearchQuery('');
@@ -290,92 +341,90 @@ const PostApproval = () => {
               )}
             </div>
 
-            <div className="pa-filter-item">
-              <select 
-                className="pa-select"
-                value={contentTypeFilter}
-                aria-label="Filter by content type"
-                onChange={(e) => {
-                  setContentTypeFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                <option value="all">All Content Types</option>
-                <option value="announcement">Announcements Only</option>
-                <option value="event">Events Only</option>
-              </select>
-            </div>
+            <select 
+              className="admin-inline-select"
+              value={contentTypeFilter}
+              aria-label="Filter by content type"
+              onChange={(e) => {
+                setContentTypeFilter(e.target.value);
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+            >
+              <option value="all">All Content Types</option>
+              <option value="announcement">Announcements Only</option>
+              <option value="event">Events Only</option>
+            </select>
 
             {(activeTab === 'reviewed' || activeTab === 'all') && (
-              <div className="pa-filter-item">
-                <select 
-                  className="pa-select"
-                  value={statusFilter}
-                  aria-label="Filter by approval status"
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value);
-                    setPagination(prev => ({ ...prev, page: 1 }));
-                  }}
-                >
-                  <option value="all">All Approval Statuses</option>
-                  {activeTab === 'all' && <option value="pending">Pending</option>}
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-              </div>
-            )}
-
-            <div className="pa-filter-item">
-              <input
-                type="date"
-                className="pa-select"
-                value={submissionDateFilter}
-                aria-label="Filter by submission date"
-                onChange={(e) => {
-                  setSubmissionDateFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                title="Filter by Submission Date"
-              />
-            </div>
-
-            <div className="pa-filter-item">
               <select 
-                className="pa-select"
-                value={sortOrder}
-                aria-label="Sort submissions"
+                className="admin-inline-select"
+                value={statusFilter}
+                aria-label="Filter by approval status"
                 onChange={(e) => {
-                  setSortOrder(e.target.value);
+                  setStatusFilter(e.target.value);
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
               >
-                <option value="oldest">Oldest First (Priority Queue)</option>
-                <option value="newest">Newest First</option>
+                <option value="all">All Statuses</option>
+                {activeTab === 'all' && <option value="pending">Pending</option>}
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
               </select>
-            </div>
-
-            {(searchQuery || contentTypeFilter !== 'all' || statusFilter !== 'all' || submissionDateFilter || sortOrder !== 'oldest') && (
-              <button 
-                type="button" 
-                className="btn-pa-link"
-                onClick={() => {
-                  setSearchQuery('');
-                  setContentTypeFilter('all');
-                  setStatusFilter('all');
-                  setSubmissionDateFilter('');
-                  setSortOrder('oldest');
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                Clear Filters
-              </button>
             )}
-          </div>
 
+            <input
+              type="date"
+              className="admin-inline-select"
+              value={submissionDateFilter}
+              aria-label="Filter by submission date"
+              onChange={(e) => {
+                setSubmissionDateFilter(e.target.value);
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+              title="Filter by Submission Date"
+            />
+
+            <select 
+              className="admin-inline-select"
+              value={sortOrder}
+              aria-label="Sort submissions"
+              onChange={(e) => {
+                setSortOrder(e.target.value);
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+            >
+              <option value="oldest">Queue: Oldest First</option>
+              <option value="newest">Queue: Newest First</option>
+            </select>
+
+            <button 
+              type="button" 
+              className="admin-inline-reset-btn"
+              onClick={() => {
+                setSearchQuery('');
+                setContentTypeFilter('all');
+                setStatusFilter('all');
+                setSubmissionDateFilter('');
+                setSortOrder('oldest');
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+            >
+              <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+              <span>Reset</span>
+            </button>
+          </div>
         </div>
 
         {/* ================= DATA TABLE DISPLAY ================= */}
         <div className="pa-table-card">
+          <div className="admin-table-head">
+            <div className="admin-table-title">
+              <i className="fa-solid fa-file-circle-check" aria-hidden="true"></i>
+              <span>Submission Review Queue</span>
+            </div>
+            <span className="admin-table-matching">{pagination.total} Matching</span>
+          </div>
+
           {loading ? (
             <div className="pa-table-skeleton-container">
               <div className="pa-skeleton-row"></div>
@@ -456,42 +505,46 @@ const PostApproval = () => {
                         </span>
                       </td>
                       <td className="pa-text-right">
-                        <div className="pa-action-button-group" style={{ justifyContent: 'flex-end', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <div className="admin-action-pill-group">
                           <button 
                             type="button" 
-                            className="btn-pa-table-action"
+                            className="admin-action-icon is-view"
+                            title="View submission details"
+                            aria-label="View submission details"
                             onClick={() => {
                               setSelectedItem(item);
                               setActiveModal('review');
                             }}
                           >
-                            View
+                            <i className="fa-solid fa-eye"></i>
                           </button>
                           {String(item.status || '').toLowerCase() === 'pending' && (
                             <>
                               <button
                                 type="button"
-                                className="btn-pa-emerald"
-                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+                                className="admin-action-icon is-approve"
+                                title="Approve submission"
+                                aria-label="Approve submission"
                                 onClick={() => {
                                   setSelectedItem(item);
                                   setDecisionType('approve');
                                   setActiveModal('decision');
                                 }}
                               >
-                                Approve
+                                <i className="fa-solid fa-check"></i>
                               </button>
                               <button
                                 type="button"
-                                className="btn-pa-rose"
-                                style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+                                className="admin-action-icon is-danger"
+                                title="Reject submission"
+                                aria-label="Reject submission"
                                 onClick={() => {
                                   setSelectedItem(item);
                                   setDecisionType('reject');
                                   setActiveModal('decision');
                                 }}
                               >
-                                Reject
+                                <i className="fa-solid fa-xmark"></i>
                               </button>
                             </>
                           )}
@@ -503,21 +556,21 @@ const PostApproval = () => {
               </table>
             </div>
           )}
-        </div>
 
-        {/* ================= PAGINATION BAR ================= */}
-        {!loading && items.length > 0 && (
-          <Pagination
-            currentPage={pagination.page}
-            totalPages={pagination.totalPages}
-            totalRecords={pagination.total}
-            pageSize={pagination.limit}
-            onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
-            onPageSizeChange={(limit) => setPagination(prev => ({ ...prev, limit, page: 1 }))}
-            loading={loading}
-            itemLabel="submissions"
-          />
-        )}
+          {/* ================= PAGINATION BAR ================= */}
+          {!loading && items.length > 0 && (
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              totalRecords={pagination.total}
+              pageSize={pagination.limit}
+              onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+              onPageSizeChange={(limit) => setPagination(prev => ({ ...prev, limit, page: 1 }))}
+              loading={loading}
+              itemLabel="submissions"
+            />
+          )}
+        </div>
 
         {/* ================= MODALS & DRAWERS ================= */}
 

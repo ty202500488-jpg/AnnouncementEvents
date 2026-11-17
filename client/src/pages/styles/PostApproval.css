@@ -7,7 +7,7 @@
 .post-approval-container {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
   width: 100%;
   color: #1e293b;
   box-sizing: border-box;
@@ -20,23 +20,40 @@
 /* ==================== HEADER ==================== */
 .pa-header {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 1.25rem;
+  gap: 1rem;
   flex-wrap: wrap;
 }
 
 .pa-header-text {
   display: flex;
   flex-direction: column;
+  gap: 0.25rem;
+}
+
+.pa-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.pa-breadcrumb .is-current {
+  color: #334155;
+  font-weight: 600;
 }
 
 .pa-title {
-  font-size: 1.75rem;
+  font-family: 'Unbounded', sans-serif;
+  font-size: 1.45rem;
   font-weight: 800;
-  color: #7B0D1E;
-  margin: 0 0 0.35rem 0;
-  letter-spacing: -0.02em;
+  color: #881337;
+  margin: 0;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 .pa-subtitle {
@@ -101,21 +118,19 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.55rem 1.25rem;
-  background-color: #7B0D1E;
+  padding: 0.52rem 1rem;
+  background-color: #881337;
   color: #ffffff;
   border: none;
-  border-radius: 9999px;
+  border-radius: 8px;
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(123, 13, 30, 0.2);
+  transition: all 0.16s ease;
 }
 
 .btn-pa-primary:hover:not(:disabled) {
-  background-color: #5a0915;
-  transform: translateY(-1px);
+  background-color: #6d0f27;
 }
 
 .btn-pa-primary.success-btn { background-color: #059669; }

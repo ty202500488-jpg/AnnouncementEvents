@@ -289,42 +289,29 @@ const AuditLogs = () => {
         
         {/* ==================== PAGE HEADER ==================== */}
         <div className="audit-logs-header">
-          <div>
+          <div className="audit-header-title-block">
             <div className="audit-logs-breadcrumb">
-              <span onClick={() => window.location.href = '/admin'}>Dashboard</span>
-              <i className="fa-solid fa-chevron-right"></i>
+              <i className="fa-solid fa-house" aria-hidden="true"></i>
+              <span onClick={() => window.location.href = '/admin'}>Home</span>
+              <span>/</span>
               <span className="current">Audit Logs</span>
             </div>
             <h1 className="audit-logs-title">Audit Logs</h1>
-            <p className="audit-logs-description">
-              Review administrative actions, system activity, and security-related events across WMSU SAMS.
-            </p>
           </div>
 
           <div className="audit-logs-actions">
-            {lastRefreshed && (
-              <span className="last-refreshed-text">
-                Updated: {lastRefreshed}
-              </span>
-            )}
-            <button 
-              type="button" 
-              className="btn-audit-secondary" 
-              onClick={() => { fetchAuditLogs(); fetchAuditSummary(); }}
-              disabled={loading}
-              title="Refresh Data"
-            >
-              <i className={`fa-solid fa-rotate-right ${loading ? 'spin' : ''}`}></i>
-              <span>Refresh</span>
-            </button>
-            <button 
-              type="button" 
-              className="btn-audit-primary" 
+            <span className="audit-readonly-pill">
+              <i className="fa-solid fa-lock" aria-hidden="true"></i>
+              <span>Read-Only Security Trail</span>
+            </span>
+            <button
+              type="button"
+              className="btn-audit-secondary"
               onClick={handleExportCSV}
               disabled={isExporting}
             >
-              <i className="fa-solid fa-file-csv"></i>
-              <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
+              <i className="fa-solid fa-file-csv" aria-hidden="true"></i>
+              <span>{isExporting ? 'Exporting...' : 'Print / Export Report'}</span>
             </button>
           </div>
         </div>
@@ -362,133 +349,68 @@ const AuditLogs = () => {
           </div>
         )}
 
-        {/* ==================== OVERVIEW SUMMARY CARDS ==================== */}
-        <div className="audit-logs-summary">
-          <div className="summary-card">
-            <div className="summary-card-icon icon-total">
-              <i className="fa-solid fa-list-check"></i>
-            </div>
-            <div className="summary-card-body">
-              <span className="summary-card-label">Total Actions</span>
-              <h2 className="summary-card-value">
-                {summaryLoading ? '0' : (summaryError ? '0' : summary.totalActions.toLocaleString())}
-              </h2>
-            </div>
-          </div>
-
-          <div className="summary-card">
-            <div className="summary-card-icon icon-success">
-              <i className="fa-solid fa-circle-check"></i>
-            </div>
-            <div className="summary-card-body">
-              <span className="summary-card-label">Successful Actions</span>
-              <h2 className="summary-card-value text-success">
-                {summaryLoading ? '0' : (summaryError ? '0' : summary.successfulActions.toLocaleString())}
-              </h2>
-            </div>
-          </div>
-
-          <div className="summary-card">
-            <div className="summary-card-icon icon-failed">
-              <i className="fa-solid fa-circle-xmark"></i>
-            </div>
-            <div className="summary-card-body">
-              <span className="summary-card-label">Failed Actions</span>
-              <h2 className="summary-card-value text-failure">
-                {summaryLoading ? '0' : (summaryError ? '0' : summary.failedActions.toLocaleString())}
-              </h2>
-            </div>
-          </div>
-
-          <div className="summary-card">
-            <div className="summary-card-icon icon-security">
-              <i className="fa-solid fa-shield-cat"></i>
-            </div>
-            <div className="summary-card-body">
-              <span className="summary-card-label">Security Events</span>
-              <h2 className="summary-card-value text-security">
-                {summaryLoading ? '0' : (summaryError ? '0' : summary.securityEvents.toLocaleString())}
-              </h2>
-            </div>
-          </div>
-        </div>
-
         {/* ==================== FILTER TOOLBAR ==================== */}
-        <div className="audit-logs-filters">
-          <div className="filter-group search-group" style={{ position: 'relative' }}>
-            <i className="fa-solid fa-magnifying-glass search-icon"></i>
-            <input 
-              type="text" 
-              className="audit-input search-input" 
-              placeholder="Search action, module, actor name/email, or resource..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={() => setSearchTerm('')}
-                style={{
-                  position: 'absolute',
-                  right: '0.55rem',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  border: 'none',
-                  background: '#e2e8f0',
-                  color: '#475569',
-                  width: '22px',
-                  height: '22px',
-                  borderRadius: '50%',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <i className="fa-solid fa-xmark" style={{ fontSize: '0.7rem' }}></i>
-              </button>
-            )}
-          </div>
+        <div className="admin-inline-filter-card">
+          <div className="admin-inline-filter-row">
+            <div className="admin-inline-search">
+              <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              <input
+                type="text"
+                className="admin-inline-search-input"
+                placeholder="Search description, action, module, or user..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Search audit logs"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setSearchTerm('')}
+                  className="admin-inline-clear-btn"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              )}
+            </div>
 
-          <div className="filter-group">
-            <label htmlFor="period-preset">Period:</label>
-            <select 
+            <select
               id="period-preset"
-              className="audit-select" 
+              className="admin-inline-select"
               value={periodPreset}
               onChange={(e) => setPeriodPreset(e.target.value)}
+              aria-label="Period"
             >
               <option value="24h">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
               <option value="custom">Custom Range</option>
             </select>
-          </div>
 
-          {periodPreset === 'custom' && (
-            <div className="filter-group custom-date-group">
-              <input 
-                type="date" 
-                className="audit-input date-input"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-              <span className="date-sep">to</span>
-              <input 
-                type="date" 
-                className="audit-input date-input"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
-          )}
+            {periodPreset === 'custom' && (
+              <>
+                <input
+                  type="date"
+                  className="admin-inline-select"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  aria-label="Start date"
+                />
+                <input
+                  type="date"
+                  className="admin-inline-select"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  aria-label="End date"
+                />
+              </>
+            )}
 
-          <div className="filter-group">
-            <select 
-              className="audit-select" 
+            <select
+              className="admin-inline-select"
               value={selectedRole}
               onChange={(e) => { setSelectedRole(e.target.value); setCurrentPage(1); }}
+              aria-label="Filter by role"
             >
               <option value="ALL">All Roles</option>
               <option value="Administrator">Administrator</option>
@@ -496,13 +418,12 @@ const AuditLogs = () => {
               <option value="Student">Student</option>
               <option value="Unauthenticated">Unauthenticated</option>
             </select>
-          </div>
 
-          <div className="filter-group">
-            <select 
-              className="audit-select" 
+            <select
+              className="admin-inline-select"
               value={selectedModule}
               onChange={(e) => { setSelectedModule(e.target.value); setCurrentPage(1); }}
+              aria-label="Filter by module"
             >
               <option value="ALL">All Modules</option>
               <option value="Authentication">Authentication</option>
@@ -515,39 +436,28 @@ const AuditLogs = () => {
               <option value="Archives">Archives</option>
               <option value="System Settings">System Settings</option>
             </select>
-          </div>
 
-          <div className="filter-group">
-            <select 
-              className="audit-select" 
+            <select
+              className="admin-inline-select"
               value={selectedOutcome}
               onChange={(e) => { setSelectedOutcome(e.target.value); setCurrentPage(1); }}
+              aria-label="Filter by outcome"
             >
               <option value="ALL">All Outcomes</option>
               <option value="SUCCESS">Success</option>
               <option value="FAILURE">Failure</option>
               <option value="DENIED">Denied</option>
             </select>
-          </div>
 
-          <div className="filter-group checkbox-group">
-            <label className="checkbox-label">
-              <input 
-                type="checkbox" 
-                checked={isSecurityOnly}
-                onChange={(e) => { setIsSecurityOnly(e.target.checked); setCurrentPage(1); }}
-              />
-              <span>Security Events Only</span>
-            </label>
+            <button
+              type="button"
+              className="admin-inline-reset-btn"
+              onClick={handleClearFilters}
+            >
+              <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+              <span>Reset</span>
+            </button>
           </div>
-
-          <button 
-            type="button" 
-            className="btn-clear-filters" 
-            onClick={handleClearFilters}
-          >
-            Clear Filters
-          </button>
         </div>
 
         {/* ==================== AUDIT TABLE / DATA STATE ==================== */}
@@ -581,14 +491,24 @@ const AuditLogs = () => {
           </div>
         ) : (
           <div className="audit-table-wrapper">
+            <div className="admin-table-head">
+              <div className="admin-table-title">
+                <i className="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+                <span>System Audit Logs</span>
+              </div>
+              <span className="admin-table-matching">{totalRecords} Matching</span>
+            </div>
+
             <table className="audit-logs-table">
               <thead>
                 <tr>
-                  <th>Date &amp; Time</th>
+                  <th>Date</th>
+                  <th>User</th>
                   <th>Action</th>
+                  <th>Module</th>
                   <th>Description</th>
                   <th>Status</th>
-                  <th className="text-right">Details</th>
+                  <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -599,10 +519,9 @@ const AuditLogs = () => {
                     : log.resource_id
                       ? `${log.resource_type || 'Record'} #${log.resource_id}`
                       : '';
-                  const actorPart = log.actor_label ? `By ${log.actor_label}` : '';
                   const reasonPart = log.reason ? `Note: ${log.reason}` : '';
                   const descriptionText =
-                    [resourcePart, actorPart, reasonPart].filter(Boolean).join(' • ') ||
+                    [resourcePart, reasonPart].filter(Boolean).join(' • ') ||
                     `${log.action || 'System activity'} recorded in ${log.module || 'System'}`;
 
                   const isPostArchiveLog =
@@ -620,62 +539,54 @@ const AuditLogs = () => {
                           year: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit',
-                          second: '2-digit',
                         })}
                       </td>
+                      <td>
+                        <div className="audit-user-cell">
+                          <span className="audit-user-name">{log.actor_label || 'System'}</span>
+                          <span className="audit-user-role">@{String(log.actor_role || 'system').toLowerCase()}</span>
+                        </div>
+                      </td>
                       <td className="cell-action">
-                        <span className="action-label">{log.action}</span>
-                        {log.module && <span className="module-tag">{log.module}</span>}
+                        <span className="audit-action-pill">{log.action}</span>
                         {alreadyPurgedPost && (
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              marginTop: '0.25rem',
-                              fontSize: '0.7rem',
-                              padding: '2px 7px',
-                              borderRadius: '4px',
-                              background: '#f1f5f9',
-                              color: '#64748b',
-                              fontWeight: 600
-                            }}
-                          >
-                            Post Permanently Deleted
-                          </span>
+                          <span className="audit-purged-tag">Deleted</span>
                         )}
+                      </td>
+                      <td>
+                        <span className="audit-module-text">{log.module || 'system'}</span>
                       </td>
                       <td className="cell-description" title={`${modulePrefix}${descriptionText}`}>
                         <span className="audit-desc-text">{descriptionText}</span>
                       </td>
                       <td className="cell-nowrap">
-                        <span className={`audit-logs-badge ${renderBadgeClass(log.outcome)}`}>
-                          {log.outcome}
+                        <span className={`audit-logs-badge ${renderBadgeClass(log.outcome || log.status)}`}>
+                          {log.outcome || log.status || 'SUCCESS'}
                         </span>
                       </td>
                       <td className="text-right cell-nowrap">
-                        <button
-                          type="button"
-                          className="btn-view-details"
-                          onClick={() => handleOpenDetails(log)}
-                          aria-label="View Audit Record Details"
-                        >
-                          <i className="fa-solid fa-eye"></i> Details
-                        </button>
-                        {canDeleteArchivedPost && (
+                        <div className="admin-action-pill-group">
                           <button
                             type="button"
-                            className="btn-view-details"
-                            style={{
-                              marginLeft: '0.45rem',
-                              background: '#fef2f2',
-                              color: '#dc2626',
-                              borderColor: '#fecaca'
-                            }}
-                            onClick={() => setPostToDelete(log)}
-                            title="Permanently delete this archived post and notify creator"
+                            className="admin-action-icon is-view"
+                            onClick={() => handleOpenDetails(log)}
+                            title="View Audit Record Details"
+                            aria-label="View Audit Record Details"
                           >
-                            <i className="fa-solid fa-trash-can"></i> Delete Post
+                            <i className="fa-solid fa-eye"></i>
                           </button>
-                        )}
+                          {canDeleteArchivedPost && (
+                            <button
+                              type="button"
+                              className="admin-action-icon is-danger"
+                              onClick={() => setPostToDelete(log)}
+                              title="Permanently delete this archived post and notify creator"
+                              aria-label="Delete archived post"
+                            >
+                              <i className="fa-solid fa-trash-can"></i>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

@@ -15,10 +15,7 @@ const Pagination = ({
   totalRecords = 0,
   pageSize,
   rowsPerPage,
-  pageSizeOptions = [10, 25, 50, 100],
   onPageChange,
-  onPageSizeChange,
-  onRowsPerPageChange,
   loading = false,
   itemLabel = 'records'
 }) => {
@@ -26,7 +23,6 @@ const Pagination = ({
   const safeTotalPages = Math.max(1, Number(totalPages) || 1);
   const safeTotalRecords = Math.max(0, Number(totalRecords) || 0);
   const safePageSize = Number(pageSize ?? rowsPerPage) || 10;
-  const handleSizeChangeCallback = onPageSizeChange || onRowsPerPageChange;
 
   const startRecord = safeTotalRecords === 0 ? 0 : (safeCurrentPage - 1) * safePageSize + 1;
   const endRecord = Math.min(safeTotalRecords, safeCurrentPage * safePageSize);
@@ -77,12 +73,6 @@ const Pagination = ({
     onPageChange(targetPage);
   };
 
-  const handleSizeSelect = (e) => {
-    if (loading || !handleSizeChangeCallback) return;
-    const nextSize = Number(e.target.value) || 10;
-    handleSizeChangeCallback(nextSize);
-  };
-
   const pageItems = getPageNumbers();
 
   return (
@@ -92,32 +82,9 @@ const Pagination = ({
           Showing <strong>{startRecord}</strong>–<strong>{endRecord}</strong> of{' '}
           <strong>{safeTotalRecords.toLocaleString()}</strong> {itemLabel}
         </span>
-        <span className="pagination-divider">•</span>
-        <span className="pagination-page-indicator">
-          Page <strong>{safeCurrentPage}</strong> of <strong>{safeTotalPages}</strong>
-        </span>
       </div>
 
       <div className="admin-global-pagination-controls">
-        {handleSizeChangeCallback && (
-          <div className="pagination-size-selector">
-            <label htmlFor="admin-page-size-select">Rows per page:</label>
-            <select
-              id="admin-page-size-select"
-              value={safePageSize}
-              onChange={handleSizeSelect}
-              disabled={loading}
-              className="pagination-size-select"
-            >
-              {pageSizeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         <div className="pagination-buttons-group">
           <button
             type="button"
@@ -126,8 +93,7 @@ const Pagination = ({
             disabled={loading || safeCurrentPage <= 1}
             title="Previous Page"
           >
-            <i className="fa-solid fa-chevron-left"></i>
-            <span>Previous</span>
+            <span>« Previous</span>
           </button>
 
           <div className="pagination-numbers">
@@ -162,8 +128,7 @@ const Pagination = ({
             disabled={loading || safeCurrentPage >= safeTotalPages}
             title="Next Page"
           >
-            <span>Next</span>
-            <i className="fa-solid fa-chevron-right"></i>
+            <span>Next »</span>
           </button>
         </div>
       </div>

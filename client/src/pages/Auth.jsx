@@ -739,19 +739,11 @@ export default function Auth() {
     <div className="auth-page-root">
       <div className="interactive-bg">
         <div className="bg-blob blob-1 float-anim-1"></div>
-        <div className="bg-blob blob-2 float-anim-2"></div>
         <div className="bg-blob blob-left-deep float-anim-2"></div>
-        <div className="bg-blob blob-scatter-left-mid float-anim-3"></div>
+        <div className="bg-blob blob-2 float-anim-2"></div>
         <div className="bg-blob blob-right-deep float-anim-1"></div>
-        <div className="bg-blob blob-scatter-right-mid float-anim-4"></div>
         <div className="bg-blob blob-3 float-anim-3"></div>
-        <div className="bg-blob blob-scatter-1 float-anim-4"></div>
-        <div className="bg-blob blob-scatter-2 float-anim-1"></div>
-        <div className="bg-blob blob-scatter-3 float-anim-2"></div>
-        <div className="bg-blob blob-scatter-4 float-anim-1"></div>
-        <div className="bg-blob blob-scatter-5 float-anim-3"></div>
-        <div className="bg-blob blob-scatter-6 float-anim-2"></div>
-        <div className="bg-blob blob-scatter-7 float-anim-4"></div>
+        <div className="bg-blob blob-scatter-4 float-anim-4"></div>
         {[...Array(28)].map((_, i) => (
           <div key={i} className={`star-blob star-${i + 1}`}></div>
         ))}

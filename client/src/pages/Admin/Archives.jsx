@@ -280,18 +280,13 @@ const Archives = () => {
         <header className="archives-header">
           <div className="archives-header-left">
             <nav className="archives-breadcrumb" aria-label="Breadcrumb">
-              <Link to="/admin">Admin</Link>
+              <i className="fa-solid fa-house" aria-hidden="true"></i>
+              <Link to="/admin">Home</Link>
               <span className="archives-breadcrumb-separator">/</span>
               <span className="archives-breadcrumb-current">Archives</span>
             </nav>
-            <div className="archives-title-group">
-              <i className="fa-solid fa-box-archive archives-header-icon" aria-hidden="true"></i>
-              <div>
-                <h1 className="archives-title">Archives</h1>
-                <p className="archives-subtitle">
-                  Manage, review, and restore historical announcements, events, and retained system records.
-                </p>
-              </div>
+            <div>
+              <h1 className="archives-title">Archives</h1>
             </div>
           </div>
 
@@ -319,223 +314,143 @@ const Archives = () => {
           </div>
         </header>
 
-        {/* Summary Overview Cards */}
-        <section className="archives-summary-grid" aria-label="Archive summary statistics">
-          <div className="archives-card">
-            <div className="archives-card-body">
-              <div className="archives-card-info">
-                <span className="archives-card-label">Total Archived Records</span>
-                <span className="archives-card-value">
-                  {summaryError ? '—' : summary.totalArchived.toLocaleString()}
+        {/* Clickable Summary KPI Strip */}
+        <section className="admin-kpi-strip" aria-label="Archive summary statistics">
+          {[
+            { id: 'ALL', label: 'Total Archived', value: summary.totalArchived, icon: 'fa-box-archive', tone: 'blue', valTone: '' },
+            { id: 'ANNOUNCEMENT', label: 'Announcements', value: summary.announcements, icon: 'fa-bullhorn', tone: 'amber', valTone: 'tone-amber' },
+            { id: 'EVENT', label: 'Archived Events', value: summary.events, icon: 'fa-calendar-check', tone: 'emerald', valTone: 'tone-emerald' },
+            { id: 'PAGE', label: 'Other Records', value: summary.other, icon: 'fa-folder-tree', tone: 'slate', valTone: 'tone-slate' }
+          ].map(card => (
+            <button
+              key={card.id}
+              type="button"
+              className={`admin-kpi-tile ${activeCategory === card.id ? 'is-active' : ''}`}
+              onClick={() => setActiveCategory(card.id)}
+            >
+              <div className="admin-kpi-meta">
+                <span className="admin-kpi-label">{card.label}</span>
+                <span className={`admin-kpi-value ${card.valTone}`}>
+                  {summaryError ? '—' : card.value.toLocaleString()}
                 </span>
               </div>
-              <div className="archives-card-icon archives-icon-maroon">
-                <i className="fa-solid fa-box-archive"></i>
-              </div>
-            </div>
-          </div>
-
-          <div className="archives-card">
-            <div className="archives-card-body">
-              <div className="archives-card-info">
-                <span className="archives-card-label">Archived Announcements</span>
-                <span className="archives-card-value">
-                  {summaryError ? '—' : summary.announcements.toLocaleString()}
-                </span>
-              </div>
-              <div className="archives-card-icon archives-icon-gold">
-                <i className="fa-solid fa-bullhorn"></i>
-              </div>
-            </div>
-          </div>
-
-          <div className="archives-card">
-            <div className="archives-card-body">
-              <div className="archives-card-info">
-                <span className="archives-card-label">Archived Events</span>
-                <span className="archives-card-value">
-                  {summaryError ? '—' : summary.events.toLocaleString()}
-                </span>
-              </div>
-              <div className="archives-card-icon archives-icon-dark">
-                <i className="fa-solid fa-calendar-check"></i>
-              </div>
-            </div>
-          </div>
-
-          <div className="archives-card">
-            <div className="archives-card-body">
-              <div className="archives-card-info">
-                <span className="archives-card-label">Other Records</span>
-                <span className="archives-card-value">
-                  {summaryError ? '—' : summary.other.toLocaleString()}
-                </span>
-              </div>
-              <div className="archives-card-icon archives-icon-slate">
-                <i className="fa-solid fa-folder-tree"></i>
-              </div>
-            </div>
-          </div>
+              <span className={`admin-kpi-icon tone-${card.tone}`} aria-hidden="true">
+                <i className={`fa-solid ${card.icon}`}></i>
+              </span>
+            </button>
+          ))}
         </section>
 
-        {/* Category Tabs & Filter Controls */}
-        <div className="archives-controls-container">
-          {/* Category Tabs */}
-          <div className="archives-category-tabs" role="tablist">
-            {[
-              { id: 'ALL', label: 'All Records', icon: 'fa-layer-group' },
-              { id: 'ANNOUNCEMENT', label: 'Announcements', icon: 'fa-bullhorn' },
-              { id: 'EVENT', label: 'Events', icon: 'fa-calendar-days' },
-              { id: 'REGISTRATION', label: 'Event Registrations', icon: 'fa-clipboard-user' },
-              { id: 'ATTENDANCE', label: 'Attendance Records', icon: 'fa-qrcode' },
-              { id: 'PAGE', label: 'Pages', icon: 'fa-file-lines' },
-              { id: 'MODERATION', label: 'Moderation Records', icon: 'fa-shield-halved' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                role="tab"
-                aria-selected={activeCategory === tab.id}
-                className={`archives-tab-btn ${activeCategory === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveCategory(tab.id)}
-              >
-                <i className={`fa-solid ${tab.icon}`}></i>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
+        {/* Single-Row Inline Filter Bar */}
+        <div className="admin-inline-filter-card">
+          <div className="admin-inline-filter-row">
+            <select
+              value={activeCategory}
+              onChange={(e) => setActiveCategory(e.target.value)}
+              className="admin-inline-select"
+              aria-label="Filter by archive category"
+            >
+              <option value="ALL">All Categories</option>
+              <option value="ANNOUNCEMENT">Announcements</option>
+              <option value="EVENT">Events</option>
+              <option value="REGISTRATION">Event Registrations</option>
+              <option value="ATTENDANCE">Attendance Records</option>
+              <option value="PAGE">Pages</option>
+              <option value="MODERATION">Moderation Records</option>
+            </select>
 
-          {/* Detailed Filters Panel */}
-          <div className="archives-filters-panel">
-            <div className="archives-filter-row">
-              {/* Search Bar */}
-              <div className="archives-search-group">
-                <i className="fa-solid fa-magnifying-glass archives-search-icon"></i>
-                <input
-                  type="text"
-                  placeholder="Search title, keywords, student, or author..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="archives-input archives-search-input"
-                  aria-label="Search records"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="archives-search-clear"
-                    aria-label="Clear search query"
-                  >
-                    <i className="fa-solid fa-xmark"></i>
-                  </button>
-                )}
-              </div>
-
-              {/* School Year Selector */}
-              <div className="archives-filter-select-wrapper">
-                <label htmlFor="school-year-filter" className="sr-only">
-                  School Year
-                </label>
-                <select
-                  id="school-year-filter"
-                  value={selectedAcademicYear}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSelectedAcademicYear(val);
-                    if (val && val !== 'ALL') {
-                      setSearchParams({ academicYearId: val });
-                    } else {
-                      setSearchParams({});
-                    }
-                  }}
-                  className="archives-select"
-                  title="Browse historical records by School Year"
-                >
-                  <option value="ALL">All School Years (Archived Records)</option>
-                  {academicYears.map((yr) => (
-                    <option key={yr.id} value={String(yr.id)}>
-                      {yr.year_label} ({yr.semester}) — {yr.status || (yr.is_active ? 'Active' : 'Archived')}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Archive Reason Filter */}
-              <div className="archives-filter-select-wrapper">
-                <label htmlFor="reason-filter" className="sr-only">
-                  Archive Reason
-                </label>
-                <select
-                  id="reason-filter"
-                  value={reasonFilter}
-                  onChange={(e) => setReasonFilter(e.target.value)}
-                  className="archives-select"
-                >
-                  <option value="ALL">All Archive Reasons</option>
-                  <option value="EXPIRED">Expired</option>
-                  <option value="MANUAL">Manually Archived</option>
-                  <option value="TAKEN_DOWN">Taken Down / Removed</option>
-                  <option value="COMPLETED">Completed Event</option>
-                </select>
-              </div>
-
-              {/* Sorting Filter */}
-              <div className="archives-filter-select-wrapper">
-                <label htmlFor="sort-filter" className="sr-only">
-                  Sort Order
-                </label>
-                <select
-                  id="sort-filter"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="archives-select"
-                >
-                  <option value="newest">Newest Archived First</option>
-                  <option value="oldest">Oldest Archived First</option>
-                  <option value="alphabetical">Alphabetical (A-Z)</option>
-                </select>
-              </div>
-
-              {/* Date Range */}
-              <div className="archives-date-group">
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="archives-input archives-date-input"
-                  aria-label="Archive date from"
-                  title="Archive Date From"
-                />
-                <span className="archives-date-separator">to</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="archives-input archives-date-input"
-                  aria-label="Archive date to"
-                  title="Archive Date To"
-                />
-              </div>
-
-              {(searchQuery ||
-                activeCategory !== 'ALL' ||
-                selectedAcademicYear !== 'ALL' ||
-                reasonFilter !== 'ALL' ||
-                dateFrom ||
-                dateTo ||
-                sortBy !== 'newest') && (
+            <div className="admin-inline-search">
+              <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+              <input
+                type="text"
+                placeholder="Search title, keywords, student, or author..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="admin-inline-search-input"
+                aria-label="Search records"
+              />
+              {searchQuery && (
                 <button
                   type="button"
-                  onClick={handleClearFilters}
-                  className="archives-btn-text"
+                  onClick={() => setSearchQuery('')}
+                  className="admin-inline-clear-btn"
+                  aria-label="Clear search query"
                 >
-                  <i className="fa-solid fa-filter-circle-xmark"></i> Clear Filters
+                  <i className="fa-solid fa-xmark"></i>
                 </button>
               )}
             </div>
+
+            <select
+              id="school-year-filter"
+              value={selectedAcademicYear}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedAcademicYear(val);
+                if (val && val !== 'ALL') {
+                  setSearchParams({ academicYearId: val });
+                } else {
+                  setSearchParams({});
+                }
+              }}
+              className="admin-inline-select"
+              aria-label="Filter by School Year"
+            >
+              <option value="ALL">All School Years</option>
+              {academicYears.map((yr) => (
+                <option key={yr.id} value={String(yr.id)}>
+                  {yr.year_label} ({yr.semester}) — {yr.status || (yr.is_active ? 'Active' : 'Archived')}
+                </option>
+              ))}
+            </select>
+
+            <select
+              id="reason-filter"
+              value={reasonFilter}
+              onChange={(e) => setReasonFilter(e.target.value)}
+              className="admin-inline-select"
+              aria-label="Filter by archive reason"
+            >
+              <option value="ALL">All Archive Reasons</option>
+              <option value="EXPIRED">Expired</option>
+              <option value="MANUAL">Manually Archived</option>
+              <option value="TAKEN_DOWN">Taken Down / Removed</option>
+              <option value="COMPLETED">Completed Event</option>
+            </select>
+
+            <select
+              id="sort-filter"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="admin-inline-select"
+              aria-label="Sort archived records"
+            >
+              <option value="newest">Sort: Newest First</option>
+              <option value="oldest">Sort: Oldest First</option>
+              <option value="alphabetical">Sort: A–Z</option>
+            </select>
+
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="admin-inline-reset-btn"
+            >
+              <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+              <span>Reset</span>
+            </button>
           </div>
         </div>
 
         {/* Data Table / Cards Container */}
         <section className="archives-table-card" aria-label="Archived records table">
+          <div className="admin-table-head">
+            <div className="admin-table-title">
+              <i className="fa-solid fa-box-archive" aria-hidden="true"></i>
+              <span>Archived Records</span>
+            </div>
+            <span className="admin-table-matching">{pagination.total} Matching</span>
+          </div>
+
           {recordsLoading ? (
             <div className="archives-loading-state">
               <i className="fa-solid fa-spinner fa-spin archives-spinner"></i>
@@ -621,11 +536,12 @@ const Archives = () => {
                             <span className="archives-reason-tag">{record.archiveReason || 'Standard Expiration'}</span>
                           </td>
                           <td className="text-right">
-                            <div className="archives-row-actions">
+                            <div className="admin-action-pill-group">
                               <button
                                 type="button"
-                                className="archives-action-btn"
+                                className="admin-action-icon is-view"
                                 title="View Details"
+                                aria-label="View Details"
                                 onClick={() => {
                                   setSelectedRecord(record);
                                   setIsDetailsModalOpen(true);
@@ -636,8 +552,9 @@ const Archives = () => {
                               {isRestorable && (
                                 <button
                                   type="button"
-                                  className="archives-action-btn archives-action-restore"
+                                  className="admin-action-icon is-approve"
                                   title="Restore Record"
+                                  aria-label="Restore Record"
                                   onClick={() => {
                                     setRecordToRestore(record);
                                     setIsRestoreModalOpen(true);

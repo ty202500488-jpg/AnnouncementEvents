@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../../assets/images/logo.jpg';
-import { PostPageAvatar } from './PortalShellElements';
+import { PostPageAvatar, getInitials } from './PortalShellElements';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import { formatNotificationDisplay } from '../../utils/notificationUtils';
 import '../../pages/styles/AdminDashboard.css';
@@ -13,11 +13,11 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
   // Mobile menu toggle state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Admin User State
+  // Admin Official Page State
   const [user, setUser] = useState({
-    firstName: 'MISTO',
-    lastName: 'Administrator',
-    dept: 'Western Mindanao State University'
+    displayName: 'Western Mindanao State University',
+    subtitle: 'System Administrator',
+    avatarUrl: ''
   });
 
   // Profile Dropdown State & Logic
@@ -56,21 +56,43 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
     }
   };
 
-  useEffect(() => {
-    // Load User Data from localStorage if present
+  const loadAdminIdentity = () => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        setUser({
-          firstName: parsed.first_name || parsed.firstName || 'MISTO',
-          lastName: parsed.last_name || parsed.lastName || 'Administrator',
-          dept: parsed.department || parsed.dept || 'Western Mindanao State University'
-        });
+        setUser((prev) => ({
+          displayName: parsed.page_name || prev.displayName || 'Western Mindanao State University',
+          subtitle: 'System Administrator',
+          avatarUrl: parsed.avatar_url || prev.avatarUrl || ''
+        }));
       } catch (err) {
         console.error('Failed to parse admin user data:', err);
       }
     }
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('/api/admin/official-page', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          if (data?.page) {
+            setUser({
+              displayName: data.page.page_name || 'Western Mindanao State University',
+              subtitle: 'System Administrator',
+              avatarUrl: data.page.avatar_url || ''
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    loadAdminIdentity();
+    window.addEventListener('storage', loadAdminIdentity);
 
     fetchAdminNotifications();
     const pollId = setInterval(fetchAdminNotifications, 30000);
@@ -91,6 +113,7 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
 
     return () => {
       clearInterval(pollId);
+      window.removeEventListener('storage', loadAdminIdentity);
       window.removeEventListener('notifications-updated', onNotificationsUpdated);
       window.removeEventListener('focus', onNotificationsUpdated);
       document.removeEventListener('mousedown', handleClickOutside);
@@ -150,10 +173,15 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
 
   const navigationSections = [
     {
-      title: 'Main Menu',
+      title: 'Main Navigation',
       items: [
         { label: 'Overview', path: '/admin', aliases: ['/admin', '/admin/dashboard'], icon: 'fa-solid fa-chart-pie' },
-        { label: 'Announcements & Events', path: '/admin/content-feed', aliases: ['/admin/content-feed'], icon: 'fa-solid fa-newspaper' },
+        { label: 'Campus Feed', path: '/admin/content-feed', aliases: ['/admin/content-feed'], icon: 'fa-solid fa-newspaper' },
+      ],
+    },
+    {
+      title: 'Management',
+      items: [
         { label: 'Post Approvals', path: '/admin/post-approval', aliases: ['/admin/post-approval', '/admin/posts', '/admin/moderation'], icon: 'fa-solid fa-file-circle-check' },
         { label: 'Page Management', path: '/admin/pages', aliases: ['/admin/pages'], icon: 'fa-solid fa-layer-group' },
         { label: 'User Management', path: '/admin/users', aliases: ['/admin/users'], icon: 'fa-solid fa-users' },
@@ -163,32 +191,49 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
       title: 'Records & Analytics',
       items: [
         { label: 'Archives', path: '/admin/archives', aliases: ['/admin/archives'], icon: 'fa-solid fa-box-archive' },
-        { label: 'Reports & Statistics', path: '/admin/reports', aliases: ['/admin/reports'], icon: 'fa-solid fa-chart-line' },
+        { label: 'Reports', path: '/admin/reports', aliases: ['/admin/reports'], icon: 'fa-solid fa-chart-line' },
         { label: 'Audit Logs', path: '/admin/audit-logs', aliases: ['/admin/audit-logs'], icon: 'fa-solid fa-clipboard-list' },
       ],
     },
     {
-      title: 'Configuration',
+      title: 'Administration',
       items: [
+        { label: 'My Profile', path: '/admin/profile', aliases: ['/admin/profile', '/admin/mypage/profile'], icon: 'fa-solid fa-user' },
         { label: 'System Settings', path: '/admin/settings', aliases: ['/admin/settings'], icon: 'fa-solid fa-sliders' },
       ],
     },
   ];
 
+  const adminInitials = getInitials(user.displayName, 'WM');
+
   return (
     <div className="admin-dashboard-container">
       {/* ==================== HEADER BAR ==================== */}
-      <header className="header" style={{ position: 'sticky', top: 0, zIndex: 40, backgroundColor: '#ffffff', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '0.5rem 1rem' }}>
-          
-          {/* Left Logo / Mobile Trigger */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-            <Link to="/admin" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-              <img 
-                src={logo} 
-                alt="WMSU Crimson Logo" 
-                style={{ height: '40px', width: '40px', objectFit: 'contain', borderRadius: '50%' }} 
+      <header className="header">
+        <div className="admin-header-inner">
+          {/* Left Brand Logo + Mobile Sidebar Toggle */}
+          <div className="admin-header-brand">
+            <button
+              type="button"
+              className="admin-sidebar-toggle"
+              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              aria-label={isMobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={isMobileMenuOpen}
+            >
+              <i className={`fa-solid ${isMobileMenuOpen ? 'fa-xmark' : 'fa-bars'}`}></i>
+            </button>
+            <Link to="/admin" className="admin-brand-link" aria-label="CRIMSON Admin Home">
+              <img
+                src={logo}
+                alt="WMSU Crimson Logo"
+                style={{ height: '48px', width: '48px', objectFit: 'contain', borderRadius: '50%' }}
               />
+              <span
+                className="admin-brand-wordmark"
+                style={{ fontFamily: "'Unbounded', sans-serif", fontWeight: 800, letterSpacing: '0.05em' }}
+              >
+                CRIM<span className="admin-brand-accent">SON</span>
+              </span>
             </Link>
           </div>
 
@@ -199,28 +244,26 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
           )}
 
           {/* Right Header Actions */}
-          <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            
+          <div className="header-right">
             {/* Notifications Dropdown */}
-            <div ref={notifDropdownRef} style={{ position: 'relative' }}>
-              <button 
+            <div ref={notifDropdownRef} style={{ position: 'relative', flexShrink: 0 }}>
+              <button
                 type="button"
-                className="bell-btn icon-btn" 
+                className="bell-btn icon-btn"
                 onClick={() => {
                   const next = !showNotifDropdown;
                   setShowNotifDropdown(next);
                   if (next) fetchAdminNotifications();
                 }}
                 aria-label="Notifications"
-                style={{ position: 'relative', cursor: 'pointer', background: 'transparent', border: 'none' }}
               >
-                <i className="fa-solid fa-bell" style={{ fontSize: '1.25rem' }}></i>
+                <i className="fa-solid fa-bell" style={{ fontSize: '0.95rem' }}></i>
                 {unreadNotifCount > 0 && (
                   <span
                     style={{
                       position: 'absolute',
                       top: '-2px',
-                      right: '-4px',
+                      right: '-2px',
                       backgroundColor: '#881337',
                       color: '#ffffff',
                       fontSize: '10px',
@@ -332,22 +375,31 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
             </div>
 
             {/* Profile Dropdown Component */}
-            <div ref={profileDropdownRef} style={{ position: 'relative' }}>
-              <div 
-                className="profile-info" 
+            <div ref={profileDropdownRef} style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                type="button"
+                className="admin-profile-trigger"
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}
+                aria-expanded={showProfileDropdown}
+                aria-label="Account menu"
               >
-                <div className="user-text-details" style={{ textAlign: 'right' }}>
-                  <span className="user-name" style={{ fontWeight: 700, fontSize: '0.875rem', color: '#1e293b' }}>
-                    {user.firstName} {user.lastName}
-                  </span>
-                  <span className="user-dept" style={{ fontSize: '0.75rem', color: '#64748b', display: 'block' }}>
-                    {user.dept}
-                  </span>
+                <span className="admin-avatar-badge" aria-hidden="true" style={{ overflow: 'hidden' }}>
+                  {user.avatarUrl ? (
+                    <img src={user.avatarUrl} alt={user.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    adminInitials
+                  )}
+                </span>
+                <div className="profile-details-text" style={{ textAlign: 'left', minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.8125rem', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.displayName}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#64748b', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {user.subtitle}
+                  </div>
                 </div>
-                <i className="fa-solid fa-chevron-down dropdown-icon" style={{ fontSize: '10px', color: '#64748b' }}></i>
-              </div>
+                <i className="fa-solid fa-chevron-down" style={{ color: '#94a3b8', fontSize: '10px', flexShrink: 0 }}></i>
+              </button>
 
               {showProfileDropdown && (
                 <div 
@@ -369,14 +421,18 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                 >
                   <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #f1f5f9', marginBottom: '0.25rem' }}>
                     <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b' }}>
-                      {user.firstName} {user.lastName}
+                      {user.displayName}
                     </div>
                     <div style={{ fontSize: '11px', color: '#64748b' }}>
-                      {user.dept}
+                      {user.subtitle}
                     </div>
                   </div>
 
-                  <Link to="/admin/settings" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#334155', textDecoration: 'none' }}>
+                  <Link to="/admin/profile" onClick={() => setShowProfileDropdown(false)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#334155', textDecoration: 'none' }}>
+                    <i className="fa-solid fa-user" style={{ width: '16px', color: '#64748b' }}></i> My Profile
+                  </Link>
+
+                  <Link to="/admin/settings" onClick={() => setShowProfileDropdown(false)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#334155', textDecoration: 'none' }}>
                     <i className="fa-solid fa-sliders" style={{ width: '16px', color: '#64748b' }}></i> Settings
                   </Link>
 
@@ -398,9 +454,17 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
 
       {/* ==================== MAIN BODY LAYOUT ==================== */}
       <div className="app-container">
-        {/* FLOATING BURGUNDY HOVER-EXPANDABLE SIDEBAR */}
-        <aside className="sidebar">
-          <div>
+        {isMobileMenuOpen && (
+          <div
+            className="admin-sidebar-backdrop"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* DOCKED CRIMSON SIDEBAR */}
+        <aside className={`sidebar ${isMobileMenuOpen ? 'is-open' : ''}`} aria-label="Admin Navigation">
+          <nav className="admin-sidebar-nav">
             {navigationSections.map((section, sectionIdx) => (
               <React.Fragment key={sectionIdx}>
                 <div className="nav-section-title">{section.title}</div>
@@ -414,6 +478,7 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                         <Link
                           to={item.path}
                           className={`nav-item-link ${isActive ? 'active' : ''}`}
+                          onClick={() => setIsMobileMenuOpen(false)}
                         >
                           <div className="nav-item-content">
                             <i className={`${item.icon} nav-icon`}></i>
@@ -426,6 +491,17 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                 </ul>
               </React.Fragment>
             ))}
+          </nav>
+
+          <div className="admin-sidebar-footer">
+            <button
+              type="button"
+              className="admin-sidebar-logout-btn"
+              onClick={handleLogout}
+            >
+              <i className="fa-solid fa-right-from-bracket nav-icon" aria-hidden="true"></i>
+              <span className="nav-item-text">Logout</span>
+            </button>
           </div>
         </aside>
 

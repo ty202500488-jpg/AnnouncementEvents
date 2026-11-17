@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
 import Pagination from '../../assets/components/Pagination';
+import { ReferenceBarChartCard, ReferenceAreaLineChartCard } from '../../assets/components/OverviewCharts';
 import '../styles/Overview.css';
 
 const DATE_PRESET_OPTIONS = [
@@ -88,41 +89,8 @@ function computePresetDates(presetKey) {
   }
 }
 
-function getGroupingLabel(grouping) {
-  switch (grouping) {
-    case 'hourly':
-      return 'Hourly';
-    case 'daily':
-      return 'Daily';
-    case 'weekly':
-      return 'Weekly';
-    default:
-      return 'Monthly';
-  }
-}
-
 const OverviewStatCard = ({ label, kpi, subtext, icon, tone = 'maroon', loading, onClick }) => {
   const current = Number(kpi?.current) || 0;
-  const previous = Number(kpi?.previous) || 0;
-  const pct = kpi?.percentageChange;
-  const delta = Number(kpi?.delta) || 0;
-  const trend = kpi?.trend || 'neutral';
-  const hasPct = pct !== null && pct !== undefined && Number.isFinite(Number(pct));
-
-  let badgeText = '0%';
-  let trendIcon = 'fa-minus';
-
-  if (hasPct) {
-    const numPct = Number(pct);
-    badgeText = numPct > 0 ? `+${numPct}%` : `${numPct}%`;
-    trendIcon = numPct > 0 ? 'fa-arrow-trend-up' : numPct < 0 ? 'fa-arrow-trend-down' : 'fa-minus';
-  } else if (previous === 0 && current > 0) {
-    badgeText = `+${delta.toLocaleString()} new`;
-    trendIcon = 'fa-arrow-trend-up';
-  } else {
-    badgeText = 'No prior data';
-    trendIcon = 'fa-minus';
-  }
 
   return (
     <div
@@ -145,7 +113,7 @@ const OverviewStatCard = ({ label, kpi, subtext, icon, tone = 'maroon', loading,
         </div>
       </div>
 
-      <div className="ov-kpi-value">
+      <div className={`ov-kpi-value ov-val-${tone}`}>
         {loading ? (
           <div className="ov-skeleton ov-skeleton-val"></div>
         ) : (
@@ -153,495 +121,21 @@ const OverviewStatCard = ({ label, kpi, subtext, icon, tone = 'maroon', loading,
         )}
       </div>
 
-      <div className="ov-kpi-comparison-row">
-        {loading ? (
-          <div className="ov-skeleton ov-skeleton-sub"></div>
-        ) : (
-          <>
-            <span className={`ov-trend-pill ov-trend-${trend}`}>
-              <i className={`fa-solid ${trendIcon}`} aria-hidden="true"></i>
-              <span>{badgeText}</span>
-            </span>
-            <span className="ov-kpi-compare" title={`${kpi?.comparisonLabel || 'vs prior period'} (${previous.toLocaleString()})`}>
-              {kpi?.comparisonLabel || 'vs prior period'} ({previous.toLocaleString()})
-            </span>
-          </>
-        )}
-      </div>
-
-      <div className="ov-kpi-subtext">
-        {loading ? <div className="ov-skeleton ov-skeleton-meta"></div> : subtext}
+      <div className="ov-kpi-subtext-line">
+        {loading ? <div className="ov-skeleton ov-skeleton-meta"></div> : <span>{subtext}</span>}
       </div>
     </div>
   );
 };
 
-const PublishingActivityChart = ({ data, loading, error, onRetry, periodLabel }) => {
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-  const series = Array.isArray(data?.series) ? data.series : [];
-  const groupingLabel = getGroupingLabel(data?.grouping);
-
-  const totalAnnouncements = series.reduce((sum, s) => sum + (Number(s.announcements) || 0), 0);
-  const totalEvents = series.reduce((sum, s) => sum + (Number(s.events) || 0), 0);
-  const hasAnyData = totalAnnouncements + totalEvents > 0;
-
-  const rawMax = Math.max(
-    0,
-    ...series.map((s) => Math.max(Number(s.announcements) || 0, Number(s.events) || 0))
-  );
-  const maxVal = Math.max(4, Math.ceil(rawMax / 2) * 2);
-
-  const width = 640;
-  const height = 250;
-  const padL = 40;
-  const padR = 20;
-  const padT = 20;
-  const padB = 34;
-  const plotW = width - padL - padR;
-  const plotH = height - padT - padB;
-
-  const getX = (idx) => {
-    if (series.length <= 1) return padL + plotW / 2;
-    return padL + (idx / (series.length - 1)) * plotW;
-  };
-  const getY = (val) => padT + plotH - ((Number(val) || 0) / maxVal) * plotH;
-
-  const annPoints =
-    series.length === 1
-      ? `${padL},${getY(series[0].announcements)} ${width - padR},${getY(series[0].announcements)}`
-      : series.map((s, idx) => `${getX(idx)},${getY(s.announcements)}`).join(' ');
-
-  const evtPoints =
-    series.length === 1
-      ? `${padL},${getY(series[0].events)} ${width - padR},${getY(series[0].events)}`
-      : series.map((s, idx) => `${getX(idx)},${getY(s.events)}`).join(' ');
-
-  const annAreaPoints =
-    series.length > 1
-      ? `${getX(0)},${padT + plotH} ${annPoints} ${getX(series.length - 1)},${padT + plotH}`
-      : '';
-
-  const maxLabels = 7;
-  const labelStep = Math.max(1, Math.ceil(series.length / maxLabels));
-  const yTicks = [0, Math.round(maxVal * 0.25), Math.round(maxVal * 0.5), Math.round(maxVal * 0.75), maxVal];
-  const uniqueYTicks = [...new Set(yTicks)];
-  const hoveredItem = hoveredIdx !== null && series[hoveredIdx] ? series[hoveredIdx] : null;
-
-  return (
-    <section className="ov-card ov-chart-card" aria-label="Announcements and Events Activity">
-      <div className="ov-card-header">
-        <div className="ov-card-heading-group">
-          <h2 className="ov-card-title">Announcements &amp; Events Activity</h2>
-          <p className="ov-card-desc">
-            {groupingLabel} activity ({totalAnnouncements.toLocaleString()} announcements, {totalEvents.toLocaleString()} events)
-          </p>
-        </div>
-        <div className="ov-legend-inline" aria-label="Chart Legend">
-          <span className="ov-legend-pill">
-            <i className="ov-dot" style={{ background: '#7B0D1E' }}></i>
-            Announcements ({totalAnnouncements})
-          </span>
-          <span className="ov-legend-pill">
-            <i className="ov-dot" style={{ background: '#F5B400' }}></i>
-            Events ({totalEvents})
-          </span>
-        </div>
-      </div>
-
-      <div className="ov-chart-body">
-        {loading ? (
-          <div className="ov-chart-skeleton">
-            <div className="ov-skeleton ov-skeleton-chart"></div>
-          </div>
-        ) : error ? (
-          <div className="ov-section-error" role="alert">
-            <i className="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
-            <span>{error}</span>
-            <button type="button" className="ov-btn ov-btn-secondary ov-btn-sm" onClick={onRetry}>
-              <i className="fa-solid fa-rotate-right" aria-hidden="true"></i>
-              <span>Retry</span>
-            </button>
-          </div>
-        ) : series.length === 0 || !hasAnyData ? (
-          <div className="ov-empty-box">
-            <div className="ov-empty-icon-wrap" aria-hidden="true">
-              <i className="fa-solid fa-chart-line"></i>
-            </div>
-            <h3 className="ov-empty-title">No publishing activity in this period</h3>
-            <p className="ov-empty-desc">
-              No announcements or events were created during {periodLabel || 'the selected date range'}.
-            </p>
-          </div>
-        ) : (
-          <div className="ov-line-chart-wrap" onMouseLeave={() => setHoveredIdx(null)}>
-            {hoveredItem && (
-              <div className="ov-chart-tooltip" role="status">
-                <div className="ov-tooltip-title">{hoveredItem.label}</div>
-                <div className="ov-tooltip-row">
-                  <span className="ov-dot" style={{ background: '#7B0D1E' }}></span>
-                  <span>Announcements:</span>
-                  <strong>{hoveredItem.announcements}</strong>
-                </div>
-                <div className="ov-tooltip-row">
-                  <span className="ov-dot" style={{ background: '#F5B400' }}></span>
-                  <span>Events:</span>
-                  <strong>{hoveredItem.events}</strong>
-                </div>
-              </div>
-            )}
-
-            <svg
-              viewBox={`0 0 ${width} ${height}`}
-              className="ov-svg-chart"
-              role="img"
-              aria-label="Announcements and Events Activity Line Chart"
-            >
-              <defs>
-                <linearGradient id="ovAnnAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#7B0D1E" stopOpacity="0.16" />
-                  <stop offset="100%" stopColor="#7B0D1E" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-
-              {/* Horizontal grid lines & Y-axis labels */}
-              {uniqueYTicks.map((tick) => {
-                const y = getY(tick);
-                return (
-                  <g key={tick}>
-                    <line
-                      x1={padL}
-                      y1={y}
-                      x2={width - padR}
-                      y2={y}
-                      stroke={tick === 0 ? '#cbd5e1' : '#e2e8f0'}
-                      strokeDasharray={tick === 0 ? undefined : '4 4'}
-                    />
-                    <text x={padL - 8} y={y + 4} textAnchor="end" fontSize="11" fontWeight="500" fill="#64748b">
-                      {tick}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* Area fill for Announcements */}
-              {annAreaPoints && <polygon points={annAreaPoints} fill="url(#ovAnnAreaGrad)" />}
-
-              {/* Series Lines */}
-              <polyline
-                fill="none"
-                stroke="#7B0D1E"
-                strokeWidth="2.5"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                points={annPoints}
-              />
-              <polyline
-                fill="none"
-                stroke="#F5B400"
-                strokeWidth="2.5"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                points={evtPoints}
-              />
-
-              {/* Hover guide line */}
-              {hoveredIdx !== null && series[hoveredIdx] && (
-                <line
-                  x1={getX(hoveredIdx)}
-                  y1={padT}
-                  x2={getX(hoveredIdx)}
-                  y2={padT + plotH}
-                  stroke="#94a3b8"
-                  strokeWidth="1.25"
-                  strokeDasharray="3 3"
-                />
-              )}
-
-              {/* Data Points & Hit Targets */}
-              {series.map((s, idx) => {
-                const cx = getX(idx);
-                const cyAnn = getY(s.announcements);
-                const cyEvt = getY(s.events);
-                const isHovered = hoveredIdx === idx;
-                const colW = series.length > 1 ? plotW / series.length : plotW;
-                const showLabel = idx % labelStep === 0 || idx === series.length - 1;
-
-                return (
-                  <g key={s.key || idx}>
-                    <circle
-                      cx={cx}
-                      cy={cyAnn}
-                      r={isHovered ? 5 : 3.5}
-                      fill="#7B0D1E"
-                      stroke="#ffffff"
-                      strokeWidth="1.5"
-                    />
-                    <circle
-                      cx={cx}
-                      cy={cyEvt}
-                      r={isHovered ? 5 : 3.5}
-                      fill="#F5B400"
-                      stroke="#ffffff"
-                      strokeWidth="1.5"
-                    />
-
-                    {showLabel && (
-                      <text x={cx} y={height - 10} textAnchor="middle" fontSize="11" fontWeight="500" fill="#475569">
-                        {s.label}
-                      </text>
-                    )}
-
-                    <rect
-                      x={cx - colW / 2}
-                      y={padT}
-                      width={Math.max(14, colW)}
-                      height={plotH}
-                      fill="transparent"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHoveredIdx(idx)}
-                    />
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-};
-
-const UserAndPageActivityChart = ({ data, loading, error, onRetry, periodLabel }) => {
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-  const series = Array.isArray(data?.series) ? data.series : [];
-  const groupingLabel = getGroupingLabel(data?.grouping);
-
-  const totalStudents = series.reduce((sum, s) => sum + (Number(s.students) || 0), 0);
-  const totalStaff = series.reduce((sum, s) => sum + (Number(s.staff) || 0), 0);
-  const totalPages = series.reduce((sum, s) => sum + (Number(s.pages) || 0), 0);
-  const hasAnyData = totalStudents + totalStaff + totalPages > 0;
-
-  const rawMax = Math.max(
-    0,
-    ...series.map((s) =>
-      Math.max(Number(s.students) || 0, Number(s.staff) || 0, Number(s.pages) || 0)
-    )
-  );
-  const maxVal = Math.max(4, Math.ceil(rawMax / 2) * 2);
-
-  const width = 640;
-  const height = 250;
-  const padL = 40;
-  const padR = 20;
-  const padT = 20;
-  const padB = 34;
-  const plotW = width - padL - padR;
-  const plotH = height - padT - padB;
-
-  const getX = (idx) => {
-    if (series.length <= 1) return padL + plotW / 2;
-    return padL + (idx / (series.length - 1)) * plotW;
-  };
-  const getY = (val) => padT + plotH - ((Number(val) || 0) / maxVal) * plotH;
-
-  const studentPoints =
-    series.length === 1
-      ? `${padL},${getY(series[0].students)} ${width - padR},${getY(series[0].students)}`
-      : series.map((s, idx) => `${getX(idx)},${getY(s.students)}`).join(' ');
-
-  const staffPoints =
-    series.length === 1
-      ? `${padL},${getY(series[0].staff)} ${width - padR},${getY(series[0].staff)}`
-      : series.map((s, idx) => `${getX(idx)},${getY(s.staff)}`).join(' ');
-
-  const pagePoints =
-    series.length === 1
-      ? `${padL},${getY(series[0].pages)} ${width - padR},${getY(series[0].pages)}`
-      : series.map((s, idx) => `${getX(idx)},${getY(s.pages)}`).join(' ');
-
-  const maxLabels = 7;
-  const labelStep = Math.max(1, Math.ceil(series.length / maxLabels));
-  const yTicks = [0, Math.round(maxVal * 0.25), Math.round(maxVal * 0.5), Math.round(maxVal * 0.75), maxVal];
-  const uniqueYTicks = [...new Set(yTicks)];
-  const hoveredItem = hoveredIdx !== null && series[hoveredIdx] ? series[hoveredIdx] : null;
-
-  return (
-    <section className="ov-card ov-chart-card" aria-label="User and Page Activity">
-      <div className="ov-card-header">
-        <div className="ov-card-heading-group">
-          <h2 className="ov-card-title">User &amp; Page Activity</h2>
-          <p className="ov-card-desc">
-            {groupingLabel} registrations &amp; page growth ({totalStudents} students, {totalStaff} staff, {totalPages} pages)
-          </p>
-        </div>
-        <div className="ov-legend-inline" aria-label="Chart Legend">
-          <span className="ov-legend-pill">
-            <i className="ov-dot" style={{ background: '#7B0D1E' }}></i>
-            Students ({totalStudents})
-          </span>
-          <span className="ov-legend-pill">
-            <i className="ov-dot" style={{ background: '#3D0610' }}></i>
-            Staff ({totalStaff})
-          </span>
-          <span className="ov-legend-pill">
-            <i className="ov-dot" style={{ background: '#F5B400' }}></i>
-            Pages ({totalPages})
-          </span>
-        </div>
-      </div>
-
-      <div className="ov-chart-body">
-        {loading ? (
-          <div className="ov-chart-skeleton">
-            <div className="ov-skeleton ov-skeleton-chart"></div>
-          </div>
-        ) : error ? (
-          <div className="ov-section-error" role="alert">
-            <i className="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
-            <span>{error}</span>
-            <button type="button" className="ov-btn ov-btn-secondary ov-btn-sm" onClick={onRetry}>
-              <i className="fa-solid fa-rotate-right" aria-hidden="true"></i>
-              <span>Retry</span>
-            </button>
-          </div>
-        ) : series.length === 0 || !hasAnyData ? (
-          <div className="ov-empty-box">
-            <div className="ov-empty-icon-wrap" aria-hidden="true">
-              <i className="fa-solid fa-users"></i>
-            </div>
-            <h3 className="ov-empty-title">No user or page activity in this period</h3>
-            <p className="ov-empty-desc">
-              No student registrations, staff assignments, or page creations were recorded during {periodLabel || 'the selected date range'}.
-            </p>
-          </div>
-        ) : (
-          <div className="ov-line-chart-wrap" onMouseLeave={() => setHoveredIdx(null)}>
-            {hoveredItem && (
-              <div className="ov-chart-tooltip" role="status">
-                <div className="ov-tooltip-title">{hoveredItem.label}</div>
-                <div className="ov-tooltip-row">
-                  <span className="ov-dot" style={{ background: '#7B0D1E' }}></span>
-                  <span>Students:</span>
-                  <strong>{hoveredItem.students}</strong>
-                </div>
-                <div className="ov-tooltip-row">
-                  <span className="ov-dot" style={{ background: '#3D0610' }}></span>
-                  <span>Staff Assigned:</span>
-                  <strong>{hoveredItem.staff}</strong>
-                </div>
-                <div className="ov-tooltip-row">
-                  <span className="ov-dot" style={{ background: '#F5B400' }}></span>
-                  <span>Pages Created:</span>
-                  <strong>{hoveredItem.pages}</strong>
-                </div>
-              </div>
-            )}
-
-            <svg
-              viewBox={`0 0 ${width} ${height}`}
-              className="ov-svg-chart"
-              role="img"
-              aria-label="User and Page Activity Multi-Series Line Chart"
-            >
-              {uniqueYTicks.map((tick) => {
-                const y = getY(tick);
-                return (
-                  <g key={tick}>
-                    <line
-                      x1={padL}
-                      y1={y}
-                      x2={width - padR}
-                      y2={y}
-                      stroke={tick === 0 ? '#cbd5e1' : '#e2e8f0'}
-                      strokeDasharray={tick === 0 ? undefined : '4 4'}
-                    />
-                    <text x={padL - 8} y={y + 4} textAnchor="end" fontSize="11" fontWeight="500" fill="#64748b">
-                      {tick}
-                    </text>
-                  </g>
-                );
-              })}
-
-              <polyline
-                fill="none"
-                stroke="#7B0D1E"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={studentPoints}
-              />
-              <polyline
-                fill="none"
-                stroke="#3D0610"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={staffPoints}
-              />
-              <polyline
-                fill="none"
-                stroke="#F5B400"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={pagePoints}
-              />
-
-              {hoveredIdx !== null && series[hoveredIdx] && (
-                <line
-                  x1={getX(hoveredIdx)}
-                  y1={padT}
-                  x2={getX(hoveredIdx)}
-                  y2={padT + plotH}
-                  stroke="#94a3b8"
-                  strokeWidth="1.25"
-                  strokeDasharray="3 3"
-                />
-              )}
-
-              {series.map((s, idx) => {
-                const x = getX(idx);
-                const yStu = getY(s.students);
-                const yStf = getY(s.staff);
-                const yPag = getY(s.pages);
-                const isHovered = hoveredIdx === idx;
-                const showLabel = idx % labelStep === 0 || idx === series.length - 1;
-                const colW = series.length > 1 ? plotW / series.length : plotW;
-
-                return (
-                  <g key={s.key || idx}>
-                    <circle cx={x} cy={yStu} r={isHovered ? 5 : 3.5} fill="#7B0D1E" stroke="#ffffff" strokeWidth="1.5" />
-                    <circle cx={x} cy={yStf} r={isHovered ? 5 : 3.5} fill="#3D0610" stroke="#ffffff" strokeWidth="1.5" />
-                    <circle cx={x} cy={yPag} r={isHovered ? 5 : 3.5} fill="#F5B400" stroke="#ffffff" strokeWidth="1.5" />
-
-                    {showLabel && (
-                      <text x={x} y={height - 10} textAnchor="middle" fontSize="11" fontWeight="500" fill="#475569">
-                        {s.label}
-                      </text>
-                    )}
-
-                    <rect
-                      x={x - colW / 2}
-                      y={padT}
-                      width={Math.max(14, colW)}
-                      height={plotH}
-                      fill="transparent"
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={() => setHoveredIdx(idx)}
-                    />
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-};
-
 const AdminDashboard = () => {
   const navigate = useNavigate();
+
+  // Reference-Matched UI State
+  const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
+  const [dashboardSearch, setDashboardSearch] = useState('');
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const quickActionsRef = useRef(null);
 
   // School Year & Live Date-Range Filter State
   const [selectedAcademicYear, setSelectedAcademicYear] = useState('active');
@@ -832,6 +326,28 @@ const AdminDashboard = () => {
     setActivityPage(1);
   };
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (quickActionsRef.current && !quickActionsRef.current.contains(e.target)) {
+        setShowQuickActions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleResetFilters = () => {
+    setDashboardSearch('');
+    setSelectedAcademicYear('active');
+    setActivePreset('school_year');
+    setCustomStartDate('');
+    setCustomEndDate('');
+    setAppliedStartDate('');
+    setAppliedEndDate('');
+    setFilterError('');
+    setActivityPage(1);
+  };
+
   const displayedYear = overviewData.selectedAcademicYear || overviewData.activeAcademicYear;
   const periodStartStr = overviewData.reportingPeriod?.startDate;
   const periodEndStr = overviewData.reportingPeriod?.endDate;
@@ -842,146 +358,224 @@ const AdminDashboard = () => {
         : `${formatShortDate(periodStartStr)} – ${formatShortDate(periodEndStr)}`
       : '';
 
+  const filteredActivityItems = dashboardSearch.trim()
+    ? activityItems.filter((act) => {
+        const q = dashboardSearch.trim().toLowerCase();
+        return (
+          String(act.activity || '').toLowerCase().includes(q) ||
+          String(act.actor || act.performedBy || '').toLowerCase().includes(q) ||
+          String(act.category || act.recordType || '').toLowerCase().includes(q) ||
+          String(act.affectedResource || '').toLowerCase().includes(q)
+        );
+      })
+    : activityItems;
+
   return (
     <AdminLayout>
       <div className="admin-overview-wrapper">
-        {/* ================= 1. COMPACT PAGE HEADER & LIVE FILTER BAR ================= */}
-        <header className="ov-header-card">
-          <div className="ov-header-top">
-            <div className="ov-header-titles">
-              <div className="ov-title-row">
-                <h1 className="overview-title">Overview</h1>
-                {displayedYear && (
-                  <button
-                    type="button"
-                    className={`overview-sy-pill ${displayedYear.is_active ? 'is-active' : 'is-archived'}`}
-                    onClick={() => navigate('/admin/settings?tab=academic-year')}
-                    title="Manage School Years in System Settings"
-                  >
-                    <i className="fa-solid fa-graduation-cap" aria-hidden="true"></i>
-                    <span>
-                      SY {displayedYear.start_year}–{displayedYear.end_year} ({displayedYear.semester})
-                    </span>
-                    <span className="ov-sy-status-dot" aria-hidden="true"></span>
-                    <span>{displayedYear.status || (displayedYear.is_active ? 'Active' : 'Archived')}</span>
+        {/* ================= 1. TOP PAGE HEADER & PRIMARY CTAs ================= */}
+        <div className="ov-page-header">
+          <div className="ov-page-title-block">
+            <div className="ov-breadcrumb">
+              <i className="fa-solid fa-house" aria-hidden="true"></i>
+              <span>Home</span>
+              <span aria-hidden="true">/</span>
+              <span className="is-current">Admin Dashboard</span>
+            </div>
+            <h1 className="overview-title">Admin Dashboard</h1>
+          </div>
+
+          <div className="ov-page-actions">
+            <button
+              type="button"
+              className="ov-btn ov-btn-primary"
+              onClick={() => navigate('/admin/content-feed')}
+            >
+              <i className="fa-solid fa-plus" aria-hidden="true"></i>
+              <span>Create Post</span>
+            </button>
+
+            <button
+              type="button"
+              className="ov-btn ov-btn-deep"
+              onClick={() => navigate('/admin/post-approval?tab=pending')}
+            >
+              <i className="fa-solid fa-file-circle-check" aria-hidden="true"></i>
+              <span>Post Approvals</span>
+            </button>
+
+            <div className="ov-quick-actions-wrap" ref={quickActionsRef}>
+              <button
+                type="button"
+                className="ov-btn ov-btn-secondary"
+                onClick={() => setShowQuickActions((prev) => !prev)}
+                aria-expanded={showQuickActions}
+              >
+                <i className="fa-solid fa-sliders" aria-hidden="true"></i>
+                <span>Quick Actions</span>
+                <i className="fa-solid fa-caret-down" style={{ fontSize: '0.7rem' }} aria-hidden="true"></i>
+              </button>
+
+              {showQuickActions && (
+                <div className="ov-quick-menu" role="menu">
+                  <button type="button" role="menuitem" onClick={() => { setShowQuickActions(false); navigate('/admin/pages'); }}>
+                    <i className="fa-solid fa-layer-group"></i> Page Management
                   </button>
-                )}
-              </div>
-              <p className="overview-subtitle">
-                Monitor campus announcements, events, and administrative activities.
-              </p>
-            </div>
-
-            <div className="ov-filter-controls" role="region" aria-label="Dashboard Filters">
-              {/* School Year Selector */}
-              <div className="ov-control-group">
-                <label htmlFor="ov-sy-select" className="ov-control-label">
-                  School Year
-                </label>
-                <div className="ov-select-wrap">
-                  <i className="fa-solid fa-calendar-check ov-select-icon" aria-hidden="true"></i>
-                  <select
-                    id="ov-sy-select"
-                    className="ov-select"
-                    value={selectedAcademicYear}
-                    onChange={handleAcademicYearChange}
-                    aria-label="Select School Year"
-                  >
-                    <option value="active">
-                      Active School Year
-                      {overviewData.activeAcademicYear
-                        ? ` (${overviewData.activeAcademicYear.start_year}–${overviewData.activeAcademicYear.end_year})`
-                        : ''}
-                    </option>
-                    {overviewData.academicYears.map((ay) => (
-                      <option key={ay.id} value={String(ay.id)}>
-                        SY {ay.start_year}–{ay.end_year} ({ay.semester}) — {ay.status || (ay.is_active ? 'Active' : 'Archived')}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Single Date-Range Dropdown */}
-              <div className="ov-control-group">
-                <label htmlFor="ov-date-preset-select" className="ov-control-label">
-                  Date Range
-                </label>
-                <div className="ov-select-wrap">
-                  <i className="fa-solid fa-calendar ov-select-icon" aria-hidden="true"></i>
-                  <select
-                    id="ov-date-preset-select"
-                    className="ov-select"
-                    value={activePreset}
-                    onChange={handlePresetChange}
-                    aria-label="Select Reporting Date Range"
-                  >
-                    {DATE_PRESET_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Custom Date Range Inputs (Only visible when Custom Range is selected) */}
-              {activePreset === 'custom' && (
-                <div className="ov-custom-dates-group">
-                  <div className="ov-control-group">
-                    <label htmlFor="ov-custom-start" className="ov-control-label">
-                      Start Date
-                    </label>
-                    <input
-                      id="ov-custom-start"
-                      type="date"
-                      className="ov-date-input"
-                      value={customStartDate}
-                      max={customEndDate || undefined}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="ov-control-group">
-                    <label htmlFor="ov-custom-end" className="ov-control-label">
-                      End Date
-                    </label>
-                    <input
-                      id="ov-custom-end"
-                      type="date"
-                      className="ov-date-input"
-                      value={customEndDate}
-                      min={customStartDate || undefined}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                    />
-                  </div>
+                  <button type="button" role="menuitem" onClick={() => { setShowQuickActions(false); navigate('/admin/users'); }}>
+                    <i className="fa-solid fa-users"></i> User Management
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { setShowQuickActions(false); navigate('/admin/reports'); }}>
+                    <i className="fa-solid fa-chart-line"></i> Reports &amp; Statistics
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { setShowQuickActions(false); navigate('/admin/audit-logs'); }}>
+                    <i className="fa-solid fa-clipboard-list"></i> Audit Logs
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { setShowQuickActions(false); navigate('/admin/settings'); }}>
+                    <i className="fa-solid fa-gear"></i> System Settings
+                  </button>
                 </div>
               )}
             </div>
           </div>
+        </div>
 
-          {/* Active Reporting Period Sub-bar / Validation Feedback */}
-          <div className="ov-header-meta-bar">
-            <div className="ov-period-summary">
-              <i className="fa-solid fa-clock" aria-hidden="true"></i>
-              <span>Showing data for:</span>
-              <strong>{formattedPeriodLabel || 'Active School Year'}</strong>
-              {overviewLoading && (
-                <span className="ov-live-updating-badge" aria-live="polite">
-                  <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
-                  Updating…
-                </span>
-              )}
+        {/* ================= 2. DISMISSIBLE WELCOME BANNER ================= */}
+        {showWelcomeBanner && (
+          <div className="ov-welcome-banner" role="status">
+            <div className="ov-welcome-left">
+              <i className="fa-solid fa-circle-check" aria-hidden="true"></i>
+              <span>Welcome back, System Administrator!</span>
+            </div>
+            <button
+              type="button"
+              className="ov-welcome-close"
+              onClick={() => setShowWelcomeBanner(false)}
+              aria-label="Dismiss welcome banner"
+            >
+              <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </div>
+        )}
+
+        {/* ================= 3. SINGLE-ROW LIVE SEARCH & FILTER BAR ================= */}
+        <section className="ov-filter-bar-card" aria-label="Dashboard Search and Filters">
+          <div className="ov-filter-bar-row">
+            <div className="ov-filter-field ov-filter-search">
+              <label htmlFor="ov-live-search" className="ov-filter-label">
+                <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <span>Live Dashboard Search:</span>
+              </label>
+              <div className="ov-search-input-wrap">
+                <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input
+                  id="ov-live-search"
+                  type="text"
+                  className="ov-search-input"
+                  placeholder="Search activity, actor, category, or resource..."
+                  value={dashboardSearch}
+                  onChange={(e) => setDashboardSearch(e.target.value)}
+                />
+              </div>
             </div>
 
-            {filterError && (
-              <div className="ov-inline-error" role="alert">
-                <i className="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                <span>{filterError}</span>
-              </div>
+            <div className="ov-filter-field">
+              <label htmlFor="ov-sy-select" className="ov-filter-label">
+                <i className="fa-solid fa-graduation-cap" aria-hidden="true"></i>
+                <span>School Year:</span>
+              </label>
+              <select
+                id="ov-sy-select"
+                className="ov-filter-select"
+                value={selectedAcademicYear}
+                onChange={handleAcademicYearChange}
+                aria-label="Select School Year"
+              >
+                <option value="active">
+                  Active SY
+                  {overviewData.activeAcademicYear
+                    ? ` (${overviewData.activeAcademicYear.start_year}–${overviewData.activeAcademicYear.end_year})`
+                    : ''}
+                </option>
+                {overviewData.academicYears.map((ay) => (
+                  <option key={ay.id} value={String(ay.id)}>
+                    SY {ay.start_year}–{ay.end_year} ({ay.semester})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="ov-filter-field">
+              <label htmlFor="ov-date-preset-select" className="ov-filter-label">
+                <i className="fa-regular fa-calendar" aria-hidden="true"></i>
+                <span>Date Filter Period:</span>
+              </label>
+              <select
+                id="ov-date-preset-select"
+                className="ov-filter-select"
+                value={activePreset}
+                onChange={handlePresetChange}
+                aria-label="Select Reporting Date Range"
+              >
+                {DATE_PRESET_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {activePreset === 'custom' && (
+              <>
+                <div className="ov-filter-field ov-filter-date-field">
+                  <label htmlFor="ov-custom-start" className="ov-filter-label">
+                    <span>Start Date:</span>
+                  </label>
+                  <input
+                    id="ov-custom-start"
+                    type="date"
+                    className="ov-filter-date-input"
+                    value={customStartDate}
+                    max={customEndDate || undefined}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="ov-filter-field ov-filter-date-field">
+                  <label htmlFor="ov-custom-end" className="ov-filter-label">
+                    <span>End Date:</span>
+                  </label>
+                  <input
+                    id="ov-custom-end"
+                    type="date"
+                    className="ov-filter-date-input"
+                    value={customEndDate}
+                    min={customStartDate || undefined}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                  />
+                </div>
+              </>
             )}
+
+            <div className="ov-filter-reset-wrap">
+              <button
+                type="button"
+                className="ov-btn ov-btn-secondary ov-reset-btn"
+                onClick={handleResetFilters}
+                title="Reset all filters"
+              >
+                <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                <span>Reset</span>
+              </button>
+            </div>
           </div>
-        </header>
+
+          {filterError && (
+            <div className="ov-inline-error" role="alert" style={{ marginTop: '0.5rem' }}>
+              <i className="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+              <span>{filterError}</span>
+            </div>
+          )}
+        </section>
 
         {/* OVERVIEW API ERROR BANNER */}
         {overviewError && (
@@ -997,12 +591,11 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* ================= 2. FOUR KPI STATISTICS CARDS ================= */}
+        {/* ================= 4. PRIMARY KPI CARDS (ROW 1) ================= */}
         <section className="ov-kpi-grid" aria-label="Key Performance Indicators">
           <OverviewStatCard
             label="Total Announcements"
             kpi={overviewData.kpis?.totalAnnouncements}
-            subtext={`${(overviewData.kpis?.totalAnnouncements?.publishedCount ?? 0).toLocaleString()} currently published`}
             icon="fa-bullhorn"
             tone="maroon"
             loading={overviewLoading}
@@ -1012,9 +605,8 @@ const AdminDashboard = () => {
           <OverviewStatCard
             label="Total Events"
             kpi={overviewData.kpis?.totalEvents}
-            subtext={`${(overviewData.kpis?.totalEvents?.upcomingCount ?? 0).toLocaleString()} upcoming or active`}
             icon="fa-calendar-days"
-            tone="gold"
+            tone="emerald"
             loading={overviewLoading}
             onClick={() => navigate('/admin/content-feed?tab=events')}
           />
@@ -1022,7 +614,6 @@ const AdminDashboard = () => {
           <OverviewStatCard
             label="Pending Approvals"
             kpi={overviewData.kpis?.pendingApprovals}
-            subtext={`${overviewData.kpis?.pendingApprovals?.pendingPosts ?? 0} post approvals • ${overviewData.kpis?.pendingApprovals?.pendingPages ?? 0} page requests`}
             icon="fa-clock"
             tone="amber"
             loading={overviewLoading}
@@ -1032,47 +623,174 @@ const AdminDashboard = () => {
           <OverviewStatCard
             label="Approved Pages"
             kpi={overviewData.kpis?.approvedPages}
-            subtext={`Approved in period • ${overviewData.kpis?.approvedPages?.totalActivePages ?? 0} active total`}
             icon="fa-building-columns"
-            tone="deep"
+            tone="blue"
             loading={overviewLoading}
             onClick={() => navigate('/admin/pages?tab=active')}
           />
         </section>
 
-        {/* ================= 3. TWO ANALYTICS GRAPHS ================= */}
-        <div className="ov-charts-grid">
-          <PublishingActivityChart
-            data={overviewData.publishingActivity}
+        {/* ================= 5. QUICK STATUS STRIP (ROW 2) ================= */}
+        <section className="ov-status-strip" aria-label="System Status Summary">
+          <div
+            className="ov-status-mini-card is-active-sy"
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate('/admin/settings?tab=academic-year')}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/admin/settings?tab=academic-year'); }}
+          >
+            <div>
+              <div className="ov-mini-label-row">
+                <span className="ov-sy-live-dot" aria-hidden="true"></span>
+                <span className="ov-mini-label">Active School Year</span>
+              </div>
+              <div className="ov-mini-val is-emerald">
+                {displayedYear ? `SY ${displayedYear.start_year}–${displayedYear.end_year}` : 'Active SY'}
+              </div>
+            </div>
+            <i className="fa-solid fa-graduation-cap ov-mini-icon is-emerald" aria-hidden="true"></i>
+          </div>
+
+          <div
+            className="ov-status-mini-card"
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate('/admin/post-approval?tab=pending')}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/admin/post-approval?tab=pending'); }}
+          >
+            <div>
+              <div className="ov-mini-label">Post Approvals</div>
+              <div className="ov-mini-val is-amber">
+                {overviewData.kpis?.pendingApprovals?.pendingPosts ?? 0} Pending
+              </div>
+            </div>
+            <i className="fa-solid fa-file-circle-check ov-mini-icon is-amber" aria-hidden="true"></i>
+          </div>
+
+          <div
+            className="ov-status-mini-card"
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate('/admin/pages?tab=pending')}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/admin/pages?tab=pending'); }}
+          >
+            <div>
+              <div className="ov-mini-label">Page Requests</div>
+              <div className="ov-mini-val is-rose">
+                {overviewData.kpis?.pendingApprovals?.pendingPages ?? 0} Awaiting Review
+              </div>
+            </div>
+            <i className="fa-solid fa-building-columns ov-mini-icon is-rose" aria-hidden="true"></i>
+          </div>
+
+          <div className="ov-status-mini-card is-static">
+            <div>
+              <div className="ov-mini-label">Approved Pages</div>
+              <div className="ov-mini-val is-emerald">
+                {overviewData.kpis?.approvedPages?.totalActivePages ?? 0} Active
+              </div>
+            </div>
+            <i className="fa-solid fa-circle-check ov-mini-icon is-emerald" aria-hidden="true"></i>
+          </div>
+        </section>
+
+        {/* ================= 6. ANALYTICAL REPORTS SECTION HEADER ================= */}
+        <div className="ov-section-bar">
+          <div className="ov-section-heading">
+            <i className="fa-solid fa-chart-line" aria-hidden="true"></i>
+            <h2>Analytical Reports &amp; Activity Trends</h2>
+          </div>
+          <div className="ov-scope-pill">
+            <i className="fa-regular fa-clock" aria-hidden="true"></i>
+            <span>Scope: {formattedPeriodLabel || 'Active School Year'}</span>
+          </div>
+        </div>
+
+        {/* ================= 7. REFERENCE-MATCHED ANALYTICS GRAPHS ================= */}
+        <div className="ov-charts-top-grid">
+          <ReferenceBarChartCard
+            number="1"
+            title="Published Content Volume"
+            badgeText="Top Volume"
+            badgeTone="emerald"
+            bars={[
+              { label: 'Announcements', value: Number(overviewData.kpis?.totalAnnouncements?.current) || 0, color: '#479973' },
+              { label: 'Events', value: Number(overviewData.kpis?.totalEvents?.current) || 0, color: '#881337' },
+            ]}
             loading={overviewLoading}
             error={overviewError}
             onRetry={fetchOverview}
-            periodLabel={formattedPeriodLabel}
           />
 
-          <UserAndPageActivityChart
-            data={overviewData.userAndPageActivity}
+          <ReferenceBarChartCard
+            number="2"
+            title="Pending & Active Governance"
+            badgeText="Moderation Queue"
+            badgeTone="rose"
+            bars={[
+              { label: 'Pending Posts', value: Number(overviewData.kpis?.pendingApprovals?.pendingPosts) || 0, color: '#df5c6e' },
+              { label: 'Pending Pages', value: Number(overviewData.kpis?.pendingApprovals?.pendingPages) || 0, color: '#f59e0b' },
+              { label: 'Approved Pages', value: Number(overviewData.kpis?.approvedPages?.totalActivePages) || 0, color: '#2563eb' },
+            ]}
             loading={overviewLoading}
             error={overviewError}
             onRetry={fetchOverview}
-            periodLabel={formattedPeriodLabel}
           />
         </div>
 
-        {/* ================= 4. RECENT ADMINISTRATIVE ACTIVITY TABLE ================= */}
-        <section className="ov-card ov-activity-card" aria-label="Recent Administrative Activity">
-          <div className="ov-card-header ov-activity-header">
-            <div className="ov-card-heading-group">
-              <h2 className="ov-card-title">Recent Administrative Activity</h2>
-              <p className="ov-card-desc">
-                Chronological record of verified system and administrative actions.
-              </p>
-            </div>
+        <div className="ov-charts-bottom-grid">
+          <ReferenceAreaLineChartCard
+            number="3"
+            title="Announcements Over Time"
+            color="#1d6ff2"
+            gradId="ovGradAnn"
+            valueLabel="Announcements"
+            series={(overviewData.publishingActivity?.series || []).map((s) => ({ label: s.label, value: s.announcements }))}
+            loading={overviewLoading}
+            error={overviewError}
+            onRetry={fetchOverview}
+          />
 
-            <div className="ov-activity-actions">
+          <ReferenceAreaLineChartCard
+            number="4"
+            title="Events Publishing Trends"
+            color="#15804b"
+            gradId="ovGradEvt"
+            valueLabel="Events"
+            series={(overviewData.publishingActivity?.series || []).map((s) => ({ label: s.label, value: s.events }))}
+            loading={overviewLoading}
+            error={overviewError}
+            onRetry={fetchOverview}
+          />
+
+          <ReferenceAreaLineChartCard
+            number="5"
+            title="User & Page Growth Trends"
+            color="#ea6a08"
+            gradId="ovGradGrowth"
+            valueLabel="Registrations"
+            series={(overviewData.userAndPageActivity?.series || []).map((s) => ({
+              label: s.label,
+              value: (Number(s.students) || 0) + (Number(s.staff) || 0) + (Number(s.pages) || 0),
+            }))}
+            loading={overviewLoading}
+            error={overviewError}
+            onRetry={fetchOverview}
+          />
+        </div>
+
+        {/* ================= 8. RECENT ADMINISTRATIVE ACTIVITY TABLE ================= */}
+        <section className="ov-card ov-activity-card" aria-label="Recent Administrative Activity">
+          <div className="admin-table-head">
+            <div className="admin-table-title">
+              <i className="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
+              <span>Recent Administrative Activity</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="admin-table-matching">{activityPagination.total} Matching</span>
               <button
                 type="button"
-                className="ov-btn ov-btn-secondary"
+                className="ov-btn ov-btn-secondary ov-btn-sm"
                 onClick={() => navigate('/admin/audit-logs')}
               >
                 <span>View All</span>
@@ -1097,14 +815,14 @@ const AdminDashboard = () => {
                 <span>Retry</span>
               </button>
             </div>
-          ) : activityItems.length === 0 ? (
+          ) : filteredActivityItems.length === 0 ? (
             <div className="ov-empty-box compact">
               <div className="ov-empty-icon-wrap" aria-hidden="true">
                 <i className="fa-solid fa-clipboard-list"></i>
               </div>
               <h3 className="ov-empty-title">No administrative activity found</h3>
               <p className="ov-empty-desc">
-                No verified system or administrative actions were recorded during {formattedPeriodLabel || 'this period'}.
+                No verified system or administrative actions matched {dashboardSearch.trim() ? `"${dashboardSearch.trim()}"` : (formattedPeriodLabel || 'this period')}.
               </p>
             </div>
           ) : (
@@ -1122,7 +840,7 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {activityItems.map((act) => {
+                    {filteredActivityItems.map((act) => {
                       const catSlug = String(act.category || act.recordType || 'system')
                         .toLowerCase()
                         .replace(/\s+/g, '-');

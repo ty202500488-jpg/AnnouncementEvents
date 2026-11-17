@@ -33,11 +33,12 @@ Theme: Deep Burgundy / Crimson Palette (#7B0D1E)
 }
 
 .page-management-container .pm-title {
-  font-size: 1.75rem;
+  font-family: 'Unbounded', sans-serif;
+  font-size: 1.45rem;
   font-weight: 800;
-  color: var(--pm-crimson);
-  margin: 0 0 0.25rem 0;
-  letter-spacing: -0.02em;
+  color: #881337;
+  margin: 0;
+  letter-spacing: -0.01em;
   line-height: 1.2;
 }
 

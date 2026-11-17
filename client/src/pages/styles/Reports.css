@@ -87,11 +87,13 @@
 }
 
 .header-title {
-  font-size: 1.85rem;
+  font-family: 'Unbounded', sans-serif;
+  font-size: 1.45rem;
   font-weight: 800;
-  color: var(--wmsu-dark-maroon);
+  color: #881337;
   margin: 0;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 .header-desc {

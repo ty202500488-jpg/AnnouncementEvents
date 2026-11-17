@@ -316,31 +316,51 @@ const UserManagement = () => {
         
         {/* ================= PAGE HEADER ================= */}
         <div className="um-header">
-          <div>
+          <div className="um-header-title-block">
+            <div className="um-breadcrumb">
+              <i className="fa-solid fa-house" aria-hidden="true"></i>
+              <span>Home</span>
+              <span aria-hidden="true">/</span>
+              <span className="is-current">User Management</span>
+            </div>
             <h1 className="um-title">User Management</h1>
-            <p className="um-subtitle">
-              Manage student accounts, review verification submissions, and control authorized Staff access.
-            </p>
           </div>
 
           <div className="um-header-actions">
-            <button 
-              type="button" 
-              className="btn-um-secondary"
-              onClick={fetchTabData}
-              disabled={loading}
+            <button
+              type="button"
+              className={`um-nav-pill-btn ${activeTab === 'all' ? 'is-active' : ''}`}
+              onClick={() => handleTabChange('all')}
             >
-              <i className={`fa-solid fa-rotate-right ${loading ? 'spin-icon' : ''}`}></i>
-              <span>Refresh</span>
+              <i className="fa-solid fa-users" aria-hidden="true"></i>
+              <span>All Users</span>
+            </button>
+
+            <button
+              type="button"
+              className={`um-nav-pill-btn ${activeTab === 'staff' ? 'is-active' : ''}`}
+              onClick={() => handleTabChange('staff')}
+            >
+              <i className="fa-solid fa-user-shield" aria-hidden="true"></i>
+              <span>Staff Access</span>
+            </button>
+
+            <button
+              type="button"
+              className={`um-nav-pill-btn ${activeTab === 'verification' ? 'is-active' : ''}`}
+              onClick={() => handleTabChange('verification')}
+            >
+              <i className="fa-solid fa-user-check" aria-hidden="true"></i>
+              <span>Verification Requests</span>
             </button>
 
             {activeTab === 'staff' && (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-um-primary"
                 onClick={() => setActiveModal('grant_staff')}
               >
-                <i className="fa-solid fa-user-shield"></i>
+                <i className="fa-solid fa-plus" aria-hidden="true"></i>
                 <span>Grant Staff Access</span>
               </button>
             )}
@@ -360,54 +380,38 @@ const UserManagement = () => {
           </div>
         )}
 
-        {/* ================= NAVIGATION TABS & CONTROLS ================= */}
+        {/* ================= SINGLE-ROW LABELED FILTER BAR ================= */}
         <div className="um-controls-card">
-          
-          {/* Main Navigation Tabs */}
-          <div className="um-tabs-list">
-            {[
-              { id: 'all', label: 'All Users', icon: 'fa-users' },
-              { id: 'verification', label: 'Student Verification', icon: 'fa-user-check' },
-              { id: 'staff', label: 'Staff Access', icon: 'fa-user-gear' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`um-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => handleTabChange(tab.id)}
-              >
-                <i className={`fa-solid ${tab.icon} tab-icon`}></i>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Search and Toolbar */}
-          <div className="um-toolbar">
-            <div className="um-search-box">
-              <i className="fa-solid fa-magnifying-glass search-icon"></i>
-              <input 
-                type="text" 
-                placeholder={`Search ${activeTab === 'staff' ? 'staff member or organization...' : 'name, WMSU email, or ID...'}`}
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                className="um-search-input"
-              />
-              {searchQuery && (
-                <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')}>
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
-              )}
+          <div className="um-toolbar um-ref-toolbar">
+            <div className="um-ref-field um-ref-search">
+              <label htmlFor="um-search-input" className="um-ref-label">Search Users</label>
+              <div className="um-search-box">
+                <i className="fa-solid fa-magnifying-glass search-icon"></i>
+                <input
+                  id="um-search-input"
+                  type="text"
+                  placeholder={`Search ${activeTab === 'staff' ? 'staff member or organization...' : 'ID, name, WMSU email...'}`}
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  className="um-search-input"
+                />
+                {searchQuery && (
+                  <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')}>
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Verification Status Filter */}
             {activeTab === 'verification' && (
-              <div className="um-filter-item">
-                <select 
-                  className="um-select" 
+              <div className="um-ref-field">
+                <label htmlFor="um-ver-status" className="um-ref-label">Status</label>
+                <select
+                  id="um-ver-status"
+                  className="um-select"
                   value={statusFilter}
                   onChange={(e) => {
                     setStatusFilter(e.target.value);
@@ -423,12 +427,13 @@ const UserManagement = () => {
               </div>
             )}
 
-            {/* Role & Account Status Filter for All Users */}
             {activeTab === 'all' && (
               <>
-                <div className="um-filter-item">
-                  <select 
-                    className="um-select" 
+                <div className="um-ref-field">
+                  <label htmlFor="um-role-filter" className="um-ref-label">Role</label>
+                  <select
+                    id="um-role-filter"
+                    className="um-select"
                     value={roleFilter}
                     onChange={(e) => {
                       setRoleFilter(e.target.value);
@@ -442,16 +447,18 @@ const UserManagement = () => {
                   </select>
                 </div>
 
-                <div className="um-filter-item">
-                  <select 
-                    className="um-select" 
+                <div className="um-ref-field">
+                  <label htmlFor="um-status-filter" className="um-ref-label">Status</label>
+                  <select
+                    id="um-status-filter"
+                    className="um-select"
                     value={statusFilter}
                     onChange={(e) => {
                       setStatusFilter(e.target.value);
                       setPagination(prev => ({ ...prev, page: 1 }));
                     }}
                   >
-                    <option value="all">All Account Statuses</option>
+                    <option value="all">All Statuses</option>
                     <option value="Active">Active</option>
                     <option value="Suspended">Suspended</option>
                     <option value="Archived">Archived</option>
@@ -460,11 +467,12 @@ const UserManagement = () => {
               </>
             )}
 
-            {/* College Filter for All Users & Verification */}
             {(activeTab === 'all' || activeTab === 'verification') && (
-              <div className="um-filter-item">
-                <select 
-                  className="um-select" 
+              <div className="um-ref-field">
+                <label htmlFor="um-college-filter" className="um-ref-label">College</label>
+                <select
+                  id="um-college-filter"
+                  className="um-select"
                   value={collegeFilter}
                   onChange={(e) => {
                     setCollegeFilter(e.target.value);
@@ -485,29 +493,36 @@ const UserManagement = () => {
               </div>
             )}
 
-            {/* Reset Action */}
-            {(searchQuery || roleFilter !== 'all' || collegeFilter !== 'all' || (statusFilter !== 'all' && statusFilter !== 'pending')) && (
-              <button 
-                type="button" 
-                className="btn-um-link"
+            <div className="um-ref-reset-wrap">
+              <button
+                type="button"
+                className="btn-um-secondary um-reset-btn"
                 onClick={() => {
                   setSearchQuery('');
                   setRoleFilter('all');
                   setCollegeFilter('all');
-                  setStatusFilter('all');
+                  setStatusFilter(activeTab === 'verification' ? 'pending' : 'all');
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
               >
-                Clear Filters
+                <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                <span>Reset</span>
               </button>
-            )}
-
+            </div>
           </div>
         </div>
 
         {/* ================= TAB 1: ALL USERS TABLE ================= */}
         {activeTab === 'all' && (
           <div className="um-table-card">
+            <div className="um-table-card-head">
+              <div className="um-table-card-title">
+                <i className="fa-solid fa-users" aria-hidden="true"></i>
+                <span>Portal User Accounts</span>
+              </div>
+              <span className="um-matching-badge">{pagination.total} Matching</span>
+            </div>
+
             {loading ? (
               <div className="table-skeleton-container">
                 <div className="skeleton-row"></div>
@@ -532,90 +547,113 @@ const UserManagement = () => {
                 <table className="um-data-table">
                   <thead>
                     <tr>
-                      <th>User Details</th>
-                      <th>Student ID</th>
-                      <th>Role</th>
+                      <th>User ID</th>
+                      <th>User Information</th>
+                      <th>Email Address</th>
                       <th>Program / College</th>
-                      <th>Verification</th>
-                      <th>Registered Date</th>
-                      <th className="text-right">Action</th>
+                      <th>Role</th>
+                      <th>Account Status</th>
+                      <th className="text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map(u => (
+                    {users.map(u => {
+                      const acctStatus = String(u.status || 'Active');
+                      const isSuspended = acctStatus.toLowerCase() === 'suspended';
+                      return (
                       <tr key={u.id}>
+                        <td><span className="um-id-tag">#{u.id}</span></td>
                         <td>
                           <div className="user-name-cell">
                             <span className="user-full-name">{u.first_name} {u.last_name}</span>
-                            <span className="user-email">{u.email}</span>
+                            <span className="user-email font-mono">{u.student_id || `@${u.role}`}</span>
                           </div>
                         </td>
-                        <td><span className="font-mono">{u.student_id || 'N/A'}</span></td>
+                        <td>
+                          <span className="um-email-cell">
+                            <i className="fa-regular fa-envelope" aria-hidden="true"></i>
+                            <span>{u.email}</span>
+                          </span>
+                        </td>
+                        <td>
+                          <div className="academic-cell">
+                            <span>{u.program || u.course || '—'}</span>
+                            <span className="college-sub">{u.college || u.department || 'WMSU'}</span>
+                          </div>
+                        </td>
                         <td>
                           <span className={`role-badge role-${u.role}`}>
                             {u.role}
                           </span>
                         </td>
                         <td>
-                          <div className="academic-cell">
-                            <span>{u.program || u.course || 'N/A'}</span>
-                            <span className="college-sub">{u.college || u.department || 'WMSU'}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`status-pill status-${u.verification_status || (u.is_verified ? 'verified' : 'pending')}`}>
-                            {u.verification_status || (u.is_verified ? 'Verified' : 'Pending')}
+                          <span className={`status-pill ${isSuspended ? 'status-rejected' : 'status-verified'}`}>
+                            {acctStatus}
                           </span>
                         </td>
-                        <td className="text-slate-500">{new Date(u.created_at).toLocaleDateString()}</td>
                         <td className="text-right">
-                          <div style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center' }}>
-                            <button 
-                              type="button" 
-                              className="btn-table-action"
+                          <div className="admin-action-pill-group">
+                            <button
+                              type="button"
+                              className="admin-action-icon is-view"
+                              title="View user details"
+                              aria-label="View user details"
                               onClick={() => {
                                 setSelectedUser(u);
                                 setActiveModal('user_details');
                               }}
                             >
-                              Details
+                              <i className="fa-solid fa-eye"></i>
                             </button>
                             {u.role !== 'admin' && (
-                              String(u.status || 'Active').toLowerCase() === 'suspended' ? (
+                              isSuspended ? (
                                 <button
                                   type="button"
-                                  className="btn-table-action primary"
+                                  className="admin-action-icon is-approve"
                                   title="Reactivate Account"
+                                  aria-label="Reactivate Account"
                                   onClick={() => {
                                     setSelectedUser(u);
                                     setPendingAccountAction('activate');
                                     setActiveModal('account_status');
                                   }}
                                 >
-                                  Activate
+                                  <i className="fa-solid fa-circle-check"></i>
                                 </button>
                               ) : (
                                 <button
                                   type="button"
-                                  className="btn-table-action danger"
+                                  className="admin-action-icon is-danger"
                                   title="Suspend Account"
+                                  aria-label="Suspend Account"
                                   onClick={() => {
                                     setSelectedUser(u);
                                     setPendingAccountAction('suspend');
                                     setActiveModal('account_status');
                                   }}
                                 >
-                                  Suspend
+                                  <i className="fa-solid fa-ban"></i>
                                 </button>
                               )
                             )}
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+            )}
+            {/* ================= INTEGRATED PAGINATION BAR ================= */}
+            {!loading && users.length > 0 && (
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalRecords={pagination.total}
+                rowsPerPage={pagination.limit}
+                onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+              />
             )}
           </div>
         )}
@@ -623,6 +661,13 @@ const UserManagement = () => {
         {/* ================= TAB 2: STUDENT VERIFICATION ================= */}
         {activeTab === 'verification' && (
           <div className="um-table-card">
+            <div className="um-table-card-head">
+              <div className="um-table-card-title">
+                <i className="fa-solid fa-user-check" aria-hidden="true"></i>
+                <span>Student Verification Queue</span>
+              </div>
+              <span className="um-matching-badge">{pagination.total} Matching</span>
+            </div>
             {loading ? (
               <div className="table-skeleton-container">
                 <div className="skeleton-row"></div>
@@ -662,16 +707,20 @@ const UserManagement = () => {
                           </span>
                         </td>
                         <td className="text-right">
-                          <button 
-                            type="button" 
-                            className="btn-table-action primary"
-                            onClick={() => {
-                              setSelectedUser(item);
-                              setActiveModal('verify_review');
-                            }}
-                          >
-                            Review Submissions
-                          </button>
+                          <div className="admin-action-pill-group">
+                            <button 
+                              type="button" 
+                              className="admin-action-icon is-edit"
+                              title="Review Submissions"
+                              aria-label="Review Submissions"
+                              onClick={() => {
+                                setSelectedUser(item);
+                                setActiveModal('verify_review');
+                              }}
+                            >
+                              <i className="fa-solid fa-eye"></i>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -679,12 +728,29 @@ const UserManagement = () => {
                 </table>
               </div>
             )}
+            {/* ================= INTEGRATED PAGINATION BAR ================= */}
+            {!loading && verificationQueue.length > 0 && (
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalRecords={pagination.total}
+                rowsPerPage={pagination.limit}
+                onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+              />
+            )}
           </div>
         )}
 
         {/* ================= TAB 3: STAFF ACCESS ================= */}
         {activeTab === 'staff' && (
           <div className="um-table-card">
+            <div className="um-table-card-head">
+              <div className="um-table-card-title">
+                <i className="fa-solid fa-user-shield" aria-hidden="true"></i>
+                <span>Authorized Staff Access</span>
+              </div>
+              <span className="um-matching-badge">{pagination.total} Matching</span>
+            </div>
             {loading ? (
               <div className="table-skeleton-container">
                 <div className="skeleton-row"></div>
@@ -722,16 +788,20 @@ const UserManagement = () => {
                         <td><span className="scope-badge">{s.role_scope || 'Page Staff'}</span></td>
                         <td className="text-slate-500">{new Date(s.granted_at || s.created_at).toLocaleDateString()}</td>
                         <td className="text-right">
-                          <button 
-                            type="button" 
-                            className="btn-table-action danger"
-                            onClick={() => {
-                              setSelectedStaffItem(s);
-                              setActiveModal('revoke_staff');
-                            }}
-                          >
-                            Revoke Access
-                          </button>
+                          <div className="admin-action-pill-group">
+                            <button 
+                              type="button" 
+                              className="admin-action-icon is-danger"
+                              title="Revoke Access"
+                              aria-label="Revoke Access"
+                              onClick={() => {
+                                setSelectedStaffItem(s);
+                                setActiveModal('revoke_staff');
+                              }}
+                            >
+                              <i className="fa-solid fa-ban"></i>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -739,19 +809,17 @@ const UserManagement = () => {
                 </table>
               </div>
             )}
+            {/* ================= INTEGRATED PAGINATION BAR ================= */}
+            {!loading && staffAssignments.length > 0 && (
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalRecords={pagination.total}
+                rowsPerPage={pagination.limit}
+                onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+              />
+            )}
           </div>
-        )}
-
-        {/* ================= PAGINATION BAR ================= */}
-        {!loading && (users.length > 0 || verificationQueue.length > 0 || staffAssignments.length > 0) && (
-          <Pagination
-            currentPage={pagination.page}
-            totalPages={pagination.totalPages}
-            totalRecords={pagination.total}
-            rowsPerPage={pagination.limit}
-            onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
-            onRowsPerPageChange={(limit) => setPagination(prev => ({ ...prev, limit, page: 1 }))}
-          />
         )}
 
         {/* ================= MODALS & DRAWERS ================= */}

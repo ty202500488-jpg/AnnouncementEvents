@@ -1,44 +1,21 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
-import Pagination from '../../assets/components/Pagination';
+import AdminPostCard, { resolveAdminMediaUrl } from '../../assets/components/AdminPostCard';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import UniversityWideSpotlight from '../../assets/components/UniversityWideSpotlight';
-import { DepartmentPagesSidebarList } from '../../assets/components/PortalShellElements';
-import { formatPostTimestamp } from '../../utils/dateUtils';
+import { DepartmentPagesSidebarList, PostPageAvatar, getInitials } from '../../assets/components/PortalShellElements';
 import '../styles/ContentFeed.css';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-/** Normalize image URLs across base64 data URIs (stripping newlines), relative /uploads paths, and remote URLs. */
-function resolveMediaUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') return null;
-  const trimmed = rawUrl.trim();
-  if (!trimmed || trimmed.startsWith('blob:')) return null;
-
-  if (trimmed.startsWith('data:')) {
-    const commaIdx = trimmed.indexOf(',');
-    if (commaIdx === -1) return trimmed;
-    const header = trimmed.slice(0, commaIdx + 1);
-    const payload = trimmed.slice(commaIdx + 1).replace(/\s+/g, '');
-    return `${header}${payload}`;
-  }
-
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
-    const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-    return `${API_BASE}${normalizedPath}`;
-  }
-  return trimmed;
-}
+/** Normalize image URLs across base64 data URIs, relative /uploads paths, and remote URLs. */
+const resolveMediaUrl = resolveAdminMediaUrl;
 
 const ContentFeed = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // View Mode ('student_feed' default | 'management' grid) & Filter States
-  const [viewMode, setViewMode] = useState('student_feed');
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'announcements', 'events', 'scheduled', 'archived', 'takedown'
+  // Filter States
+  const [activeTab, setActiveTab] = useState('all'); // 'all', 'announcements', 'events', 'archived', 'takedown'
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -47,7 +24,7 @@ const ContentFeed = () => {
   const [academicYearFilter, setAcademicYearFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
   const [sortOrder, setSortOrder] = useState('newest');
-  const [showMobileControls, setShowMobileControls] = useState(false);
+  const [showFiltersPanel, setShowFiltersPanel] = useState(false);
 
   // Filter Metadata & Department Pages Options
   const [collegesList, setCollegesList] = useState([]);
@@ -55,15 +32,22 @@ const ContentFeed = () => {
   const [academicYearsList, setAcademicYearsList] = useState([]);
   const [approvedPages, setApprovedPages] = useState([]);
   const [loadingPages, setLoadingPages] = useState(true);
+  const [officialPage, setOfficialPage] = useState({
+    page_name: 'Western Mindanao State University',
+    page_code: 'WM',
+    avatar_url: null,
+  });
 
   // Data States
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 100, total: 0, totalPages: 1 });
 
   // UI Control States
-  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [quickComposerText, setQuickComposerText] = useState('');
+  const [activePostMenuKey, setActivePostMenuKey] = useState(null);
+  const [modalPickerView, setModalPickerView] = useState(null); // null | 'postType' | 'category'
   const [activeModal, setActiveModal] = useState(null); // 'create_announcement', 'create_event', 'edit', 'preview', 'archive', 'takedown', 'restore', 'delete'
   const [selectedItem, setSelectedItem] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -98,13 +82,24 @@ const ContentFeed = () => {
     capacity: ''
   });
 
-  const createMenuRef = useRef(null);
+  const openCreateModal = (mode = 'create_announcement') => {
+    const draft = quickComposerText.trim();
+    if (draft) {
+      setFormData(prev => ({ ...prev, description: draft }));
+      setQuickComposerText('');
+    }
+    setActiveModal(mode);
+  };
+
+  const officialPageName = officialPage?.page_name || 'Western Mindanao State University';
+  const adminInitials = getInitials(officialPageName, 'WM');
+  const officialAvatarUrl = resolveMediaUrl(officialPage?.avatar_url);
 
   // Sync URL ?tab=...
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
-    if (tabParam && ['all', 'announcements', 'events', 'scheduled', 'archived', 'takedown'].includes(tabParam)) {
+    if (tabParam && ['all', 'announcements', 'events', 'archived', 'takedown'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [location.search]);
@@ -143,13 +138,26 @@ const ContentFeed = () => {
       })
       .catch(() => {})
       .finally(() => setLoadingPages(false));
+
+    if (token) {
+      fetch('/api/admin/official-page', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => (res.ok ? res.json() : null))
+        .then(data => {
+          if (data?.page) {
+            setOfficialPage(data.page);
+          }
+        })
+        .catch(() => {});
+    }
   }, []);
 
-  // Close Create Dropdown when clicking outside
+  // Close Post 3-Dots Menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (createMenuRef.current && !createMenuRef.current.contains(e.target)) {
-        setShowCreateMenu(false);
+      if (!e.target.closest('.csf-post-menu-wrap')) {
+        setActivePostMenuKey(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -165,7 +173,7 @@ const ContentFeed = () => {
     const effectiveTab = activeTab;
     const isActiveFeedTab = ['all', 'announcements', 'events'].includes(activeTab);
     const effectiveStatus =
-      viewMode === 'student_feed' && isActiveFeedTab && statusFilter === 'all'
+      isActiveFeedTab && statusFilter === 'all'
         ? 'approved'
         : statusFilter;
 
@@ -217,7 +225,6 @@ const ContentFeed = () => {
       setLoading(false);
     }
   }, [
-    viewMode,
     activeTab,
     debouncedSearch,
     categoryFilter,
@@ -234,11 +241,6 @@ const ContentFeed = () => {
   useEffect(() => {
     fetchFeedData();
   }, [fetchFeedData]);
-
-  const handleSwitchViewMode = (mode) => {
-    setViewMode(mode);
-    setPagination(prev => ({ ...prev, page: 1 }));
-  };
 
   const handleOpenConfirm = (action, item) => {
     setSelectedItem(item);
@@ -304,6 +306,7 @@ const ContentFeed = () => {
   const handleCloseModal = () => {
     setActiveModal(null);
     setSelectedItem(null);
+    setModalPickerView(null);
     setFormData({
       title: '',
       description: '',
@@ -332,8 +335,10 @@ const ContentFeed = () => {
 
     if (activeModal === 'create_announcement') {
       payload.type = 'announcement';
+      payload.audience = 'All Campus';
     } else if (activeModal === 'create_event') {
       payload.type = 'event';
+      payload.audience = 'All Campus';
     } else if (activeModal === 'edit' && selectedItem) {
       endpoint = `/api/admin/content-feed/${selectedItem.id}?type=${selectedItem.type}`;
       method = 'PUT';
@@ -447,10 +452,9 @@ const ContentFeed = () => {
   };
 
   const viewNavItems = [
-    { id: 'all', label: 'All Content', icon: 'fa-solid fa-layer-group' },
+    { id: 'all', label: 'All', icon: 'fa-solid fa-layer-group' },
     { id: 'announcements', label: 'Announcements', icon: 'fa-solid fa-bullhorn' },
     { id: 'events', label: 'Events', icon: 'fa-solid fa-calendar-days' },
-    { id: 'scheduled', label: 'Scheduled', icon: 'fa-solid fa-clock' },
     { id: 'archived', label: 'Archived', icon: 'fa-solid fa-box-archive' },
     { id: 'takedown', label: 'Taken Down', icon: 'fa-solid fa-shield-halved' },
   ];
@@ -501,9 +505,9 @@ const ContentFeed = () => {
 
   return (
     <AdminLayout headerCenter={headerSearchNode} fullBleed>
-      <div className={`content-feed-container acf-workspace ${viewMode === 'management' ? 'is-grid-mode' : 'is-feed-mode'}`}>
+      <div className="content-feed-container acf-workspace is-feed-mode">
 
-        {/* ================= RESPONSIVE MOBILE SEARCH & CONTROLS BAR (< 1100px) ================= */}
+        {/* ================= RESPONSIVE MOBILE SEARCH BAR (< 768px) ================= */}
         <div className="acf-mobile-bar">
           <div className="acf-mobile-search-row">
             <div className="acf-header-search-pill">
@@ -532,291 +536,265 @@ const ContentFeed = () => {
                 </button>
               )}
             </div>
-
-            <button
-              type="button"
-              className={`acf-mobile-filter-toggle ${showMobileControls ? 'is-active' : ''}`}
-              onClick={() => setShowMobileControls(prev => !prev)}
-            >
-              <i className="fa-solid fa-sliders"></i>
-              <span>Views &amp; Filters</span>
-              {activeFilterCount > 0 && (
-                <span className="acf-filter-count-pill">{activeFilterCount}</span>
-              )}
-            </button>
           </div>
         </div>
 
-        {/* ================= 3-COLUMN FACEBOOK-INSPIRED WORKSPACE ================= */}
+        {/* ================= 2-COLUMN WORKSPACE (CENTER STREAM + RIGHT RAIL) ================= */}
         <div className="acf-shell">
 
-          {/* LEFT BORDERLESS RAIL: CREATE, VIEW MODE, VIEWS & FILTERS */}
-          <aside className={`acf-left-rail ${showMobileControls ? 'is-mobile-open' : ''}`}>
-            <div className="acf-left-inner">
-
-              {/* Top Page Title & Primary Controls */}
-              <div className="acf-rail-top">
-                <div className="acf-rail-heading-row">
-                  <div>
-                    <h1 className="acf-rail-title">Announcements &amp; Events</h1>
-                    <p className="acf-rail-sub">Feed moderation &amp; publishing</p>
-                  </div>
-                  <button
-                    type="button"
-                    className="acf-icon-circle-btn"
-                    onClick={fetchFeedData}
-                    disabled={loading}
-                    title="Refresh Content Feed"
-                    aria-label="Refresh Content Feed"
-                  >
-                    <i className={`fa-solid fa-rotate-right ${loading ? 'spin-icon' : ''}`}></i>
-                  </button>
-                </div>
-
-                {/* Create Content Dropdown Button */}
-                <div className="create-menu-wrapper acf-create-full" ref={createMenuRef}>
-                  <button
-                    type="button"
-                    className="btn-feed-primary acf-create-primary-btn"
-                    onClick={() => setShowCreateMenu(!showCreateMenu)}
-                  >
-                    <span className="acf-create-btn-label">
-                      <i className="fa-solid fa-plus"></i>
-                      <span>Create Content</span>
-                    </span>
-                    <i className="fa-solid fa-chevron-down" style={{ fontSize: '0.7rem' }}></i>
-                  </button>
-
-                  {showCreateMenu && (
-                    <div className="create-dropdown-menu acf-create-dropdown-left">
-                      <button
-                        type="button"
-                        className="dropdown-menu-item"
-                        onClick={() => {
-                          setShowCreateMenu(false);
-                          setActiveModal('create_announcement');
-                        }}
-                      >
-                        <i className="fa-solid fa-bullhorn icon-maroon"></i>
-                        <div>
-                          <div className="menu-item-title">Create Announcement</div>
-                          <div className="menu-item-sub">Publish general campus updates</div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        className="dropdown-menu-item"
-                        onClick={() => {
-                          setShowCreateMenu(false);
-                          setActiveModal('create_event');
-                        }}
-                      >
-                        <i className="fa-solid fa-calendar-days icon-maroon"></i>
-                        <div>
-                          <div className="menu-item-title">Create Event</div>
-                          <div className="menu-item-sub">Schedule activities &amp; check-ins</div>
-                        </div>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Feed View (Default) vs Grid View Switch */}
-                <div className="acf-mode-switch" role="group" aria-label="Switch Content Layout">
-                  <button
-                    type="button"
-                    className={`acf-mode-btn ${viewMode === 'student_feed' ? 'is-active' : ''}`}
-                    onClick={() => handleSwitchViewMode('student_feed')}
-                  >
-                    <i className="fa-solid fa-newspaper"></i>
-                    <span>Feed View</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`acf-mode-btn ${viewMode === 'management' ? 'is-active' : ''}`}
-                    onClick={() => handleSwitchViewMode('management')}
-                  >
-                    <i className="fa-solid fa-table-cells-large"></i>
-                    <span>Grid View</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* VIEWS SECTION */}
-              <div className="acf-rail-section">
-                <div className="acf-rail-section-label">Views</div>
-                <nav className="acf-nav-list" aria-label="Content views">
-                  {viewNavItems.map((tab) => {
-                    const isActive = activeTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        className={`acf-nav-item ${isActive ? 'is-active' : ''}`}
-                        onClick={() => {
-                          setActiveTab(tab.id);
-                          setPagination(prev => ({ ...prev, page: 1 }));
-                        }}
-                      >
-                        <span className="acf-nav-icon" aria-hidden="true">
-                          <i className={tab.icon}></i>
-                        </span>
-                        <span className="acf-nav-text">{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-              </div>
-
-              {/* FILTERS SECTION */}
-              <div className="acf-rail-section">
-                <div className="acf-rail-section-header">
-                  <span className="acf-rail-section-label">Filters</span>
-                  {hasActiveFilters && (
-                    <button
-                      type="button"
-                      className="btn-feed-link"
-                      onClick={handleResetFilters}
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-
-                <div className="acf-filters-stack">
-                  <div className="acf-filter-field">
-                    <label htmlFor="acf-year-select">School Year</label>
-                    <select
-                      id="acf-year-select"
-                      className="feed-select acf-rail-select"
-                      value={academicYearFilter}
-                      onChange={(e) => {
-                        setAcademicYearFilter(e.target.value);
-                        setPagination(prev => ({ ...prev, page: 1 }));
-                      }}
-                    >
-                      <option value="all">All School Years</option>
-                      {academicYearsList.map(ay => (
-                        <option key={ay.id} value={ay.id}>
-                          SY {ay.label}{ay.is_active ? ' (Active)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="acf-filter-field">
-                    <label htmlFor="category-select">Category</label>
-                    <select
-                      id="category-select"
-                      className="feed-select acf-rail-select"
-                      value={categoryFilter}
-                      onChange={(e) => {
-                        setCategoryFilter(e.target.value);
-                        setPagination(prev => ({ ...prev, page: 1 }));
-                      }}
-                    >
-                      <option value="all">All Categories</option>
-                      {categoriesList.length > 0 ? (
-                        categoriesList.map(c => (
-                          <option key={c.id} value={c.name}>{c.name}</option>
-                        ))
-                      ) : (
-                        <>
-                          <option value="General">General</option>
-                          <option value="Academic">Academic</option>
-                          <option value="Urgent">Urgent</option>
-                          <option value="Campus Life">Campus Life</option>
-                          <option value="Sports">Sports</option>
-                          <option value="Scholarship">Scholarship</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
-
-                  <div className="acf-filter-field">
-                    <label htmlFor="acf-college-select">College / Office</label>
-                    <select
-                      id="acf-college-select"
-                      className="feed-select acf-rail-select"
-                      value={collegeFilter}
-                      onChange={(e) => {
-                        setCollegeFilter(e.target.value);
-                        setPagination(prev => ({ ...prev, page: 1 }));
-                      }}
-                    >
-                      <option value="all">All Colleges / Offices</option>
-                      {collegesList.map(col => (
-                        <option key={col.id} value={col.name}>
-                          {col.code ? `${col.code} — ${col.name}` : col.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="acf-filter-field">
-                    <label htmlFor="acf-status-select">Status</label>
-                    <select
-                      id="acf-status-select"
-                      className="feed-select acf-rail-select"
-                      value={statusFilter}
-                      onChange={(e) => {
-                        setStatusFilter(e.target.value);
-                        setPagination(prev => ({ ...prev, page: 1 }));
-                      }}
-                    >
-                      <option value="all">All Statuses</option>
-                      <option value="Published">Published</option>
-                      <option value="Upcoming">Upcoming</option>
-                      <option value="Ongoing">Ongoing</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Archived">Archived</option>
-                      <option value="Rejected">Rejected</option>
-                    </select>
-                  </div>
-
-                  <div className="acf-filter-row-split">
-                    <div className="acf-filter-field">
-                      <label htmlFor="acf-date-input">Date</label>
-                      <input
-                        id="acf-date-input"
-                        type="date"
-                        className="feed-select acf-rail-select"
-                        value={dateFilter}
-                        onChange={(e) => {
-                          setDateFilter(e.target.value);
-                          setPagination(prev => ({ ...prev, page: 1 }));
-                        }}
-                        title="Filter by Event or Publication Date"
-                      />
-                    </div>
-
-                    <div className="acf-filter-field">
-                      <label htmlFor="sort-select">Sort</label>
-                      <select
-                        id="sort-select"
-                        className="feed-select acf-rail-select"
-                        value={sortOrder}
-                        onChange={(e) => {
-                          setSortOrder(e.target.value);
-                          setPagination(prev => ({ ...prev, page: 1 }));
-                        }}
-                      >
-                        <option value="newest">Newest First</option>
-                        <option value="oldest">Oldest First</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </aside>
-
-          {/* CENTER SCROLLABLE STREAM (FEED VIEW AT 680px OR GRID VIEW) */}
-          <section className="acf-center-track" aria-label="Announcements and Events stream">
+          {/* MAIN SCROLLABLE STREAM (TOP CONTROLS + FEED + PAGINATION) */}
+          <section className="acf-center-track" aria-label="Campus Feed stream">
             <div className="acf-center-inner">
+
+              {/* TOP WORKSPACE FILTER & VIEW TABS BAR */}
+              <div className="acf-top-controls">
+                {/* Horizontal View Tabs + Collapsible Filters Trigger */}
+                <div className="acf-views-toolbar">
+                  <nav className="acf-views-tabs" aria-label="Content views">
+                    {viewNavItems.map((tab) => {
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          className={`acf-view-tab ${isActive ? 'is-active' : ''}`}
+                          onClick={() => {
+                            setActiveTab(tab.id);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                          }}
+                        >
+                          <i className={tab.icon} aria-hidden="true"></i>
+                          <span>{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                  </nav>
+
+                  <button
+                    type="button"
+                    className={`acf-filters-toggle-btn ${showFiltersPanel || activeFilterCount > 0 ? 'is-active' : ''}`}
+                    onClick={() => setShowFiltersPanel(prev => !prev)}
+                    aria-expanded={showFiltersPanel}
+                  >
+                    <i className="fa-solid fa-sliders"></i>
+                    <span>Filters</span>
+                    {activeFilterCount > 0 && (
+                      <span className="acf-filter-count-pill">{activeFilterCount}</span>
+                    )}
+                    <i className={`fa-solid ${showFiltersPanel ? 'fa-chevron-up' : 'fa-chevron-down'}`} style={{ fontSize: '0.68rem' }}></i>
+                  </button>
+                </div>
+
+                {/* Collapsible Filters Panel */}
+                {showFiltersPanel && (
+                  <div className="acf-filters-drawer">
+                    <div className="acf-filters-drawer-head">
+                      <span className="acf-rail-section-label">Filter Content</span>
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          className="btn-feed-link"
+                          onClick={handleResetFilters}
+                        >
+                          Reset all
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="acf-filters-grid">
+                      <div className="acf-filter-field">
+                        <label htmlFor="acf-year-select">School Year</label>
+                        <select
+                          id="acf-year-select"
+                          className="feed-select acf-rail-select"
+                          value={academicYearFilter}
+                          onChange={(e) => {
+                            setAcademicYearFilter(e.target.value);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                          }}
+                        >
+                          <option value="all">All School Years</option>
+                          {academicYearsList.map(ay => (
+                            <option key={ay.id} value={ay.id}>
+                              SY {ay.label}{ay.is_active ? ' (Active)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="acf-filter-field">
+                        <label htmlFor="category-select">Category</label>
+                        <select
+                          id="category-select"
+                          className="feed-select acf-rail-select"
+                          value={categoryFilter}
+                          onChange={(e) => {
+                            setCategoryFilter(e.target.value);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                          }}
+                        >
+                          <option value="all">All Categories</option>
+                          {categoriesList.length > 0 ? (
+                            categoriesList.map(c => (
+                              <option key={c.id} value={c.name}>{c.name}</option>
+                            ))
+                          ) : (
+                            <>
+                              <option value="General">General</option>
+                              <option value="Academic">Academic</option>
+                              <option value="Urgent">Urgent</option>
+                              <option value="Campus Life">Campus Life</option>
+                              <option value="Sports">Sports</option>
+                              <option value="Scholarship">Scholarship</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      <div className="acf-filter-field">
+                        <label htmlFor="acf-college-select">College / Office</label>
+                        <select
+                          id="acf-college-select"
+                          className="feed-select acf-rail-select"
+                          value={collegeFilter}
+                          onChange={(e) => {
+                            setCollegeFilter(e.target.value);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                          }}
+                        >
+                          <option value="all">All Colleges / Offices</option>
+                          {collegesList.map(col => (
+                            <option key={col.id} value={col.name}>
+                              {col.code ? `${col.code} — ${col.name}` : col.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="acf-filter-field">
+                        <label htmlFor="acf-status-select">Status</label>
+                        <select
+                          id="acf-status-select"
+                          className="feed-select acf-rail-select"
+                          value={statusFilter}
+                          onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                          }}
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="Published">Published</option>
+                          <option value="Upcoming">Upcoming</option>
+                          <option value="Ongoing">Ongoing</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Archived">Archived</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
+                      </div>
+
+                      <div className="acf-filter-field">
+                        <label htmlFor="acf-date-input">Date</label>
+                        <input
+                          id="acf-date-input"
+                          type="date"
+                          className="feed-select acf-rail-select"
+                          value={dateFilter}
+                          onChange={(e) => {
+                            setDateFilter(e.target.value);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                          }}
+                          title="Filter by Event or Publication Date"
+                        />
+                      </div>
+
+                      <div className="acf-filter-field">
+                        <label htmlFor="sort-select">Sort</label>
+                        <select
+                          id="sort-select"
+                          className="feed-select acf-rail-select"
+                          value={sortOrder}
+                          onChange={(e) => {
+                            setSortOrder(e.target.value);
+                            setPagination(prev => ({ ...prev, page: 1 }));
+                          }}
+                        >
+                          <option value="newest">Newest First</option>
+                          <option value="oldest">Oldest First</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Student/Staff-Matched Compact Horizontal Posting Composer */}
+              <div className="mypage-composer">
+                <div className="mypage-composer-row">
+                  <div className="mypage-composer-avatar" aria-hidden="true">
+                    {officialAvatarUrl ? (
+                      <img src={officialAvatarUrl} alt={officialPageName} />
+                    ) : (
+                      adminInitials
+                    )}
+                  </div>
+
+                  <div className="mypage-composer-input-wrap">
+                    <input
+                      type="text"
+                      className="mypage-composer-input"
+                      placeholder="What's on your mind?"
+                      aria-label="What's on your mind?"
+                      value={quickComposerText}
+                      onChange={(e) => setQuickComposerText(e.target.value)}
+                      onClick={() => {
+                        if (!quickComposerText.trim()) {
+                          openCreateModal('create_announcement');
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          openCreateModal('create_announcement');
+                        }
+                      }}
+                    />
+
+                    <div className="mypage-composer-actions">
+                      <button
+                        type="button"
+                        className="mypage-composer-icon-btn"
+                        onClick={() => openCreateModal('create_announcement')}
+                        title="Create Announcement"
+                        aria-label="Create Announcement"
+                        style={{ color: '#be123c' }}
+                      >
+                        <i className="fa-solid fa-bullhorn"></i>
+                      </button>
+                      <button
+                        type="button"
+                        className="mypage-composer-icon-btn"
+                        onClick={() => openCreateModal('create_event')}
+                        title="Create Event"
+                        aria-label="Create Event"
+                        style={{ color: '#b45309' }}
+                      >
+                        <i className="fa-solid fa-calendar-days"></i>
+                      </button>
+                      <button
+                        type="button"
+                        className="mypage-composer-icon-btn"
+                        onClick={() => openCreateModal('create_announcement')}
+                        title="Add Photo"
+                        aria-label="Add Photo"
+                        style={{ color: '#15803d' }}
+                      >
+                        <i className="fa-solid fa-image"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Mobile Spotlight slot (< 1080px) */}
               <div className="acf-mobile-spotlight-slot">
@@ -838,7 +816,7 @@ const ContentFeed = () => {
 
               {/* CONTENT LISTING */}
               {loading ? (
-                <div className={viewMode === 'student_feed' ? 'csf-main' : 'feed-skeleton-grid'}>
+                <div className="csf-main">
                   {[1, 2, 3].map(n => (
                     <div key={n} className="skeleton-card">
                       <div className="skeleton-line width-40 height-20"></div>
@@ -864,367 +842,28 @@ const ContentFeed = () => {
                       : 'There are no items currently listed in this view.'}
                   </p>
                 </div>
-              ) : viewMode === 'student_feed' ? (
+              ) : (
                 <div className="csf-main">
                   {items.map((item) => {
-                    const isEvent = item.type === 'event';
-                    const deptName = item.page_name || item.department_name || 'University Notice';
-                    const avatarText = item.department_code || deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-                    const postTimestamp = formatPostTimestamp(item.created_at);
                     const postKey = `${item.type}-${item.id}`;
-                    const avatarSrc = resolveMediaUrl(item.page_avatar_url);
-                    const postImage = resolveMediaUrl(item.image_url);
-                    const avatarFailed = Boolean(failedImages[`avatar-${postKey}`]);
-                    const mediaFailed = Boolean(failedImages[`media-${postKey}`]);
-                    const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
-                    const isTakenDown = String(item.status).toLowerCase() === 'rejected';
-                    const descriptionText = item.description || item.body || 'No description provided.';
-
                     return (
-                      <article key={postKey} className="csf-post-card">
-                        {/* 1. Student/Staff-Matched Post Header */}
-                        <div className="csf-post-header">
-                          <div
-                            className={`csf-author-wrap ${item.page_id ? 'is-clickable' : ''}`}
-                            onClick={() => item.page_id && navigate(`/page/${item.page_id}`)}
-                            title={item.page_id ? `View ${deptName} page` : undefined}
-                          >
-                            <div className="csf-avatar">
-                              {avatarSrc && !avatarFailed ? (
-                                <img
-                                  src={avatarSrc}
-                                  alt={deptName}
-                                  onError={() => markImageFailed(`avatar-${postKey}`)}
-                                />
-                              ) : (
-                                avatarText
-                              )}
-                            </div>
-
-                            <div className="csf-author-meta">
-                              <div className="csf-badges-row">
-                                <h4 className="csf-page-name">{deptName}</h4>
-                                {item.is_university_wide && (
-                                  <span className="csf-pill-uw">University-Wide</span>
-                                )}
-                                {item.is_pinned && (
-                                  <span className="csf-pill-pinned">Pinned</span>
-                                )}
-                                <span className="category-pill">{item.category || 'General'}</span>
-                              </div>
-
-                              <div className="csf-submeta">
-                                {isEvent ? (
-                                  <>
-                                    <span><i className="fa-solid fa-users"></i> {item.registered_count || 0} / {item.capacity || 'Unlimited'} registered</span>
-                                    <span>•</span>
-                                    <span><i className="fa-solid fa-location-dot"></i> {item.venue || item.location || 'University Campus'}</span>
-                                    <span>•</span>
-                                    <span><i className="fa-solid fa-clock"></i> {postTimestamp}</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span><i className="fa-solid fa-clock"></i> Announcement • {postTimestamp}</span>
-                                    {item.author_name && (
-                                      <>
-                                        <span>•</span>
-                                        <span>By {item.author_name}</span>
-                                      </>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <span className={`workflow-status-badge status-${String(item.status).toLowerCase()}`}>
-                            {item.status}
-                          </span>
-                        </div>
-
-                        {/* 2. Student/Staff-Matched Full-Bleed Media + Content */}
-                        {postImage && !mediaFailed ? (
-                          <>
-                            <div className="csf-post-media">
-                              <img
-                                src={postImage}
-                                alt={item.title}
-                                loading="lazy"
-                                onError={() => markImageFailed(`media-${postKey}`)}
-                              />
-                            </div>
-                            <div className="csf-post-body-wrap">
-                              <h3 className="csf-post-title">{item.title}</h3>
-                              <p className="csf-post-text">{descriptionText}</p>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="csf-post-body-wrap csf-text-only-body">
-                            <h3 className="csf-post-title is-uppercase">{item.title}</h3>
-                            <p className="csf-post-text">{descriptionText}</p>
-                            {postImage && mediaFailed && (
-                              <div className="csf-image-fallback">
-                                <i className="fa-solid fa-image"></i>
-                                <span>Attachment image could not be loaded for this post.</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* 3. Admin Moderation Footer */}
-                        <div className="csf-post-footer">
-                          <span className="csf-post-meta-id">
-                            Post #{item.id} • Audience: {item.audience || 'All Campus'}
-                            {item.academic_year_label ? ` • SY ${item.academic_year_label}` : ''}
-                          </span>
-
-                          <div className="csf-footer-actions">
-                            <button
-                              type="button"
-                              className="csf-action-pill"
-                              onClick={() => handleOpenPreview(item)}
-                            >
-                              <i className="fa-solid fa-eye"></i>
-                              <span>View Details</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              className="csf-action-pill"
-                              onClick={() => handleOpenEdit(item)}
-                            >
-                              <i className="fa-solid fa-pen-to-square"></i>
-                              <span>Edit</span>
-                            </button>
-
-                            {isArchived || isTakenDown ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="csf-btn-restore"
-                                  onClick={() => handleOpenConfirm('restore', item)}
-                                >
-                                  <i className="fa-solid fa-rotate-left"></i>
-                                  <span>Restore</span>
-                                </button>
-                                {isArchived && (
-                                  <button
-                                    type="button"
-                                    className="csf-btn-archive"
-                                    onClick={() => handleOpenConfirm('delete', item)}
-                                  >
-                                    <i className="fa-solid fa-trash-can"></i>
-                                    <span>Delete</span>
-                                  </button>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  className="csf-btn-archive"
-                                  title="Archive post, record reason in Audit Logs, and notify creator"
-                                  onClick={() => handleOpenConfirm('archive', item)}
-                                >
-                                  <i className="fa-solid fa-box-archive"></i>
-                                  <span>Archive</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="csf-btn-takedown"
-                                  title="Take down & archive post for policy violation"
-                                  onClick={() => handleOpenConfirm('takedown', item)}
-                                >
-                                  <i className="fa-solid fa-shield-halved"></i>
-                                  <span>Take Down</span>
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </article>
+                      <AdminPostCard
+                        key={postKey}
+                        item={item}
+                        isMenuOpen={activePostMenuKey === postKey}
+                        onToggleMenu={() => setActivePostMenuKey((prev) => (prev === postKey ? null : postKey))}
+                        onCloseMenu={() => setActivePostMenuKey(null)}
+                        onViewDetails={handleOpenPreview}
+                        onEdit={handleOpenEdit}
+                        onArchive={(target) => handleOpenConfirm('archive', target)}
+                        onTakeDown={(target) => handleOpenConfirm('takedown', target)}
+                        onRestore={(target) => handleOpenConfirm('restore', target)}
+                        onDelete={(target) => handleOpenConfirm('delete', target)}
+                        failedImages={failedImages}
+                        onImageError={markImageFailed}
+                      />
                     );
                   })}
-                </div>
-              ) : (
-                <div className="feed-cards-grid">
-                  {items.map(item => {
-                    const isArchived = item.is_archived || String(item.status).toLowerCase() === 'archived';
-                    const isTakenDown = String(item.status).toLowerCase() === 'rejected';
-                    const mgmtKey = `mgmt-${item.type}-${item.id}`;
-                    const cardThumb = resolveMediaUrl(item.image_url);
-                    const thumbFailed = Boolean(failedImages[mgmtKey]);
-
-                    return (
-                      <div key={`${item.type}-${item.id}`} className="feed-item-card">
-
-                        {/* Card Top Metadata Header */}
-                        <div className="card-top-bar">
-                          <div className="card-type-group">
-                            <span className={`type-badge ${item.type}`}>
-                              <i className={`fa-solid ${item.type === 'event' ? 'fa-calendar-days' : 'fa-bullhorn'}`}></i>
-                              {item.type}
-                            </span>
-                            <span className="category-pill">{item.category || 'General'}</span>
-                            {item.academic_year_label && (
-                              <span className="category-pill" style={{ background: '#fff1f2', color: '#7b0d1e' }}>
-                                SY {item.academic_year_label}
-                              </span>
-                            )}
-                          </div>
-
-                          <span className={`workflow-status-badge status-${String(item.status).toLowerCase()}`}>
-                            {item.status}
-                          </span>
-                        </div>
-
-                        {cardThumb && !thumbFailed && (
-                          <div className="card-media-thumb">
-                            <img
-                              src={cardThumb}
-                              alt={item.title}
-                              loading="lazy"
-                              onError={() => markImageFailed(mgmtKey)}
-                            />
-                          </div>
-                        )}
-
-                        {/* Card Title & Content Body */}
-                        <h2 className="card-item-title">{item.title}</h2>
-                        <p className="card-item-snippet">
-                          {item.description || item.body ? (
-                            (item.description || item.body).length > 140
-                              ? `${(item.description || item.body).substring(0, 140)}...`
-                              : (item.description || item.body)
-                          ) : 'No description provided.'}
-                        </p>
-
-                        {/* Event Specific Metadata Bar */}
-                        {item.type === 'event' && (
-                          <div className="event-meta-box">
-                            <div className="meta-row">
-                              <i className="fa-solid fa-clock meta-icon"></i>
-                              <span>{item.event_start ? new Date(item.event_start).toLocaleString() : 'Date TBD'}</span>
-                            </div>
-                            {item.venue && (
-                              <div className="meta-row">
-                                <i className="fa-solid fa-location-dot meta-icon"></i>
-                                <span>{item.venue}</span>
-                              </div>
-                            )}
-                            <div className="meta-row">
-                              <i className="fa-solid fa-users meta-icon"></i>
-                              <span>
-                                <strong>{item.registered_count || 0}</strong>{item.capacity ? `/${item.capacity}` : ''} Registered •{' '}
-                                <strong>{item.attended_count || 0}</strong> Attended
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Author & Creation Info */}
-                        <div className="card-author-footer">
-                          <div className="author-details">
-                            <span className="author-name">
-                              {item.page_name || item.department_name || 'University Administration'} • {item.author_name || 'Admin'}
-                            </span>
-                            <span className="post-date">{new Date(item.created_at).toLocaleDateString()}</span>
-                          </div>
-
-                          {/* Action Buttons Toolbar */}
-                          <div className="card-actions-row" style={{ flexWrap: 'wrap', gap: '0.35rem' }}>
-                            <button
-                              type="button"
-                              className="card-icon-btn"
-                              style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                              title="View Details & Attendance"
-                              onClick={() => handleOpenPreview(item)}
-                            >
-                              <i className="fa-solid fa-eye"></i>
-                              <span>View</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              className="card-icon-btn"
-                              style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                              title="Edit Record"
-                              onClick={() => handleOpenEdit(item)}
-                            >
-                              <i className="fa-solid fa-pen-to-square"></i>
-                              <span>Edit</span>
-                            </button>
-
-                            {isArchived || isTakenDown ? (
-                              <button
-                                type="button"
-                                className="card-icon-btn text-emerald"
-                                style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                                title="Restore Item"
-                                onClick={() => handleOpenConfirm('restore', item)}
-                              >
-                                <i className="fa-solid fa-rotate-left"></i>
-                                <span>Restore</span>
-                              </button>
-                            ) : (
-                              <>
-                                <button
-                                  type="button"
-                                  className="card-icon-btn text-amber"
-                                  style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                                  title="Archive Item"
-                                  onClick={() => handleOpenConfirm('archive', item)}
-                                >
-                                  <i className="fa-solid fa-box-archive"></i>
-                                  <span>Archive</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="card-icon-btn text-rose"
-                                  style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                                  title="Take Down & Archive"
-                                  onClick={() => handleOpenConfirm('takedown', item)}
-                                >
-                                  <i className="fa-solid fa-shield-halved"></i>
-                                  <span>Take Down</span>
-                                </button>
-                              </>
-                            )}
-
-                            {isArchived && (
-                              <button
-                                type="button"
-                                className="card-icon-btn text-rose"
-                                style={{ width: 'auto', padding: '0 0.6rem', gap: '0.35rem', fontSize: '0.76rem', fontWeight: 600 }}
-                                title="Permanently Delete Archived Post (also available in Audit Logs)"
-                                onClick={() => handleOpenConfirm('delete', item)}
-                              >
-                                <i className="fa-solid fa-trash-can"></i>
-                                <span>Delete</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* GLOBAL PAGINATION BAR */}
-              {!loading && (
-                <div className="acf-pagination-wrap">
-                  <Pagination
-                    currentPage={pagination.page}
-                    totalPages={pagination.totalPages}
-                    totalRecords={pagination.total}
-                    pageSize={pagination.limit}
-                    onPageChange={(nextPage) => setPagination(prev => ({ ...prev, page: nextPage }))}
-                    onPageSizeChange={(nextLimit) => setPagination(prev => ({ ...prev, limit: nextLimit, page: 1 }))}
-                    loading={loading}
-                    itemLabel="posts"
-                  />
                 </div>
               )}
             </div>
@@ -1241,236 +880,319 @@ const ContentFeed = () => {
                 pageBasePath="/page"
               />
             </div>
-
-            <div className="acf-right-divider">
-              <div className="csf-guidance-card">
-                <div className="csf-guidance-header">
-                  <i className="fa-solid fa-shield-halved"></i>
-                  <span>Moderation Policy</span>
-                </div>
-                <p className="csf-guidance-text">
-                  Removing a post archives it first with your moderation reason, records the action in Audit Logs, and notifies the creator.
-                </p>
-                <button
-                  type="button"
-                  className="csf-guidance-btn"
-                  onClick={() => navigate('/admin/audit-logs')}
-                >
-                  <i className="fa-solid fa-clipboard-list"></i>
-                  <span>Open Audit Logs</span>
-                </button>
-              </div>
-            </div>
           </aside>
 
         </div>
 
         {/* ================= MODALS & DRAWERS ================= */}
 
-        {/* 1. CREATE / EDIT CONTENT MODAL */}
-        {(activeModal === 'create_announcement' || activeModal === 'create_event' || activeModal === 'edit') && (
-          <div className="modal-backdrop">
-            <div className="modal-container-card">
-              <div className="modal-card-header">
-                <h2 className="modal-card-title">
-                  {activeModal === 'edit' 
-                    ? `Edit ${selectedItem?.type === 'event' ? 'Event' : 'Announcement'}`
-                    : activeModal === 'create_event' ? 'Create Campus Event' : 'Create Campus Announcement'}
-                </h2>
-                <button type="button" className="close-modal-btn" onClick={handleCloseModal}>
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
-              </div>
+        {/* 1. CREATE / EDIT POST MODAL (MATCHED TO MYPAGE/STUDENT) */}
+        {(activeModal === 'create_announcement' || activeModal === 'create_event' || activeModal === 'edit') && (() => {
+          const isEditMode = activeModal === 'edit';
+          const currentPostType = isEditMode
+            ? (selectedItem?.type || 'announcement')
+            : (activeModal === 'create_event' ? 'event' : 'announcement');
+          const isEventForm = currentPostType === 'event';
+          const adminName = officialPageName;
 
-              <form onSubmit={handleSubmitForm} className="modal-form-body">
-                
-                {/* Title */}
-                <div className="form-group">
-                  <label htmlFor="content-title">Title *</label>
-                  <input 
-                    id="content-title"
-                    type="text" 
-                    name="title"
-                    required
-                    value={formData.title}
-                    onChange={handleInputChange}
-                    placeholder="Enter post or event title"
-                    className="modal-input"
-                  />
-                </div>
+          const categoryOptions = categoriesList.length > 0
+            ? categoriesList.map((c) => ({
+                value: c.name,
+                label: c.name,
+                desc: 'Announcement category',
+                icon: 'fa-solid fa-folder-open',
+              }))
+            : [
+                { value: 'General', label: 'General', desc: 'General campus update', icon: 'fa-solid fa-tag' },
+                { value: 'Academic', label: 'Academic', desc: 'Academic notices & schedules', icon: 'fa-solid fa-graduation-cap' },
+                { value: 'Urgent', label: 'Urgent', desc: 'Time-sensitive advisories', icon: 'fa-solid fa-triangle-exclamation' },
+                { value: 'Campus Life', label: 'Campus Life', desc: 'Student activities & organizations', icon: 'fa-solid fa-users' },
+                { value: 'Sports', label: 'Sports', desc: 'Athletics & tournaments', icon: 'fa-solid fa-trophy' },
+                { value: 'Scholarship', label: 'Scholarship', desc: 'Grants & financial aid', icon: 'fa-solid fa-award' },
+              ];
 
-                {/* Description / Body */}
-                <div className="form-group">
-                  <label htmlFor="content-description">Body Content / Description *</label>
-                  <textarea 
-                    id="content-description"
-                    name="description"
-                    required
-                    rows="4"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    placeholder="Provide complete details..."
-                    className="modal-textarea"
-                  ></textarea>
-                </div>
-
-                {/* Category & Audience Row */}
-                <div className="form-row">
-                  <div className="form-group flex-1">
-                    <label htmlFor="content-category">Category</label>
-                    <select 
-                      id="content-category"
-                      name="category"
-                      value={formData.category}
-                      onChange={handleInputChange}
-                      className="modal-select"
+          return (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                backdropFilter: 'blur(6px)',
+                WebkitBackdropFilter: 'blur(6px)',
+                zIndex: 1000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '1rem'
+              }}
+              onClick={handleCloseModal}
+            >
+              <div
+                className="no-scrollbar"
+                style={{
+                  backgroundColor: '#ffffff',
+                  width: '100%',
+                  maxWidth: '540px',
+                  borderRadius: '1rem',
+                  maxHeight: '90vh',
+                  overflowY: 'auto',
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+                  {modalPickerView && (
+                    <button
+                      type="button"
+                      onClick={() => setModalPickerView(null)}
+                      aria-label="Back to Create Post"
+                      style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f1f5f9', border: 'none', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
-                      {categoriesList.length > 0 ? (
-                        categoriesList.map(c => (
-                          <option key={c.id} value={c.name}>{c.name}</option>
-                        ))
-                      ) : (
-                        <>
-                          <option value="General">General</option>
-                          <option value="Academic">Academic</option>
-                          <option value="Urgent">Urgent</option>
-                          <option value="Campus Life">Campus Life</option>
-                          <option value="Sports">Sports</option>
-                          <option value="Scholarship">Scholarship</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
-
-                  <div className="form-group flex-1">
-                    <label htmlFor="content-audience">Audience / Scope</label>
-                    <select 
-                      id="content-audience"
-                      name="audience"
-                      value={formData.audience}
-                      onChange={handleInputChange}
-                      className="modal-select"
-                    >
-                      <option value="All Campus">Public</option>
-                      <option value="Followers Only">Followers</option>
-                      <option value="Private">Private</option>
-                    </select>
-                  </div>
+                      <i className="fa-solid fa-arrow-left" style={{ fontSize: '0.9rem' }}></i>
+                    </button>
+                  )}
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0f172a', textAlign: 'center', width: '100%', margin: 0 }}>
+                    {modalPickerView === 'postType'
+                      ? 'Post Type'
+                      : modalPickerView === 'category'
+                        ? 'Select Category'
+                        : isEditMode
+                          ? 'Edit Post'
+                          : 'Create Post'}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={handleCloseModal}
+                    aria-label="Close modal"
+                    style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f1f5f9', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <i className="fa-solid fa-xmark" style={{ fontSize: '1rem' }}></i>
+                  </button>
                 </div>
 
-                {/* Event Specific Fields */}
-                {(activeModal === 'create_event' || (activeModal === 'edit' && selectedItem?.type === 'event')) && (
-                  <>
-                    <div className="form-row">
-                      <div className="form-group flex-1">
-                        <label htmlFor="event-start">Start Date & Time *</label>
-                        <input 
-                          id="event-start"
-                          type="datetime-local"
-                          name="event_start"
-                          required
-                          value={formData.event_start}
-                          onChange={handleInputChange}
-                          className="modal-input"
-                        />
-                      </div>
-                      <div className="form-group flex-1">
-                        <label htmlFor="event-end">End Date & Time</label>
-                        <input 
-                          id="event-end"
-                          type="datetime-local"
-                          name="event_end"
-                          value={formData.event_end}
-                          onChange={handleInputChange}
-                          className="modal-input"
-                        />
+                {modalPickerView ? (
+                  <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {(modalPickerView === 'postType'
+                      ? [
+                          { value: 'announcement', label: 'Announcement', desc: 'Share campus news, updates, or reminders.', icon: 'fa-solid fa-bullhorn' },
+                          { value: 'event', label: 'Event', desc: 'Host an event with date, venue, and registration.', icon: 'fa-solid fa-calendar-days' },
+                        ]
+                      : categoryOptions
+                    ).map((opt) => {
+                      const currentVal =
+                        modalPickerView === 'postType'
+                          ? currentPostType
+                          : formData.category;
+                      const isSelected = currentVal === opt.value;
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            if (modalPickerView === 'postType') {
+                              setActiveModal(opt.value === 'event' ? 'create_event' : 'create_announcement');
+                            } else {
+                              setFormData(prev => ({ ...prev, category: opt.value }));
+                            }
+                            setModalPickerView(null);
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.75rem',
+                            width: '100%',
+                            padding: '0.75rem 0.875rem',
+                            borderRadius: '0.75rem',
+                            border: `1.5px solid ${isSelected ? '#881337' : '#e2e8f0'}`,
+                            backgroundColor: isSelected ? '#fff1f2' : '#ffffff',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                            <div
+                              style={{
+                                width: '2.25rem',
+                                height: '2.25rem',
+                                borderRadius: '50%',
+                                backgroundColor: isSelected ? '#881337' : '#f1f5f9',
+                                color: isSelected ? '#ffffff' : '#334155',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                              }}
+                            >
+                              <i className={opt.icon} style={{ fontSize: '0.9rem' }}></i>
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>{opt.label}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{opt.desc}</div>
+                            </div>
+                          </div>
+                          <span
+                            style={{
+                              width: '18px',
+                              height: '18px',
+                              borderRadius: '50%',
+                              border: `2px solid ${isSelected ? '#881337' : '#cbd5e1'}`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isSelected && (
+                              <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#881337' }} />
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmitForm} style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <PostPageAvatar
+                        avatarUrl={resolveMediaUrl(selectedItem?.page_avatar_url) || officialAvatarUrl || null}
+                        label={selectedItem?.page_name || adminName}
+                        fallbackCode={adminInitials}
+                      />
+
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#0f172a', lineHeight: 1.2 }}>
+                          {selectedItem?.page_name || adminName}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.45rem', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            onClick={() => !isEditMode && setModalPickerView('postType')}
+                            disabled={isEditMode}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.8125rem', fontWeight: 700, color: '#881337', cursor: isEditMode ? 'default' : 'pointer', opacity: isEditMode ? 0.85 : 1 }}
+                          >
+                            <i className={isEventForm ? 'fa-solid fa-calendar-days' : 'fa-solid fa-bullhorn'}></i>
+                            <span>{isEventForm ? 'Event' : 'Announcement'}</span>
+                            {!isEditMode && <i className="fa-solid fa-caret-down" style={{ fontSize: '0.75rem' }}></i>}
+                          </button>
+
+                          {!isEventForm && (
+                            <button
+                              type="button"
+                              onClick={() => setModalPickerView('category')}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}
+                            >
+                              <i className="fa-solid fa-tag" style={{ fontSize: '0.75rem', color: '#64748b' }}></i>
+                              <span>{formData.category || 'General'}</span>
+                              <i className="fa-solid fa-caret-down" style={{ fontSize: '0.75rem' }}></i>
+                            </button>
+                          )}
+
+                          <span
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '0.5rem', padding: '0.4rem 0.75rem', fontSize: '0.8125rem', fontWeight: 700, color: '#881337' }}
+                            title="Admin posts are always visible campus-wide"
+                          >
+                            <i className="fa-solid fa-earth-americas" style={{ fontSize: '0.75rem', color: '#881337' }}></i>
+                            <span>Campus-Wide</span>
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="form-row">
-                      <div className="form-group flex-1">
-                        <label htmlFor="event-venue">Venue / Location</label>
-                        <input 
-                          id="event-venue"
-                          type="text"
-                          name="venue"
-                          value={formData.venue}
-                          onChange={handleInputChange}
-                          placeholder="e.g. WMSU Gymnasium"
-                          className="modal-input"
-                        />
-                      </div>
-                      <div className="form-group flex-1">
-                        <label htmlFor="event-organizer">Organizer</label>
-                        <input 
-                          id="event-organizer"
-                          type="text"
-                          name="organizer"
-                          value={formData.organizer}
-                          onChange={handleInputChange}
-                          placeholder="e.g. University Student Council"
-                          className="modal-input"
-                        />
-                      </div>
-                    </div>
+                    <input
+                      id="content-title"
+                      type="text"
+                      name="title"
+                      required
+                      value={formData.title}
+                      onChange={handleInputChange}
+                      placeholder={isEventForm ? 'Event Title...' : 'Announcement Title...'}
+                      style={{ width: '100%', padding: '0.625rem 0.875rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontSize: '0.9375rem', fontWeight: 700, outline: 'none', color: '#0f172a', boxSizing: 'border-box' }}
+                    />
 
-                    <div className="form-row">
-                      <div className="form-group flex-1">
-                        <label htmlFor="event-capacity">Registration Capacity</label>
-                        <input
-                          id="event-capacity"
-                          type="number"
-                          min="0"
-                          name="capacity"
-                          value={formData.capacity}
-                          onChange={handleInputChange}
-                          placeholder="e.g. 200"
-                          className="modal-input"
-                        />
+                    {isEventForm && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1' }}>
+                        <div>
+                          <label htmlFor="event-start" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>START DATE &amp; TIME *</label>
+                          <input id="event-start" type="datetime-local" name="event_start" required value={formData.event_start} onChange={handleInputChange} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label htmlFor="event-end" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>END DATE &amp; TIME</label>
+                          <input id="event-end" type="datetime-local" name="event_end" value={formData.event_end} onChange={handleInputChange} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label htmlFor="event-venue" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>LOCATION / VENUE</label>
+                          <input id="event-venue" type="text" name="venue" placeholder="e.g. WMSU Gymnasium" value={formData.venue} onChange={handleInputChange} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label htmlFor="event-organizer" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>ORGANIZER</label>
+                          <input id="event-organizer" type="text" name="organizer" placeholder="e.g. University Student Council" value={formData.organizer} onChange={handleInputChange} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label htmlFor="event-capacity" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>CAPACITY</label>
+                          <input id="event-capacity" type="number" min="0" name="capacity" placeholder="Max capacity" value={formData.capacity} onChange={handleInputChange} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label htmlFor="event-deadline" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>REG. DEADLINE</label>
+                          <input id="event-deadline" type="datetime-local" name="reg_deadline" value={formData.reg_deadline} onChange={handleInputChange} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                        </div>
                       </div>
-                      <div className="form-group flex-1">
-                        <label htmlFor="event-deadline">Registration Deadline</label>
-                        <input
-                          id="event-deadline"
-                          type="datetime-local"
-                          name="reg_deadline"
-                          value={formData.reg_deadline}
-                          onChange={handleInputChange}
-                          className="modal-input"
-                        />
+                    )}
+
+                    <textarea
+                      id="content-description"
+                      name="description"
+                      required
+                      rows="4"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      placeholder="Write post description..."
+                      style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.9375rem', resize: 'none', outline: 'none', backgroundColor: '#ffffff', color: '#0f172a', fontFamily: 'inherit', minHeight: '110px', boxSizing: 'border-box' }}
+                    ></textarea>
+
+                    {!isEditMode && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: '1px solid #cbd5e1', borderRadius: '0.5rem', backgroundColor: '#f8fafc' }}>
+                        <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#0f172a' }}>Add to your post</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveModal(isEventForm ? 'create_announcement' : 'create_event')}
+                            title="Toggle Event"
+                            aria-label="Toggle Event"
+                            style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.4rem', padding: '0.4rem 0.55rem', cursor: 'pointer', color: '#b45309', fontSize: '1.05rem' }}
+                          >
+                            <i className="fa-solid fa-calendar-days"></i>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const loc = prompt('Enter Location:', formData.venue);
+                              if (loc !== null) setFormData(prev => ({ ...prev, venue: loc }));
+                            }}
+                            title="Set Location"
+                            aria-label="Set Location"
+                            style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.4rem', padding: '0.4rem 0.55rem', cursor: 'pointer', color: '#be123c', fontSize: '1.05rem' }}
+                          >
+                            <i className="fa-solid fa-location-dot"></i>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      style={{ width: '100%', padding: '0.625rem', borderRadius: '0.5rem', backgroundColor: '#881337', color: '#ffffff', fontWeight: 700, fontSize: '0.875rem', border: 'none', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.75 : 1 }}
+                    >
+                      {submitting ? 'Submitting...' : isEditMode ? 'Save Changes' : 'Post'}
+                    </button>
+                  </form>
                 )}
-
-                {/* Scheduled Publication */}
-                <div className="form-group">
-                  <label htmlFor="scheduled-at">Schedule Publication (Optional)</label>
-                  <input 
-                    id="scheduled-at"
-                    type="datetime-local"
-                    name="scheduled_at"
-                    value={formData.scheduled_at}
-                    onChange={handleInputChange}
-                    className="modal-input"
-                  />
-                  <span className="field-hint">Leave blank to publish immediately upon creation.</span>
-                </div>
-
-                {/* Form Footer Buttons */}
-                <div className="modal-footer-actions">
-                  <button type="button" className="btn-feed-secondary" onClick={handleCloseModal}>
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn-feed-primary" disabled={submitting}>
-                    {submitting ? 'Submitting...' : 'Save & Publish'}
-                  </button>
-                </div>
-
-              </form>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* 2. PREVIEW DETAILS & EVENT REGISTRATION/ATTENDANCE MODAL */}
         {activeModal === 'preview' && selectedItem && (

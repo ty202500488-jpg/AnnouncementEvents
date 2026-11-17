@@ -71,18 +71,90 @@ async function getActiveAcademicYearId(db = pool) {
 }
 
 // Helper: Ensure admin has a default Campus Administration page for direct admin posts
-async function getOrCreateAdminPageId(adminUserId) {
-    const existing = await pool.query(`SELECT page_id FROM pages ORDER BY page_id ASC LIMIT 1`);
+async function getOrCreateAdminPageId(adminUserId = null) {
+    const existing = await pool.query(
+        `SELECT page_id
+         FROM pages
+         WHERE page_code IN ('WMSU', 'ADMIN')
+            OR LOWER(page_name) = 'western mindanao state university'
+         ORDER BY CASE WHEN page_code = 'WMSU' THEN 0 ELSE 1 END, page_id ASC
+         LIMIT 1`
+    );
     if (existing.rows.length > 0) return existing.rows[0].page_id;
+
+    let ownerId = adminUserId;
+    if (!ownerId) {
+        const adminRes = await pool.query(
+            `SELECT u.user_id
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             WHERE LOWER(r.role_name) = 'admin'
+             ORDER BY u.user_id ASC
+             LIMIT 1`
+        );
+        ownerId = adminRes.rows[0]?.user_id || null;
+    }
 
     const ins = await pool.query(
         `INSERT INTO pages (page_name, page_code, page_description, page_type, created_by, status)
-         VALUES ('Office of the Administration', 'ADMIN', 'Official WMSU Administration Portal', 'office', $1, 'Approved')
+         VALUES (
+             'Western Mindanao State University',
+             'WMSU',
+             'Official university page managing campus-wide announcements, events, and institutional updates.',
+             'office',
+             $1,
+             'Approved'
+         )
          RETURNING page_id`,
-        [adminUserId]
+        [ownerId]
     );
     return ins.rows[0].page_id;
 }
+
+// Ensure the Official University Page exists in `pages` on server startup
+getOrCreateAdminPageId(null).catch((err) => {
+    console.warn('Could not auto-seed official WMSU page on startup:', err.message);
+});
+
+router.get('/official-page', async (req, res) => {
+    try {
+        const pageId = await getOrCreateAdminPageId(req.user.user_id);
+        const pageRes = await pool.query(
+            `SELECT p.page_id, p.page_name, p.page_code, p.page_description, p.page_type, p.status,
+                    p.avatar_url, p.cover_url, p.created_at,
+                    COALESCE((SELECT COUNT(*)::int FROM page_follows pf WHERE pf.page_id = p.page_id), 0) AS followers_count
+             FROM pages p
+             WHERE p.page_id = $1`,
+            [pageId]
+        );
+        return res.json({ page: pageRes.rows[0] || null, pageId });
+    } catch (error) {
+        console.error('Get official admin page error:', error);
+        return res.status(500).json({ message: 'Failed to load official admin page.' });
+    }
+});
+
+router.put('/official-page', async (req, res) => {
+    try {
+        const pageId = await getOrCreateAdminPageId(req.user.user_id);
+        const { page_name, page_description, avatar_url } = req.body;
+        const upd = await pool.query(
+            `UPDATE pages
+             SET page_name = COALESCE(NULLIF(TRIM($1), ''), page_name),
+                 page_description = COALESCE($2, page_description),
+                 avatar_url = COALESCE($3, avatar_url),
+                 status = 'Approved',
+                 updated_at = NOW()
+             WHERE page_id = $4
+             RETURNING page_id, page_name, page_code, page_description, page_type, status, avatar_url, cover_url`,
+            [page_name || null, page_description ?? null, avatar_url !== undefined ? (avatar_url || null) : null, pageId]
+        );
+        return res.json({ message: 'Official page updated successfully.', page: upd.rows[0] });
+    } catch (error) {
+        console.error('Update official admin page error:', error);
+        return res.status(500).json({ message: 'Failed to update official admin page.' });
+    }
+});
 
 // ============================================================================
 // 1. OVERVIEW DASHBOARD (GET /api/admin/overview & GET /api/admin/overview/search)
@@ -869,6 +941,7 @@ router.get('/content-feed', async (req, res) => {
             academicYearId = 'all',
             eventDate = '',
             organizer = '',
+            pageId = 'all',
             sort = 'newest',
             page = 1,
             limit = 10
@@ -905,6 +978,11 @@ router.get('/content-feed', async (req, res) => {
         if (college && college !== 'all') {
             params.push(college);
             clauses.push(`(LOWER(d.department_name) = LOWER($${params.length}) OR LOWER(d.department_code) = LOWER($${params.length}) OR LOWER(pg.page_name) = LOWER($${params.length}) OR d.department_id::text = $${params.length})`);
+        }
+
+        if (pageId && pageId !== 'all') {
+            params.push(Number(pageId));
+            clauses.push(`p.page_id = $${params.length}`);
         }
 
         if (status && status !== 'all') {
@@ -1105,6 +1183,7 @@ router.post('/content-feed', async (req, res) => {
 
         const postType = String(type).toLowerCase() === 'event' ? 'event' : 'announcement';
         const contentText = description || body || '';
+        const effectiveAudience = 'All Campus';
 
         if (!title || !contentText) {
             return res.status(400).json({ message: 'Title and description are required.' });
@@ -1135,7 +1214,7 @@ router.post('/content-feed', async (req, res) => {
                 postType,
                 title.trim(),
                 contentText.trim(),
-                audience,
+                effectiveAudience,
                 expires_at || null,
                 postType === 'event' ? 'Upcoming' : 'Published'
             ]

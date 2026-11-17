@@ -326,29 +326,27 @@ const PageManagement = () => {
         {/* ================= PAGE HEADER ================= */}
         <div className="pm-header">
           <div>
+            <div className="admin-page-breadcrumb">
+              <i className="fa-solid fa-house" aria-hidden="true"></i>
+              <span>Home</span>
+              <span aria-hidden="true">/</span>
+              <span className="is-current">Page Management</span>
+            </div>
             <h1 className="pm-title">Page Management</h1>
-            <p className="pm-subtitle">
-              Review official page requests, manage page status, and control page-specific Staff access.
-            </p>
           </div>
 
           <div className="pm-header-actions">
-            <button 
-              type="button" 
-              className="btn-pm-secondary"
-              onClick={fetchPagesData}
-              disabled={loading}
-            >
-              <i className={`fa-solid fa-rotate-right ${loading ? 'spin-icon' : ''}`}></i>
-              <span>Refresh</span>
-            </button>
+            <span className="admin-header-amber-pill">
+              <i className="fa-solid fa-bell" aria-hidden="true"></i>
+              <span>Pending Requests: {loading ? '...' : summaryCounts.pending}</span>
+            </span>
 
             <button 
               type="button" 
               className="btn-pm-primary"
               onClick={() => setActiveModal('create')}
             >
-              <i className="fa-solid fa-plus"></i>
+              <i className="fa-solid fa-plus" aria-hidden="true"></i>
               <span>Create Official Page</span>
             </button>
           </div>
@@ -367,91 +365,42 @@ const PageManagement = () => {
           </div>
         )}
 
-        {/* ================= SUMMARY METRIC CARDS ================= */}
-        <div className="pm-summary-grid">
-          
-          <div className="pm-summary-card pointer-card" onClick={() => handleTabSelect('all')}>
-            <div className="card-body">
-              <div>
-                <span className="card-label">Total System Pages</span>
-                <div className="card-value">{loading ? '...' : summaryCounts.total}</div>
-                <span className="card-subtext">All registered entities</span>
+        {/* ================= CLICKABLE KPI STRIP ================= */}
+        <div className="admin-kpi-strip" role="tablist" aria-label="Page status filters">
+          {[
+            { id: 'all', label: 'Total Pages', value: summaryCounts.total, icon: 'fa-layer-group', tone: 'blue', valTone: '' },
+            { id: 'active', label: 'Active Pages', value: summaryCounts.active, icon: 'fa-circle-check', tone: 'emerald', valTone: 'tone-emerald' },
+            { id: 'pending', label: 'Pending', value: summaryCounts.pending, icon: 'fa-hourglass-half', tone: 'amber', valTone: 'tone-amber' },
+            { id: 'suspended', label: 'Suspended', value: summaryCounts.suspended, icon: 'fa-triangle-exclamation', tone: 'rose', valTone: 'tone-rose' },
+            { id: 'archived', label: 'Archived', value: summaryCounts.archived, icon: 'fa-box-archive', tone: 'slate', valTone: 'tone-slate' },
+            { id: 'rejected', label: 'Rejected', value: summaryCounts.rejected ?? 0, icon: 'fa-ban', tone: 'slate', valTone: 'tone-slate' }
+          ].map(card => (
+            <button
+              key={card.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === card.id}
+              className={`admin-kpi-tile ${activeTab === card.id ? 'is-active' : ''}`}
+              onClick={() => handleTabSelect(card.id)}
+            >
+              <div className="admin-kpi-meta">
+                <span className="admin-kpi-label">{card.label}</span>
+                <span className={`admin-kpi-value ${card.valTone}`}>
+                  {loading ? '...' : card.value}
+                </span>
               </div>
-              <div className="card-icon-box maroon-box">
-                <i className="fa-solid fa-layer-group"></i>
-              </div>
-            </div>
-          </div>
-
-          <div className="pm-summary-card pointer-card" onClick={() => handleTabSelect('pending')}>
-            <div className="card-body">
-              <div>
-                <span className="card-label">Pending Approval</span>
-                <div className="card-value">{loading ? '...' : summaryCounts.pending}</div>
-                <span className="card-subtext status-amber-text">Awaiting administrative decision</span>
-              </div>
-              <div className="card-icon-box amber-box">
-                <i className="fa-solid fa-clock-rotate-left"></i>
-              </div>
-            </div>
-          </div>
-
-          <div className="pm-summary-card pointer-card" onClick={() => handleTabSelect('active')}>
-            <div className="card-body">
-              <div>
-                <span className="card-label">Active & Approved</span>
-                <div className="card-value">{loading ? '...' : summaryCounts.active}</div>
-                <span className="card-subtext status-green-text">Publicly operational</span>
-              </div>
-              <div className="card-icon-box green-box">
-                <i className="fa-solid fa-circle-check"></i>
-              </div>
-            </div>
-          </div>
-
-          <div className="pm-summary-card pointer-card" onClick={() => handleTabSelect('suspended')}>
-            <div className="card-body">
-              <div>
-                <span className="card-label">Suspended / Archived</span>
-                <div className="card-value">{loading ? '...' : summaryCounts.suspended + summaryCounts.archived}</div>
-                <span className="card-subtext status-rose-text">Operations restricted</span>
-              </div>
-              <div className="card-icon-box rose-box">
-                <i className="fa-solid fa-shield-halved"></i>
-              </div>
-            </div>
-          </div>
-
+              <span className={`admin-kpi-icon tone-${card.tone}`} aria-hidden="true">
+                <i className={`fa-solid ${card.icon}`}></i>
+              </span>
+            </button>
+          ))}
         </div>
 
-        {/* ================= NAVIGATION TABS & TOOLBAR ================= */}
-        <div className="pm-controls-card">
-          
-          {/* Nav Tabs */}
-          <div className="pm-tabs-list">
-            {[
-              { id: 'all', label: 'All Pages' },
-              { id: 'pending', label: `Pending Requests (${summaryCounts.pending})` },
-              { id: 'active', label: 'Active Pages' },
-              { id: 'suspended', label: 'Suspended' },
-              { id: 'archived', label: 'Archived' },
-              { id: 'rejected', label: 'Rejected Requests' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                className={`pm-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => handleTabSelect(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Search Toolbar */}
-          <div className="pm-toolbar">
-            <div className="pm-search-box">
-              <i className="fa-solid fa-magnifying-glass search-icon"></i>
+        {/* ================= SINGLE-ROW INLINE FILTER BAR ================= */}
+        <div className="admin-inline-filter-card">
+          <div className="admin-inline-filter-row">
+            <div className="admin-inline-search">
+              <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
               <input 
                 type="text" 
                 placeholder="Search page name, description, category, or college..."
@@ -460,90 +409,93 @@ const PageManagement = () => {
                   setSearchQuery(e.target.value);
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="pm-search-input"
+                className="admin-inline-search-input"
+                aria-label="Search pages"
               />
               {searchQuery && (
-                <button type="button" className="clear-search-btn" onClick={() => setSearchQuery('')}>
+                <button type="button" className="admin-inline-clear-btn" onClick={() => setSearchQuery('')} aria-label="Clear search">
                   <i className="fa-solid fa-xmark"></i>
                 </button>
               )}
             </div>
 
-            <div className="pm-filter-item">
-              <select 
-                className="pm-select"
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                <option value="all">All Categories</option>
-                <option value="Organization">Student Organization</option>
-                <option value="Department">Academic Department</option>
-                <option value="College">College Unit</option>
-                <option value="Office">University Office</option>
-              </select>
-            </div>
+            <select 
+              className="admin-inline-select"
+              value={categoryFilter}
+              aria-label="Filter by category"
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+            >
+              <option value="all">All Categories</option>
+              <option value="Organization">Student Organization</option>
+              <option value="Department">Academic Department</option>
+              <option value="College">College Unit</option>
+              <option value="Office">University Office</option>
+            </select>
 
-            <div className="pm-filter-item">
-              <select 
-                className="pm-select"
-                value={departmentFilter}
-                onChange={(e) => {
-                  setDepartmentFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                <option value="all">All Colleges / Units</option>
-                {departmentsList.map((dept, idx) => {
-                  const deptName = typeof dept === 'string' ? dept : dept.name;
-                  const deptCode = typeof dept === 'string' ? '' : dept.code;
-                  return (
-                    <option key={dept.id || idx} value={deptName}>
-                      {deptCode ? `${deptCode} — ${deptName}` : deptName}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
+            <select 
+              className="admin-inline-select"
+              value={departmentFilter}
+              aria-label="Filter by college or unit"
+              onChange={(e) => {
+                setDepartmentFilter(e.target.value);
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+            >
+              <option value="all">All Colleges / Units</option>
+              {departmentsList.map((dept, idx) => {
+                const deptName = typeof dept === 'string' ? dept : dept.name;
+                const deptCode = typeof dept === 'string' ? '' : dept.code;
+                return (
+                  <option key={dept.id || idx} value={deptName}>
+                    {deptCode ? `${deptCode} — ${deptName}` : deptName}
+                  </option>
+                );
+              })}
+            </select>
 
-            <div className="pm-filter-item">
-              <select
-                className="pm-select"
-                value={sortOrder}
-                onChange={(e) => {
-                  setSortOrder(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                aria-label="Sort pages"
-              >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-              </select>
-            </div>
+            <select
+              className="admin-inline-select"
+              value={sortOrder}
+              onChange={(e) => {
+                setSortOrder(e.target.value);
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+              aria-label="Sort pages"
+            >
+              <option value="newest">Sort: Newest First</option>
+              <option value="oldest">Sort: Oldest First</option>
+            </select>
 
-            {(searchQuery || categoryFilter !== 'all' || departmentFilter !== 'all' || sortOrder !== 'newest') && (
-              <button 
-                type="button" 
-                className="btn-pm-link"
-                onClick={() => {
-                  setSearchQuery('');
-                  setCategoryFilter('all');
-                  setDepartmentFilter('all');
-                  setSortOrder('newest');
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-              >
-                Clear Filters
-              </button>
-            )}
+            <button 
+              type="button" 
+              className="admin-inline-reset-btn"
+              onClick={() => {
+                setSearchQuery('');
+                setCategoryFilter('all');
+                setDepartmentFilter('all');
+                setSortOrder('newest');
+                setPagination(prev => ({ ...prev, page: 1 }));
+              }}
+            >
+              <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+              <span>Reset</span>
+            </button>
           </div>
-
         </div>
 
         {/* ================= DATA TABLE DISPLAY ================= */}
         <div className="pm-table-card">
+          <div className="admin-table-head">
+            <div className="admin-table-title">
+              <i className="fa-solid fa-layer-group" aria-hidden="true"></i>
+              <span>Organization &amp; Department Pages</span>
+            </div>
+            <span className="admin-table-matching">{pagination.total} Matching</span>
+          </div>
+
           {loading ? (
             <div className="table-skeleton-container">
               <div className="skeleton-row"></div>
@@ -618,49 +570,51 @@ const PageManagement = () => {
                       </td>
                       <td className="text-slate-500">{new Date(page.created_at).toLocaleDateString()}</td>
                       <td className="text-right">
-                        <div className="table-action-group">
+                        <div className="admin-action-pill-group">
                           {(() => {
                             const st = String(page.status || '').toLowerCase();
                             return (
                               <>
                                 <button
                                   type="button"
-                                  className="btn-table-action secondary"
+                                  className="admin-action-icon is-view"
                                   title="View Page Details"
+                                  aria-label="View Page Details"
                                   onClick={() => {
                                     setSelectedPage(page);
                                     setActiveModal('review');
                                   }}
                                 >
                                   <i className="fa-solid fa-eye"></i>
-                                  <span>View</span>
                                 </button>
 
                                 {st === 'pending' && (
                                   <>
                                     <button
                                       type="button"
-                                      className="btn-table-action success"
+                                      className="admin-action-icon is-approve"
                                       title="Approve Page Request"
+                                      aria-label="Approve Page Request"
                                       onClick={() => {
                                         setSelectedPage(page);
                                         setPendingActionType('approve');
                                         setActiveModal('status_change');
                                       }}
                                     >
-                                      Approve
+                                      <i className="fa-solid fa-check"></i>
                                     </button>
                                     <button
                                       type="button"
-                                      className="btn-table-action danger"
+                                      className="admin-action-icon is-danger"
                                       title="Reject Page Request"
+                                      aria-label="Reject Page Request"
                                       onClick={() => {
                                         setSelectedPage(page);
                                         setPendingActionType('reject');
                                         setActiveModal('status_change');
                                       }}
                                     >
-                                      Reject
+                                      <i className="fa-solid fa-xmark"></i>
                                     </button>
                                   </>
                                 )}
@@ -669,23 +623,25 @@ const PageManagement = () => {
                                   <>
                                     <button
                                       type="button"
-                                      className="btn-table-action secondary"
+                                      className="admin-action-icon is-edit"
                                       onClick={() => handleOpenStaffModal(page)}
                                       title="Manage Assigned Staff"
+                                      aria-label="Manage Assigned Staff"
                                     >
                                       <i className="fa-solid fa-user-gear"></i>
                                     </button>
                                     <button
                                       type="button"
-                                      className="btn-table-action danger"
+                                      className="admin-action-icon is-danger"
                                       title="Suspend Page"
+                                      aria-label="Suspend Page"
                                       onClick={() => {
                                         setSelectedPage(page);
                                         setPendingActionType('suspend');
                                         setActiveModal('status_change');
                                       }}
                                     >
-                                      Suspend
+                                      <i className="fa-solid fa-ban"></i>
                                     </button>
                                   </>
                                 )}
@@ -693,15 +649,16 @@ const PageManagement = () => {
                                 {st === 'suspended' && (
                                   <button
                                     type="button"
-                                    className="btn-table-action success"
+                                    className="admin-action-icon is-approve"
                                     title="Reactivate Page"
+                                    aria-label="Reactivate Page"
                                     onClick={() => {
                                       setSelectedPage(page);
                                       setPendingActionType('reactivate');
                                       setActiveModal('status_change');
                                     }}
                                   >
-                                    Reactivate
+                                    <i className="fa-solid fa-rotate-left"></i>
                                   </button>
                                 )}
                               </>
@@ -715,21 +672,21 @@ const PageManagement = () => {
               </table>
             </div>
           )}
-        </div>
 
-        {/* ================= PAGINATION BAR ================= */}
-        {!loading && pagesList.length > 0 && (
-          <Pagination
-            currentPage={pagination.page}
-            totalPages={pagination.totalPages}
-            totalRecords={pagination.total}
-            pageSize={pagination.limit}
-            onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
-            onPageSizeChange={(limit) => setPagination(prev => ({ ...prev, limit, page: 1 }))}
-            loading={loading}
-            itemLabel="pages"
-          />
-        )}
+          {/* ================= PAGINATION BAR ================= */}
+          {!loading && pagesList.length > 0 && (
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              totalRecords={pagination.total}
+              pageSize={pagination.limit}
+              onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+              onPageSizeChange={(limit) => setPagination(prev => ({ ...prev, limit, page: 1 }))}
+              loading={loading}
+              itemLabel="pages"
+            />
+          )}
+        </div>
 
         {/* ================= MODALS & DRAWERS ================= */}
 
