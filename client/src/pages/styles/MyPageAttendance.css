@@ -44,7 +44,7 @@
 .attendance-title-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 1.25rem;
   flex-wrap: wrap;
 }
@@ -64,6 +64,7 @@
 }
 
 .event-selector-box {
+  flex: 0 1 280px;
   min-width: 220px;
   width: 100%;
   max-width: 320px;
@@ -293,18 +294,17 @@
   background-color: #f8fafc;
 }
 
-/* Scrollable Responsive Tabs */
+/* Responsive Tabs */
 .attendance-nav-tabs-wrapper {
   width: 100%;
-  overflow-x: auto;
+  overflow: visible;
   border-bottom: 2px solid #e2e8f0;
-  -webkit-overflow-scrolling: touch;
 }
 
 .attendance-nav-tabs {
   display: flex;
-  gap: 1.25rem;
-  min-width: max-content;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
 }
 
 .tab-item {

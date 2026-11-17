@@ -164,31 +164,41 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
 
   return (
     <MyPageDashboardLayout activeTab="registrations" onSwitchToStaffDashboard={onSwitchToStaffDashboard}>
-      <main className="lg-col-6 space-y-6">
+      <main className="lg-col-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         
         {/* PAGE HEADER & SUMMARY STATS CARD */}
-        <div className="card">
+        <div className="card" style={{ borderRadius: '1rem', padding: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
-              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--slate-900)' }}>
+              <h1 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--slate-900)', margin: 0 }}>
                 Event Registrations
               </h1>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', marginTop: '2px' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--slate-500)', margin: '4px 0 0 0' }}>
                 View and manage students registered for your events.
               </p>
             </div>
 
             <button
               type="button"
-              className="btn-nav"
               disabled={!selectedEventId || registrations.length === 0}
               onClick={handleExportCSV}
               style={{
-                opacity: selectedEventId && registrations.length > 0 ? 1 : 0.6,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                padding: '0.55rem 1rem',
+                borderRadius: '0.5rem',
+                border: 'none',
+                backgroundColor: '#881337',
+                color: '#ffffff',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                opacity: selectedEventId && registrations.length > 0 ? 1 : 0.55,
                 cursor: selectedEventId && registrations.length > 0 ? 'pointer' : 'not-allowed'
               }}
             >
-              <i className="fa-solid fa-file-csv" style={{ marginRight: '0.5rem' }}></i> Export CSV
+              <i className="fa-solid fa-file-csv"></i>
+              <span>Export CSV</span>
             </button>
           </div>
 
@@ -220,19 +230,29 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
         </div>
 
         {/* SEARCH & FILTERS CARD */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', borderRadius: '1rem', padding: '1.25rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
             
             {/* Event Selector */}
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--slate-500)', display: 'block', marginBottom: '4px' }}>
+              <label htmlFor="reg-event-select" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--slate-500)', display: 'block', marginBottom: '4px' }}>
                 SELECT EVENT
               </label>
               <select
+                id="reg-event-select"
                 value={selectedEventId}
                 onChange={(e) => { setSelectedEventId(e.target.value); setCurrentPage(1); }}
-                className="search-input"
-                style={{ padding: '0.45rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--slate-50)' }}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: '0.875rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
               >
                 {events.length === 0 && <option value="">No events available</option>}
                 {events.map(evt => (
@@ -243,14 +263,24 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
 
             {/* Status Filter */}
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--slate-500)', display: 'block', marginBottom: '4px' }}>
+              <label htmlFor="reg-status-select" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--slate-500)', display: 'block', marginBottom: '4px' }}>
                 REGISTRATION STATUS
               </label>
               <select
+                id="reg-status-select"
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                className="search-input"
-                style={{ padding: '0.45rem 0.6rem', borderRadius: '0.5rem', backgroundColor: 'var(--slate-50)' }}
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: '0.875rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
               >
                 <option value="all">All Statuses</option>
                 <option value="registered">Registered</option>
@@ -260,14 +290,22 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
           </div>
 
           {/* Search Field */}
-          <div className="search-wrapper">
-            <i className="fa-solid fa-magnifying-glass search-icon"></i>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '0.5rem', backgroundColor: '#ffffff' }}>
+            <i className="fa-solid fa-magnifying-glass" style={{ color: '#64748b', fontSize: '0.875rem' }}></i>
             <input
               type="text"
-              className="search-input"
               placeholder="Search by student name, ID, or email..."
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+              style={{
+                flex: 1,
+                border: 'none',
+                outline: 'none',
+                backgroundColor: 'transparent',
+                color: '#0f172a',
+                fontSize: '0.875rem',
+                fontFamily: 'inherit'
+              }}
             />
           </div>
         </div>
@@ -376,7 +414,7 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
               style={{
                 padding: '0.75rem 1rem',
                 display: 'flex',
-                justify: 'space-between',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 borderTop: '1px solid var(--slate-200)',
                 fontSize: '0.8125rem'

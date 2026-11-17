@@ -418,7 +418,7 @@ export default function Settings() {
                       className="lp-eye-action"
                       onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                     >
-                      <i className={`fa-solid ${showCurrentPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      <i className={`fa-solid ${showCurrentPassword ? 'fa-eye' : 'fa-eye-slash'}`}></i>
                     </button>
                   </div>
                 </div>
@@ -438,7 +438,7 @@ export default function Settings() {
                       className="lp-eye-action"
                       onClick={() => setShowNewPassword(!showNewPassword)}
                     >
-                      <i className={`fa-solid ${showNewPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                      <i className={`fa-solid ${showNewPassword ? 'fa-eye' : 'fa-eye-slash'}`}></i>
                     </button>
                   </div>
                 </div>

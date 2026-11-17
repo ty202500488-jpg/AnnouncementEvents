@@ -320,15 +320,15 @@ export default function MyPageAttendance() {
                 </div>
               </div>
 
-              <div className="action-buttons-group">
+              <div className="action-buttons-group" style={{ alignItems: 'center' }}>
                 {eventData.session?.status !== 'OPEN' && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', color: '#475569' }}>
-                    Auto-close at (optional)
+                  <label style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', fontSize: '0.8125rem', color: '#475569' }}>
+                    <span>Auto-close at (optional)</span>
                     <input
                       type="datetime-local"
                       value={autoCloseTime}
                       onChange={(e) => setAutoCloseTime(e.target.value)}
-                      style={{ padding: '0.4rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1' }}
+                      style={{ padding: '0.4rem 0.55rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#0f172a', maxWidth: '100%' }}
                     />
                   </label>
                 )}
@@ -375,7 +375,7 @@ export default function MyPageAttendance() {
 
             {activeTab === 'overview' && (
               <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: '0 0 0.5rem 0' }}>Attendance Window Guidelines</h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.5rem 0' }}>Attendance Window Guidelines</h3>
                 <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: 1.5, margin: 0 }}>
                   Opening the attendance window allows students to scan the live event QR code displayed on this page.
                   When the session closes, any eligible student who has not checked in will automatically be recorded as <strong>Absent</strong>.

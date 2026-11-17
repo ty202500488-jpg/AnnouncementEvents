@@ -670,6 +670,10 @@
   overflow: visible !important;
 }
 
+.student-dashboard-wrapper.fb-shell-layout .fb-center-track > .attendance-page-container {
+  max-width: 700px !important;
+}
+
 /* Mobile Slide-Out Drawer Override (wins cleanly over StaffDashboard.css inset: 0 !important) */
 .student-dashboard-wrapper.fb-shell-layout #leftSidebar.mobile-sidebar-active {
   display: block !important;
@@ -945,6 +949,10 @@
     margin-right: auto !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
+  }
+
+  .student-dashboard-wrapper.fb-shell-layout .fb-center-track > .attendance-page-container {
+    max-width: 700px !important;
   }
 
   /* Right Borderless Edge-Pinned Rail (small viewport gap, no card container on Dept Pages) */

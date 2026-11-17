@@ -29,8 +29,8 @@ router.get('/registrations/summary', async (req, res) => {
         }
 
         const result = await pool.query(
-            `SELECT COUNT(er.registration_id)::int AS total_registrations,
-                    COUNT(DISTINCT p.post_id)::int AS total_events_with_registrations
+            `SELECT COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS total_registrations,
+                    COUNT(DISTINCT er.event_post_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS total_events_with_registrations
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
@@ -62,7 +62,7 @@ router.get('/registrations/events', async (req, res) => {
                     ed.event_date AS date,
                     ed.location,
                     ed.capacity,
-                    COUNT(er.registration_id)::int AS registration_count
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registration_count
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id

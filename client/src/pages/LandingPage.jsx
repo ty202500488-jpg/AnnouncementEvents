@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './styles/LandingPage.css';
 import logo from '../assets/images/logo.jpg';
@@ -7,7 +7,29 @@ import image2 from '../assets/images/image2.jpg';
 import image3 from '../assets/images/image3.jpg';
 import image4 from '../assets/images/image4.jpg';
 
+const HERO_IMAGES = [
+  { id: 'hero-1', src: image1, alt: 'Campus Life Central Feature', tag: 'Campus Life' },
+  { id: 'hero-2', src: image2, alt: 'Campus Event Preview', tag: 'Events' },
+  { id: 'hero-3', src: image3, alt: 'Student Collaboration Preview', tag: 'Community' },
+  { id: 'hero-4', src: image4, alt: 'Campus Activities Preview', tag: 'Activities' },
+];
+
+const HERO_SLOT_CLASSES = [
+  'main-card',
+  'deck-card deck-top',
+  'deck-card deck-mid',
+  'deck-card deck-bot',
+];
+
 export default function LandingPage() {
+  const [cycleIndex, setCycleIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCycleIndex((prev) => (prev + 1) % HERO_IMAGES.length);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     // Smooth scrolling for anchor links
     const anchors = document.querySelectorAll('a[href^="#"]');
@@ -83,33 +105,22 @@ export default function LandingPage() {
             <div className="hero-photo-blob"></div>
 
             <div className="circular-hero-container">
-              <div className="hero-circle main-circle">
-                <img 
-                  src={image1} 
-                  alt="Campus Life Central Feature"
-                />
-              </div>
-
-              <div className="hero-circle satellite-circle sat-top">
-                <img 
-                  src={image2} 
-                  alt="Campus Event Preview"
-                />
-              </div>
-
-              <div className="hero-circle satellite-circle sat-mid">
-                <img 
-                  src={image3} 
-                  alt="Student Collaboration Preview"
-                />
-              </div>
-
-              <div className="hero-circle satellite-circle sat-bot">
-                <img 
-                  src={image4} 
-                  alt="Campus Activities Preview"
-                />
-              </div>
+              {HERO_IMAGES.map((img, idx) => {
+                const slotIdx = (idx - cycleIndex + HERO_IMAGES.length) % HERO_IMAGES.length;
+                const slotClass = HERO_SLOT_CLASSES[slotIdx];
+                const isMain = slotIdx === 0;
+                return (
+                  <div
+                    key={img.id}
+                    className={`hero-card ${slotClass}`}
+                    onClick={() => setCycleIndex(idx)}
+                    style={{ cursor: isMain ? 'default' : 'pointer' }}
+                    title={isMain ? img.alt : `Feature ${img.tag}`}
+                  >
+                    <img src={img.src} alt={img.alt} />
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -117,13 +128,13 @@ export default function LandingPage() {
             <h1 className="hero-title">
               <span className="hero-title-line">
                 <span className="hero-word word-1">Your</span>{' '}
-                <span className="hero-word word-2">Campus,</span>
+                <span className="hero-word word-2">Campus</span>
               </span>
               <span className="hero-title-line">
                 <span className="shimmer-glow-text">
                   <span className="hero-word word-3">In</span>{' '}
                   <span className="hero-word word-4">One</span>{' '}
-                  <span className="hero-word word-5">Place.</span>
+                  <span className="hero-word word-5">Place</span>
                 </span>
               </span>
             </h1>

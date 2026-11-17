@@ -682,16 +682,16 @@
   height: 20px;
 }
 
-.auth-page-root .toggle-password-btn .eye-off-icon {
+.auth-page-root .toggle-password-btn .eye-icon {
   display: none;
 }
 
 .auth-page-root .toggle-password-btn.visible .eye-icon {
-  display: none;
+  display: block;
 }
 
 .auth-page-root .toggle-password-btn.visible .eye-off-icon {
-  display: block;
+  display: none;
 }
 
 /* ====================================================
