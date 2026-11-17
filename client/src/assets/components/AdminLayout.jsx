@@ -514,6 +514,17 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
               </React.Fragment>
             ))}
           </nav>
+
+          <div className="admin-sidebar-footer">
+            <button
+              type="button"
+              className="admin-sidebar-logout-btn"
+              onClick={handleLogout}
+            >
+              <i className="fa-solid fa-right-from-bracket nav-icon" aria-hidden="true"></i>
+              <span>Logout</span>
+            </button>
+          </div>
         </aside>
 
         {/* MAIN VIEWPORT CANVAS */}

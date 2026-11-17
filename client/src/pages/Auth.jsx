@@ -887,7 +887,7 @@ export default function Auth() {
 
                     <div className="form-group">
                       <label className="form-label">
-                        M.I. <span className="optional-tag">(Opt.)</span>
+                        M.I. <span className="optional-tag">(Optional)</span>
                       </label>
                       <div className="input-container">
                         <input
