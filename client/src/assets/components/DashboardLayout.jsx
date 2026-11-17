@@ -384,16 +384,6 @@ export default function DashboardLayout({ children, activePage }) {
                     <span>Settings</span>
                   </div>
                 </a>
-                <button 
-                  type="button"
-                  onClick={handleLogout} 
-                  className="nav-item nav-item-logout"
-                >
-                  <div className="nav-item-content">
-                    <i className="fa-solid fa-right-from-bracket nav-icon"></i>
-                    <span>Logout</span>
-                  </div>
-                </button>
               </nav>
             </div>
           </div>

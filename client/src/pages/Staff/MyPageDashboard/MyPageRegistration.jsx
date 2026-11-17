@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
+import { RegistrationSubmissionPreview } from '../../../assets/components/EventRegistrationsManagerModal';
 
 export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
   // Stats & Event Options State
@@ -18,9 +19,12 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [paginationInfo, setPaginationInfo] = useState({ totalPages: 1, totalRecords: 0 });
 
-  // Detail Inspection Modal
+  // Detail Inspection & Status Review Modal
   const [selectedRegistrant, setSelectedRegistrant] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [reasonPrompt, setReasonPrompt] = useState(null); // { reg, action: 'reject' | 'remove' }
+  const [reasonText, setReasonText] = useState('');
+  const [reviewSaving, setReviewSaving] = useState(false);
 
   // Authentication Headers
   const getAuthHeaders = () => {
@@ -152,13 +156,57 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
     }
   };
 
+  const handleReviewStatus = async (reg, action, reason = '') => {
+    if (!selectedEventId || !reg || reviewSaving) return;
+    if ((action === 'reject' || action === 'remove') && !reason.trim()) {
+      alert('Please provide a reason.');
+      return;
+    }
+    setReviewSaving(true);
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/mypage/registrations/events/${selectedEventId}/students/${reg.id}/status`,
+        {
+          method: 'PUT',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ action, reason: reason.trim() }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.message || 'Failed to update registration status.');
+        return;
+      }
+      setReasonPrompt(null);
+      setReasonText('');
+      setSelectedRegistrant((prev) =>
+        prev && prev.id === reg.id
+          ? {
+              ...prev,
+              status: action === 'approve' ? 'Registered' : 'Rejected',
+              rejection_reason: action === 'approve' ? null : reason.trim(),
+            }
+          : prev
+      );
+      await Promise.all([fetchSummary(), fetchEvents(), fetchRegistrations()]);
+    } catch {
+      alert('Network error while updating registration.');
+    } finally {
+      setReviewSaving(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (String(status).toLowerCase()) {
+      case 'pending':
+        return { label: 'Pending', bg: '#fef3c7', color: '#b45309', icon: 'fa-clock' };
+      case 'rejected':
+        return { label: 'Rejected', bg: '#ffe4e6', color: '#be123c', icon: 'fa-circle-xmark' };
       case 'cancelled':
-        return { label: 'Cancelled', bg: 'var(--rose-100, #ffe4e6)', color: 'var(--rose-600, #e11d48)', icon: 'fa-circle-xmark' };
+        return { label: 'Cancelled', bg: '#f1f5f9', color: '#64748b', icon: 'fa-ban' };
       case 'registered':
       default:
-        return { label: 'Registered', bg: 'var(--emerald-100, #d1fae5)', color: 'var(--emerald-700, #047857)', icon: 'fa-circle-check' };
+        return { label: 'Accepted', bg: 'var(--emerald-100, #d1fae5)', color: 'var(--emerald-700, #047857)', icon: 'fa-circle-check' };
     }
   };
 
@@ -283,7 +331,9 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
                 }}
               >
                 <option value="all">All Statuses</option>
-                <option value="registered">Registered</option>
+                <option value="pending">Pending Approval</option>
+                <option value="registered">Accepted / Registered</option>
+                <option value="rejected">Rejected</option>
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
@@ -475,8 +525,10 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
             <div
               className="card"
               style={{
-                maxWidth: '480px',
+                maxWidth: '580px',
                 width: '100%',
+                maxHeight: '90vh',
+                overflowY: 'auto',
                 padding: '1.5rem',
                 boxShadow: 'var(--shadow-lg)'
               }}
@@ -497,13 +549,47 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
               {detailLoading ? (
                 <p style={{ color: 'var(--slate-400)', fontSize: '0.8125rem' }}>Loading details...</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.8125rem' }}>
-                  <div style={{ padding: '0.75rem', backgroundColor: 'var(--slate-50)', borderRadius: '0.5rem', border: '1px solid var(--slate-100)' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.975rem', color: 'var(--slate-800)' }}>
-                      {selectedRegistrant.student_name}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', fontSize: '0.8125rem' }}>
+                  <div style={{ padding: '0.75rem', backgroundColor: 'var(--slate-50)', borderRadius: '0.5rem', border: '1px solid var(--slate-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.975rem', color: 'var(--slate-800)' }}>
+                        {selectedRegistrant.student_name}
+                      </div>
+                      <div style={{ color: 'var(--slate-500)', fontSize: '0.75rem', marginTop: '2px' }}>
+                        ID: {selectedRegistrant.student_id || 'N/A'} • {selectedRegistrant.email}
+                      </div>
                     </div>
-                    <div style={{ color: 'var(--slate-500)', fontSize: '0.75rem', marginTop: '2px' }}>
-                      ID: {selectedRegistrant.student_id || 'N/A'} • {selectedRegistrant.email}
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {String(selectedRegistrant.status).toLowerCase() === 'pending' && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={reviewSaving}
+                            onClick={() => handleReviewStatus(selectedRegistrant, 'approve')}
+                            style={{ padding: '0.4rem 0.8rem', borderRadius: '0.45rem', border: 'none', backgroundColor: '#059669', color: '#ffffff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            disabled={reviewSaving}
+                            onClick={() => { setReasonPrompt({ reg: selectedRegistrant, action: 'reject' }); setReasonText(''); }}
+                            style={{ padding: '0.4rem 0.8rem', borderRadius: '0.45rem', border: 'none', backgroundColor: '#e11d48', color: '#ffffff', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {String(selectedRegistrant.status).toLowerCase() === 'registered' && (
+                        <button
+                          type="button"
+                          disabled={reviewSaving}
+                          onClick={() => { setReasonPrompt({ reg: selectedRegistrant, action: 'remove' }); setReasonText(''); }}
+                          style={{ padding: '0.4rem 0.8rem', borderRadius: '0.45rem', border: '1px solid #fecdd3', backgroundColor: '#fff1f2', color: '#be123c', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer' }}
+                        >
+                          Remove Registration
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -525,19 +611,88 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
                     <span style={{ fontWeight: 600, color: 'var(--slate-800)' }}>{selectedRegistrant.event_title}</span>
                   </div>
 
-                  <div>
-                    <span style={{ color: 'var(--slate-400)', display: 'block', fontSize: '11px' }}>REGISTRATION DATE</span>
-                    <span style={{ color: 'var(--slate-700)' }}>
-                      {selectedRegistrant.registered_at ? new Date(selectedRegistrant.registered_at).toLocaleString() : 'N/A'}
-                    </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <div>
+                      <span style={{ color: 'var(--slate-400)', display: 'block', fontSize: '11px' }}>REGISTRATION DATE</span>
+                      <span style={{ color: 'var(--slate-700)' }}>
+                        {selectedRegistrant.registered_at ? new Date(selectedRegistrant.registered_at).toLocaleString() : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--slate-400)', display: 'block', fontSize: '11px' }}>STATUS</span>
+                      <span style={{ fontWeight: 700, color: 'var(--slate-800)' }}>{selectedRegistrant.status}</span>
+                    </div>
                   </div>
 
+                  {selectedRegistrant.rejection_reason && (
+                    <div style={{ padding: '0.65rem', borderRadius: '0.5rem', backgroundColor: '#fff1f2', border: '1px solid #fecdd3', color: '#9f1239' }}>
+                      <strong>Decline / Removal Reason:</strong> {selectedRegistrant.rejection_reason}
+                    </div>
+                  )}
+
                   <div>
-                    <span style={{ color: 'var(--slate-400)', display: 'block', fontSize: '11px' }}>STATUS</span>
-                    <span style={{ fontWeight: 600, color: 'var(--slate-800)' }}>{selectedRegistrant.status}</span>
+                    <span style={{ color: 'var(--slate-400)', display: 'block', fontSize: '11px', marginBottom: '0.4rem' }}>SUBMITTED REQUIREMENTS</span>
+                    <RegistrationSubmissionPreview
+                      submissionData={selectedRegistrant.submission_data}
+                      requirements={selectedRegistrant.registration_requirements || []}
+                    />
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {reasonPrompt && (
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              zIndex: 1200,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem'
+            }}
+            onClick={() => !reviewSaving && setReasonPrompt(null)}
+          >
+            <div
+              style={{ backgroundColor: '#ffffff', borderRadius: '1rem', maxWidth: '420px', width: '100%', padding: '1.25rem', boxShadow: '0 20px 40px rgba(15,23,42,0.25)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h4 style={{ margin: '0 0 0.4rem 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                {reasonPrompt.action === 'remove' ? 'Remove Registration' : 'Reject Registration'}
+              </h4>
+              <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.8125rem', color: '#475569' }}>
+                Enter the reason for <strong>{reasonPrompt.reg.student_name}</strong>. It will be sent to their notifications.
+              </p>
+              <textarea
+                rows="3"
+                value={reasonText}
+                onChange={(e) => setReasonText(e.target.value)}
+                placeholder="Reason..."
+                style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                autoFocus
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.875rem' }}>
+                <button
+                  type="button"
+                  disabled={reviewSaving}
+                  onClick={() => setReasonPrompt(null)}
+                  style={{ padding: '0.45rem 0.9rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#334155', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={reviewSaving || !reasonText.trim()}
+                  onClick={() => handleReviewStatus(reasonPrompt.reg, reasonPrompt.action, reasonText)}
+                  style={{ padding: '0.45rem 1rem', borderRadius: '0.5rem', border: 'none', backgroundColor: '#e11d48', color: '#ffffff', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', opacity: !reasonText.trim() ? 0.6 : 1 }}
+                >
+                  {reviewSaving ? 'Sending...' : 'Confirm & Notify'}
+                </button>
+              </div>
             </div>
           </div>
         )}

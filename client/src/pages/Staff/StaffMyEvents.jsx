@@ -6,9 +6,11 @@ import {
   EventPostActionBar,
   PostOwnerActionMenu,
   PostEditDeleteModals,
+  applyEventRegistrationUpdate,
   updatePostRequest,
   deletePostRequest,
 } from '../../assets/components/PortalShellElements';
+import EventRegistrationModal from '../../assets/components/EventRegistrationModal';
 import '../styles/StaffDashboard.css';
 
 export default function StaffMyEvents() {
@@ -23,6 +25,7 @@ export default function StaffMyEvents() {
   const [postContent, setPostContent] = useState('');
   const [submittingPost, setSubmittingPost] = useState(false);
   const [deletingPost, setDeletingPost] = useState(null);
+  const [registeringModalEvent, setRegisteringModalEvent] = useState(null);
   const token = localStorage.getItem('token');
 
   const handleOpenEditPost = (item) => {
@@ -111,7 +114,10 @@ export default function StaffMyEvents() {
 
       const response = await fetch(`http://localhost:5000/users/events/${eventId}/cancel`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ staff_id: staffId })
       });
 
@@ -283,19 +289,28 @@ export default function StaffMyEvents() {
                               </button>
                             </>
                           )}
-                          <span 
-                            style={{ 
-                              fontSize: '0.625rem', 
-                              fontWeight: 600, 
-                              padding: '0.1rem 0.4rem', 
-                              borderRadius: '9999px', 
-                              backgroundColor: isUpcoming ? '#e6f7ef' : '#f1f5f9', 
-                              color: isUpcoming ? '#0f8a5f' : '#475569',
-                              border: `1px solid ${isUpcoming ? '#a7e3c8' : '#e2e8f0'}`
-                            }}
-                          >
-                            {isUpcoming ? 'Confirmed' : 'Ended'}
-                          </span>
+                          {(() => {
+                            const sLower = String(item.registration_status || 'Registered').toLowerCase();
+                            const badgeLabel = sLower === 'pending' ? 'Pending Approval' : sLower === 'rejected' ? 'Declined' : isUpcoming ? 'Confirmed' : 'Ended';
+                            const badgeBg = sLower === 'pending' ? '#fef3c7' : sLower === 'rejected' ? '#ffe4e6' : isUpcoming ? '#e6f7ef' : '#f1f5f9';
+                            const badgeColor = sLower === 'pending' ? '#b45309' : sLower === 'rejected' ? '#be123c' : isUpcoming ? '#0f8a5f' : '#475569';
+                            const badgeBorder = sLower === 'pending' ? '#fde68a' : sLower === 'rejected' ? '#fecdd3' : isUpcoming ? '#a7e3c8' : '#e2e8f0';
+                            return (
+                              <span
+                                style={{
+                                  fontSize: '0.625rem',
+                                  fontWeight: 600,
+                                  padding: '0.1rem 0.4rem',
+                                  borderRadius: '9999px',
+                                  backgroundColor: badgeBg,
+                                  color: badgeColor,
+                                  border: `1px solid ${badgeBorder}`
+                                }}
+                              >
+                                {badgeLabel}
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                           <EventPostMeta
@@ -303,6 +318,7 @@ export default function StaffMyEvents() {
                             capacity={item.max_capacity || item.capacity}
                             createdAt={item.created_at}
                             audience={item.audience}
+                            requiresRegistration={item.requires_registration !== false}
                           />
                         </div>
                       </div>
@@ -366,11 +382,26 @@ export default function StaffMyEvents() {
                     </div>
                   )}
 
-                  {/* Inline Action Bar (Scan / Unregister) */}
+                  {/* Inline Action Bar (Scan / Unregister / Resubmit) */}
                   <EventPostActionBar
-                    isRegistered={true}
-                    onToggleRegister={isUpcoming ? () => handleCancelRegistration(item.id) : null}
-                    onScanAttendance={isUpcoming ? () => {
+                    isRegistered={Boolean(item.is_registered)}
+                    registrationStatus={item.registration_status || 'Registered'}
+                    rejectionReason={item.rejection_reason}
+                    requiresRegistration={item.requires_registration !== false}
+                    registeredCount={currentRegistered}
+                    capacity={item.max_capacity || item.capacity}
+                    onToggleRegister={
+                      isUpcoming
+                        ? () => {
+                            if (String(item.registration_status || '').toLowerCase() === 'rejected') {
+                              setRegisteringModalEvent(item);
+                            } else {
+                              handleCancelRegistration(item.id);
+                            }
+                          }
+                        : null
+                    }
+                    onScanAttendance={isUpcoming && item.is_registered ? () => {
                       const scanToken = prompt("Scan or enter event QR token:");
                       if (scanToken) {
                         const clean = scanToken.trim().split('/').pop();
@@ -384,6 +415,16 @@ export default function StaffMyEvents() {
           </div>
         )}
       </main>
+      {registeringModalEvent && (
+        <EventRegistrationModal
+          event={registeringModalEvent}
+          onClose={() => setRegisteringModalEvent(null)}
+          onSuccess={(data, targetId) => {
+            setMyEvents((prev) => applyEventRegistrationUpdate(prev, targetId, data?.status || 'Registered'));
+            setRegisteringModalEvent(null);
+          }}
+        />
+      )}
       <PostEditDeleteModals
         editingPost={editingPost}
         postTitle={postTitle}

@@ -577,18 +577,33 @@ async function notifyPublishedPost(db, { post, page = null, actorUserId = null }
 }
 
 /**
- * Notify both the registrant and MyPage staff when a registration is created or cancelled.
+ * Notify both the registrant and MyPage staff when a registration changes status.
  */
-async function notifyEventRegistrationChange(db, { postId, eventTitle, pageId, registrantUserId, registrantName = 'A student', action = 'registered' }) {
+async function notifyEventRegistrationChange(db, {
+    postId,
+    eventTitle,
+    pageId,
+    registrantUserId,
+    actorUserId = null,
+    registrantName = 'A student',
+    action = 'registered',
+    reason = ''
+}) {
     try {
         await ensureNotificationSchema(db);
         const globalSettings = await getGlobalNotificationSettings(db);
         if (!globalSettings.enable_in_app_notifications) return 0;
 
-        const isCancel = String(action).toLowerCase().includes('cancel');
+        const normAction = String(action || 'registered').toLowerCase();
+        const isCancel = normAction.includes('cancel');
+        const isPending = normAction === 'submitted_pending' || normAction === 'pending';
+        const isApproved = normAction === 'approved';
+        const isRejected = normAction === 'rejected';
+        const isRemoved = normAction === 'removed';
+        const trimmedReason = String(reason || '').trim();
         const toInsert = [];
 
-        // 1. Registrant confirmation / cancellation notice
+        // 1. Registrant status notice
         if (registrantUserId) {
             const regRes = await db.query(
                 `SELECT u.notification_preferences, r.role_name
@@ -604,24 +619,46 @@ async function notifyEventRegistrationChange(db, { postId, eventTitle, pageId, r
                 const wantsReg = role === 'student' ? prefs.registrationUpdates : prefs.eventApprovalAlerts;
 
                 if (wantsReg && (role === 'student' || role === 'staff')) {
+                    let title = `Registration Confirmed: ${eventTitle}`;
+                    let message = `Your seat is confirmed for "${eventTitle}".`;
+
+                    if (isCancel) {
+                        title = `Registration Cancelled: ${eventTitle}`;
+                        message = `You cancelled your registration for "${eventTitle}".`;
+                    } else if (isPending) {
+                        title = `Registration Submitted: ${eventTitle}`;
+                        message = `Your registration for "${eventTitle}" was submitted and is awaiting organizer approval.`;
+                    } else if (isApproved) {
+                        title = `Registration Approved: ${eventTitle}`;
+                        message = `Your registration for "${eventTitle}" has been approved! Your seat is confirmed.`;
+                    } else if (isRejected) {
+                        title = `Registration Declined: ${eventTitle}`;
+                        message = trimmedReason
+                            ? `Your registration for "${eventTitle}" was declined. Reason: ${trimmedReason}`
+                            : `Your registration for "${eventTitle}" was declined by the organizer.`;
+                    } else if (isRemoved) {
+                        title = `Registration Removed: ${eventTitle}`;
+                        message = trimmedReason
+                            ? `Your registration for "${eventTitle}" was removed by the organizer. Reason: ${trimmedReason}`
+                            : `Your registration for "${eventTitle}" was removed by the organizer.`;
+                    }
+
                     toInsert.push({
                         recipientUserId: registrantUserId,
-                        actorUserId: registrantUserId,
+                        actorUserId: actorUserId || registrantUserId,
                         pageId,
                         postId,
                         scope: role,
                         type: 'registration',
-                        title: isCancel ? `Registration Cancelled: ${eventTitle}` : `Registration Confirmed: ${eventTitle}`,
-                        message: isCancel
-                            ? `You cancelled your registration for "${eventTitle}".`
-                            : `Your seat is confirmed for "${eventTitle}".`
+                        title,
+                        message
                     });
                 }
             }
         }
 
-        // 2. Page managers (created_by + active page_members) honoring page eventRegistrationAlerts
-        if (pageId) {
+        // 2. Page managers (created_by + active page_members) on student submission/cancellation
+        if (pageId && !isApproved && !isRejected && !isRemoved) {
             const pageRes = await db.query(
                 `SELECT page_name, notification_settings FROM pages WHERE page_id = $1 LIMIT 1`,
                 [pageId]
@@ -651,10 +688,16 @@ async function notifyEventRegistrationChange(db, { postId, eventTitle, pageId, r
                         postId,
                         scope: 'mypage',
                         type: 'registration',
-                        title: isCancel ? `Event Cancellation: ${eventTitle}` : `New Event Registration: ${eventTitle}`,
+                        title: isCancel
+                            ? `Event Cancellation: ${eventTitle}`
+                            : isPending
+                                ? `Pending Registration: ${eventTitle}`
+                                : `New Event Registration: ${eventTitle}`,
                         message: isCancel
                             ? `${registrantName} cancelled their registration for "${eventTitle}".`
-                            : `${registrantName} registered for "${eventTitle}".`
+                            : isPending
+                                ? `${registrantName} submitted a registration request for "${eventTitle}" awaiting approval.`
+                                : `${registrantName} registered for "${eventTitle}".`
                     });
                 }
             }

@@ -7,9 +7,13 @@ import {
   EventPostMeta,
   EventPostActionBar,
   PostAudienceBadge,
+  EventRequirementsPicker,
+  normalizeEventRequirements,
   toggleEventRegistrationRequest,
   applyEventRegistrationUpdate,
 } from '../../../assets/components/PortalShellElements';
+import EventRegistrationModal from '../../../assets/components/EventRegistrationModal';
+import EventRegistrationsManagerModal from '../../../assets/components/EventRegistrationsManagerModal';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
 import {
   shuffleFeedItems,
@@ -28,17 +32,32 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [registeringEventId, setRegisteringEventId] = useState(null);
+  const [registeringModalEvent, setRegisteringModalEvent] = useState(null);
+  const [viewingRegistrationsEvent, setViewingRegistrationsEvent] = useState(null);
 
-  const handleEventRegister = async (eventId, isAlreadyRegistered) => {
+  const handleEventRegister = async (eventItem) => {
+    const eventId = eventItem.id || eventItem.post_id;
+    const statusLower = String(eventItem.registration_status || '').toLowerCase();
+    const isAlreadySubmitted = Boolean(eventItem.is_registered) || statusLower === 'registered' || statusLower === 'pending';
+
+    if (!isAlreadySubmitted) {
+      if (!localStorage.getItem('token')) {
+        window.location.href = '/auth';
+        return;
+      }
+      setRegisteringModalEvent(eventItem);
+      return;
+    }
+
     setRegisteringEventId(eventId);
     try {
-      const result = await toggleEventRegistrationRequest(eventId, isAlreadyRegistered);
+      const result = await toggleEventRegistrationRequest(eventId, true);
       if (result.unauthenticated) {
         window.location.href = '/auth';
         return;
       }
       if (result.ok) {
-        setFeed((prev) => applyEventRegistrationUpdate(prev, eventId, !isAlreadyRegistered));
+        setFeed((prev) => applyEventRegistrationUpdate(prev, eventId, null));
       } else {
         alert(result.message || 'Failed to update event registration.');
       }
@@ -59,6 +78,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [eventDate, setEventDate] = useState('');
   const [location, setLocation] = useState('');
   const [capacity, setCapacity] = useState('');
+  const [requiresRegistration, setRequiresRegistration] = useState(true);
+  const [registrationMode, setRegistrationMode] = useState('first_come');
+  const [registrationRequirements, setRegistrationRequirements] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [removeExistingImage, setRemoveExistingImage] = useState(false);
@@ -331,6 +353,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     setEventDate('');
     setLocation('');
     setCapacity('');
+    setRequiresRegistration(true);
+    setRegistrationMode('first_come');
+    setRegistrationRequirements([]);
     setCategoryId('');
     setSelectedImage(null);
     setImagePreview(null);
@@ -340,6 +365,29 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     setEditingPost(null);
     setModalPickerView(null);
     setIsModalOpen(false);
+  };
+
+  const handleOpenEditModal = (item) => {
+    const isEv = item._type === 'Event' || item.post_type === 'event';
+    setEditingPost(item);
+    setPostType(isEv ? 'event' : 'announcement');
+    setQuickTitle(item.title || item.event_title || '');
+    setQuickBody(item.content || item.description || item.event_description || '');
+    setAudience(item.audience || 'All Campus');
+    setCategoryId(item.category_id ? String(item.category_id) : '');
+    setEventDate(item.event_date ? String(item.event_date).split('T')[0] : '');
+    setLocation(item.location || item.venue || '');
+    setCapacity(item.capacity || item.max_capacity ? String(item.capacity || item.max_capacity) : '');
+    setRequiresRegistration(item.requires_registration !== false);
+    setRegistrationMode(item.registration_mode || 'first_come');
+    setRegistrationRequirements(normalizeEventRequirements(item.registration_requirements));
+    setImagePreview(item.image_url || item.image || null);
+    setSelectedImage(null);
+    setRemoveExistingImage(false);
+    setIsUniversityWide(Boolean(item.is_university_wide));
+    setSpotlightExpiresAt(item.expires_at ? String(item.expires_at).slice(0, 16) : '');
+    setModalPickerView(null);
+    setIsModalOpen(true);
   };
 
   const handlePublishPost = async (e) => {
@@ -383,6 +431,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           audience,
           image_data: imagePreview || null,
           remove_image: removeExistingImage,
+          requires_registration: requiresRegistration,
+          registration_mode: registrationMode,
+          registration_requirements: requiresRegistration ? registrationRequirements : [],
           ...spotlightPayload
         } : {
           title: quickTitle,
@@ -449,6 +500,9 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
               category_id: categoryId ? parseInt(categoryId) : null,
               audience,
               image_data: imagePreview || null,
+              requires_registration: requiresRegistration,
+              registration_mode: registrationMode,
+              registration_requirements: requiresRegistration ? registrationRequirements : [],
               ...spotlightPayload
             })
           });
@@ -826,20 +880,31 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 />
 
                 {postType === 'event' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1' }}>
-                    <div>
-                      <label htmlFor="event-date" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>EVENT DATE</label>
-                      <input id="event-date" name="event_date" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} required />
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1' }}>
+                      <div>
+                        <label htmlFor="event-date" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>EVENT DATE</label>
+                        <input id="event-date" name="event_date" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} required />
+                      </div>
+                      <div>
+                        <label htmlFor="event-location" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>LOCATION / VENUE</label>
+                        <input id="event-location" name="location" type="text" placeholder="e.g. CCS Gym" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label htmlFor="event-capacity" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>CAPACITY</label>
+                        <input id="event-capacity" name="capacity" type="number" placeholder="Max capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
+                      </div>
                     </div>
-                    <div>
-                      <label htmlFor="event-location" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>LOCATION / VENUE</label>
-                      <input id="event-location" name="location" type="text" placeholder="e.g. CCS Gym" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <label htmlFor="event-capacity" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>CAPACITY</label>
-                      <input id="event-capacity" name="capacity" type="number" placeholder="Max capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
-                    </div>
-                  </div>
+
+                    <EventRequirementsPicker
+                      requiresRegistration={requiresRegistration}
+                      onChangeRequiresRegistration={setRequiresRegistration}
+                      registrationMode={registrationMode}
+                      onChangeRegistrationMode={setRegistrationMode}
+                      requirements={registrationRequirements}
+                      onChangeRequirements={setRegistrationRequirements}
+                    />
+                  </>
                 )}
 
                 <textarea 
@@ -1066,6 +1131,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                             capacity={item.max_capacity || item.capacity}
                             createdAt={item.created_at}
                             audience={item.audience}
+                            requiresRegistration={item.requires_registration !== false}
                           />
                         ) : (
                           <>
@@ -1241,8 +1307,16 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                 {isEvent && (
                   <EventPostActionBar
                     isRegistered={Boolean(item.is_registered)}
+                    registrationStatus={item.registration_status}
+                    rejectionReason={item.rejection_reason}
+                    requiresRegistration={item.requires_registration !== false}
+                    registeredCount={currentRegistered}
+                    capacity={item.max_capacity || item.capacity}
+                    pendingCount={item.pending_registration_count || 0}
+                    isOwner={Boolean(isMyOwnPage || item.is_owner)}
                     isRegistering={registeringEventId === postId}
-                    onToggleRegister={() => handleEventRegister(postId, Boolean(item.is_registered))}
+                    onToggleRegister={!(isMyOwnPage || item.is_owner) ? () => handleEventRegister(item) : null}
+                    onViewRegistrations={() => setViewingRegistrationsEvent(item)}
                     onScanAttendance={() => {
                       const scanToken = prompt("Scan or enter event QR token:");
                       if (scanToken) {
@@ -1257,6 +1331,38 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           })
         )}
       </main>
+
+      {registeringModalEvent && (
+        <EventRegistrationModal
+          event={registeringModalEvent}
+          onClose={() => setRegisteringModalEvent(null)}
+          onSuccess={(data, targetId) => {
+            setFeed((prev) => applyEventRegistrationUpdate(prev, targetId, data?.status || 'Registered'));
+            setRegisteringModalEvent(null);
+          }}
+        />
+      )}
+
+      {viewingRegistrationsEvent && (
+        <EventRegistrationsManagerModal
+          event={viewingRegistrationsEvent}
+          onClose={() => setViewingRegistrationsEvent(null)}
+          onUpdated={(targetId, counts) => {
+            setFeed((prev) =>
+              prev.map((p) =>
+                (p.id || p.post_id) === targetId
+                  ? {
+                      ...p,
+                      registered_count: counts.registered_count,
+                      current_registered: counts.registered_count,
+                      pending_registration_count: counts.pending_registration_count,
+                    }
+                  : p
+              )
+            );
+          }}
+        />
+      )}
 
       {deletingPost && (
         <div

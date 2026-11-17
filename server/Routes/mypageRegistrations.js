@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authenticateUser } = require('../middleware/auth');
+const { ensureEventRegistrationSchema } = require('../utils/eventRegistrationHelper');
+const { notifyEventRegistrationChange } = require('../utils/notificationService');
+
+ensureEventRegistrationSchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure event registration schema:', err.message);
+});
 
 async function getUserManagedPages(userId) {
     const pageRes = await pool.query(
@@ -29,8 +35,9 @@ router.get('/registrations/summary', async (req, res) => {
         }
 
         const result = await pool.query(
-            `SELECT COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS total_registrations,
-                    COUNT(DISTINCT er.event_post_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS total_events_with_registrations
+            `SELECT COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS total_registrations,
+                    COUNT(DISTINCT er.event_post_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS total_events_with_registrations,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'pending')::int AS total_pending
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
@@ -62,12 +69,16 @@ router.get('/registrations/events', async (req, res) => {
                     ed.event_date AS date,
                     ed.location,
                     ed.capacity,
-                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registration_count
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS registration_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'pending')::int AS pending_count
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN event_registrations er ON ed.post_id = er.event_post_id
              WHERE p.page_id = ANY($1::int[]) AND p.is_archived = FALSE
-             GROUP BY p.post_id, p.title, ed.event_date, ed.location, ed.capacity
+             GROUP BY p.post_id, p.title, ed.event_date, ed.location, ed.capacity, ed.requires_registration, ed.registration_mode, ed.registration_requirements
              ORDER BY ed.event_date DESC`,
             [managedPageIds]
         );
@@ -134,10 +145,32 @@ router.get('/registrations/events/:eventId/students', async (req, res) => {
         const totalRecords = countRes.rows[0].total;
 
         queryParams.push(limitNum, offset);
+        const eventInfoRes = await pool.query(
+            `SELECT p.post_id AS id,
+                    p.title,
+                    p.page_id,
+                    ed.event_date,
+                    ed.location,
+                    ed.capacity,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
+                    (SELECT COUNT(*)::int FROM event_registrations er_c WHERE er_c.event_post_id = p.post_id AND LOWER(er_c.status) = 'registered') AS accepted_count,
+                    (SELECT COUNT(*)::int FROM event_registrations er_p WHERE er_p.event_post_id = p.post_id AND LOWER(er_p.status) = 'pending') AS pending_count,
+                    (SELECT COUNT(*)::int FROM event_registrations er_r WHERE er_r.event_post_id = p.post_id AND LOWER(er_r.status) = 'rejected') AS rejected_count
+             FROM posts p
+             JOIN event_details ed ON p.post_id = ed.post_id
+             WHERE p.post_id = $1`,
+            [eventId]
+        );
+
         const dataRes = await pool.query(
             `SELECT er.registration_id AS id,
                     er.status,
                     er.registered_at,
+                    er.submission_data,
+                    er.rejection_reason,
+                    er.reviewed_at,
                     u.user_id AS student_user_id,
                     COALESCE(NULLIF(TRIM(u.first_name || ' ' || u.last_name), ''), u.email) AS student_name,
                     COALESCE(sp.student_number, 'N/A') AS student_id,
@@ -151,12 +184,14 @@ router.get('/registrations/events/:eventId/students', async (req, res) => {
              LEFT JOIN departments d ON sp.department_id = d.department_id
              LEFT JOIN programs pr ON sp.program_id = pr.program_id
              WHERE ${whereSql}
-             ORDER BY er.registered_at DESC
+             ORDER BY CASE WHEN LOWER(er.status) = 'pending' THEN 0 WHEN LOWER(er.status) = 'registered' THEN 1 ELSE 2 END,
+                      er.registered_at DESC
              LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`,
             queryParams
         );
 
         return res.status(200).json({
+            event: eventInfoRes.rows[0] || null,
             registrations: dataRes.rows,
             pagination: {
                 totalRecords,
@@ -184,8 +219,13 @@ router.get('/registrations/events/:eventId/students/:registrationId', async (req
             `SELECT er.registration_id AS id,
                     er.status,
                     er.registered_at,
+                    er.submission_data,
+                    er.rejection_reason,
+                    er.reviewed_at,
                     p.title AS event_title,
                     ed.event_date,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
                     COALESCE(NULLIF(TRIM(u.first_name || ' ' || u.last_name), ''), u.email) AS student_name,
                     COALESCE(sp.student_number, 'N/A') AS student_id,
                     u.email,
@@ -211,6 +251,131 @@ router.get('/registrations/events/:eventId/students/:registrationId', async (req
     } catch (error) {
         console.error('Error fetching registration detail:', error);
         return res.status(500).json({ message: 'Failed to fetch registration details.' });
+    }
+});
+
+// PUT /api/mypage/registrations/events/:eventId/students/:registrationId/status
+router.put('/registrations/events/:eventId/students/:registrationId/status', async (req, res) => {
+    try {
+        await ensureEventRegistrationSchema(pool);
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+
+        const eventId = Number(req.params.eventId);
+        const registrationId = Number(req.params.registrationId);
+        if (!Number.isInteger(eventId) || !Number.isInteger(registrationId)) {
+            return res.status(400).json({ message: 'Invalid Event or Registration ID.' });
+        }
+
+        const managedPageIds = await getUserManagedPages(user.user_id);
+        const eventRes = await pool.query(
+            `SELECT p.post_id, p.page_id, p.title, ed.capacity
+             FROM posts p
+             JOIN event_details ed ON p.post_id = ed.post_id
+             WHERE p.post_id = $1`,
+            [eventId]
+        );
+        if (eventRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Event not found.' });
+        }
+        const eventRow = eventRes.rows[0];
+        if (!managedPageIds.includes(eventRow.page_id) && String(user.role_name).toLowerCase() !== 'admin') {
+            return res.status(403).json({ message: 'Access denied to this event.' });
+        }
+
+        const action = String(req.body?.action || '').trim().toLowerCase();
+        const reason = String(req.body?.reason || '').trim();
+
+        if (!['approve', 'reject', 'remove'].includes(action)) {
+            return res.status(400).json({ message: 'Invalid action. Use approve, reject, or remove.' });
+        }
+        if ((action === 'reject' || action === 'remove') && !reason) {
+            return res.status(400).json({ message: 'Please provide a reason for rejecting or removing this registration.' });
+        }
+
+        const existingRes = await pool.query(
+            `SELECT er.registration_id, er.registrant_user_id, er.status,
+                    COALESCE(NULLIF(TRIM(u.first_name || ' ' || u.last_name), ''), u.email) AS student_name
+             FROM event_registrations er
+             JOIN users u ON er.registrant_user_id = u.user_id
+             WHERE er.registration_id = $1 AND er.event_post_id = $2
+             LIMIT 1`,
+            [registrationId, eventId]
+        );
+        if (existingRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Registration not found.' });
+        }
+        const regRow = existingRes.rows[0];
+
+        if (action === 'approve') {
+            if (eventRow.capacity) {
+                const countRes = await pool.query(
+                    `SELECT COUNT(*)::int AS cnt FROM event_registrations WHERE event_post_id = $1 AND LOWER(status) = 'registered'`,
+                    [eventId]
+                );
+                const alreadyAccepted = String(regRow.status || '').toLowerCase() === 'registered';
+                if (!alreadyAccepted && countRes.rows[0].cnt >= Number(eventRow.capacity)) {
+                    return res.status(400).json({ message: 'Cannot approve: this event has reached its maximum capacity.' });
+                }
+            }
+
+            const upd = await pool.query(
+                `UPDATE event_registrations
+                 SET status = 'Registered',
+                     rejection_reason = NULL,
+                     reviewed_at = NOW(),
+                     reviewed_by = $1
+                 WHERE registration_id = $2
+                 RETURNING *`,
+                [user.user_id, registrationId]
+            );
+
+            await notifyEventRegistrationChange(pool, {
+                postId: eventId,
+                eventTitle: eventRow.title,
+                pageId: eventRow.page_id,
+                registrantUserId: regRow.registrant_user_id,
+                actorUserId: user.user_id,
+                registrantName: regRow.student_name,
+                action: 'approved'
+            });
+
+            return res.status(200).json({
+                message: 'Registration approved.',
+                registration: upd.rows[0]
+            });
+        }
+
+        // Reject or Remove
+        const upd = await pool.query(
+            `UPDATE event_registrations
+             SET status = 'Rejected',
+                 rejection_reason = $1,
+                 reviewed_at = NOW(),
+                 reviewed_by = $2
+             WHERE registration_id = $3
+             RETURNING *`,
+            [reason, user.user_id, registrationId]
+        );
+
+        await notifyEventRegistrationChange(pool, {
+            postId: eventId,
+            eventTitle: eventRow.title,
+            pageId: eventRow.page_id,
+            registrantUserId: regRow.registrant_user_id,
+            actorUserId: user.user_id,
+            registrantName: regRow.student_name,
+            action: action === 'remove' ? 'removed' : 'rejected',
+            reason
+        });
+
+        return res.status(200).json({
+            message: action === 'remove' ? 'Registration removed and student notified.' : 'Registration rejected and student notified.',
+            registration: upd.rows[0]
+        });
+    } catch (error) {
+        console.error('Error updating registration status:', error);
+        return res.status(500).json({ message: 'Failed to update registration status.' });
     }
 });
 

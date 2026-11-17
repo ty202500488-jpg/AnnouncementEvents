@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/PageView.css';
 import '../../styles/StudentDashboard.css';
-import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, PostAudienceBadge, getInitials } from '../../../assets/components/PortalShellElements';
+import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials } from '../../../assets/components/PortalShellElements';
+import EventRegistrationsManagerModal from '../../../assets/components/EventRegistrationsManagerModal';
+import PostComposerModal from '../../../assets/components/PostComposerModal';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
 import { usePortalSearch } from '../../../utils/usePortalSearch';
 
@@ -35,8 +37,10 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
   const [removePostImage, setRemovePostImage] = useState(false);
   const [submittingPost, setSubmittingPost] = useState(false);
 
-  // Post Delete State
+  // Post Delete & Create State
   const [deletingPost, setDeletingPost] = useState(null);
+  const [viewingRegistrationsEvent, setViewingRegistrationsEvent] = useState(null);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
 
   // Navbar search, notifications & profile dropdown state
   const {
@@ -542,8 +546,16 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
             <div className="fb-actions-group">
               <button
                 type="button"
-                onClick={() => setIsEditingPage(true)}
+                onClick={() => setIsCreatingPost(true)}
                 className="btn-fb btn-fb-primary"
+              >
+                <i className="fa-solid fa-plus"></i>
+                <span>Create Post</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingPage(true)}
+                className="btn-fb btn-fb-secondary"
               >
                 <i className="fa-solid fa-pen-to-square"></i>
                 <span>Edit Profile</span>
@@ -655,6 +667,15 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                       ? 'There are no announcements published on this page yet.'
                       : 'This page has not published any announcements or events yet.'}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingPost(true)}
+                  className="btn-fb btn-fb-primary"
+                  style={{ marginTop: '1rem' }}
+                >
+                  <i className="fa-solid fa-plus"></i>
+                  <span>Create Post</span>
+                </button>
               </div>
             ) : (
               filteredPosts.map((item, idx) => {
@@ -718,6 +739,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                                 capacity={item.max_capacity || item.capacity}
                                 createdAt={item.created_at}
                                 audience={item.audience}
+                                requiresRegistration={item.requires_registration !== false}
                               />
                             ) : (
                               <>
@@ -859,6 +881,17 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                           {bodyText}
                         </p>
                       </div>
+                    )}
+
+                    {isEvent && (
+                      <EventPostActionBar
+                        requiresRegistration={item.requires_registration !== false}
+                        registeredCount={currentRegistered}
+                        capacity={item.max_capacity || item.capacity}
+                        pendingCount={item.pending_registration_count || 0}
+                        isOwner={true}
+                        onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                      />
                     )}
                   </article>
                 );
@@ -1082,6 +1115,48 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
             </form>
           </div>
         </div>
+      )}
+
+      {isCreatingPost && (
+        <PostComposerModal
+          isOpen={isCreatingPost}
+          onClose={() => setIsCreatingPost(false)}
+          pageId={pageData?.pageId}
+          pageName={pageName}
+          pageCode={pageData?.code || avatarFallback}
+          pageAvatarUrl={pageData?.profileImage || ''}
+          initialType={activeTab === 'events' ? 'event' : 'announcement'}
+          onCreated={(data, modStatus) => {
+            const authToken = localStorage.getItem('token');
+            if (pageData?.pageId && authToken) {
+              fetchPagePosts(pageData.pageId, authToken);
+            }
+            if (String(modStatus || '').toLowerCase() === 'pending') {
+              alert('Your post has been submitted for Admin approval.');
+            }
+          }}
+        />
+      )}
+
+      {viewingRegistrationsEvent && (
+        <EventRegistrationsManagerModal
+          event={viewingRegistrationsEvent}
+          onClose={() => setViewingRegistrationsEvent(null)}
+          onUpdated={(targetId, counts) => {
+            setPosts((prev) =>
+              prev.map((p) =>
+                (p.id || p.post_id) === targetId
+                  ? {
+                      ...p,
+                      registered_count: counts.registered_count,
+                      current_registered: counts.registered_count,
+                      pending_registration_count: counts.pending_registration_count,
+                    }
+                  : p
+              )
+            );
+          }}
+        />
       )}
 
       {/* Delete Confirmation Modal */}

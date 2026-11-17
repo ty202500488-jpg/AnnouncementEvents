@@ -11,6 +11,7 @@ import {
   updatePostRequest,
   deletePostRequest,
 } from '../../assets/components/PortalShellElements';
+import EventRegistrationModal from '../../assets/components/EventRegistrationModal';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import '../styles/StudentDashboard.css';
 
@@ -19,6 +20,7 @@ export default function Events() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [registeringEventId, setRegisteringEventId] = useState(null);
+  const [registeringModalEvent, setRegisteringModalEvent] = useState(null);
   const [activeMenuKey, setActiveMenuKey] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [postTitle, setPostTitle] = useState('');
@@ -76,16 +78,29 @@ export default function Events() {
     }
   };
 
-  const handleEventRegister = async (eventId, isAlreadyRegistered) => {
+  const handleEventRegister = async (eventItem) => {
+    const eventId = eventItem.id || eventItem.post_id;
+    const statusLower = String(eventItem.registration_status || '').toLowerCase();
+    const isAlreadySubmitted = Boolean(eventItem.is_registered) || statusLower === 'registered' || statusLower === 'pending';
+
+    if (!isAlreadySubmitted) {
+      if (!token) {
+        navigate('/auth');
+        return;
+      }
+      setRegisteringModalEvent(eventItem);
+      return;
+    }
+
     setRegisteringEventId(eventId);
     try {
-      const result = await toggleEventRegistrationRequest(eventId, isAlreadyRegistered);
+      const result = await toggleEventRegistrationRequest(eventId, true);
       if (result.unauthenticated) {
         navigate('/auth');
         return;
       }
       if (result.ok) {
-        setEvents((prev) => applyEventRegistrationUpdate(prev, eventId, !isAlreadyRegistered));
+        setEvents((prev) => applyEventRegistrationUpdate(prev, eventId, null));
       } else {
         alert(result.message || 'Failed to update event registration.');
       }
@@ -264,6 +279,7 @@ export default function Events() {
                             capacity={item.max_capacity || item.capacity}
                             createdAt={item.created_at}
                             audience={item.audience}
+                            requiresRegistration={item.requires_registration !== false}
                           />
                         </div>
                       </div>
@@ -330,8 +346,13 @@ export default function Events() {
                   {/* Event Registration & Attendance Bar */}
                   <EventPostActionBar
                     isRegistered={Boolean(item.is_registered)}
+                    registrationStatus={item.registration_status}
+                    rejectionReason={item.rejection_reason}
+                    requiresRegistration={item.requires_registration !== false}
+                    registeredCount={currentRegistered}
+                    capacity={item.max_capacity || item.capacity}
                     isRegistering={registeringEventId === (item.id || item.post_id)}
-                    onToggleRegister={() => handleEventRegister(item.id || item.post_id, Boolean(item.is_registered))}
+                    onToggleRegister={() => handleEventRegister(item)}
                     onScanAttendance={() => {
                       const scanToken = prompt("Scan or enter event QR token:");
                       if (scanToken) {
@@ -346,6 +367,16 @@ export default function Events() {
           </div>
         )}
       </main>
+      {registeringModalEvent && (
+        <EventRegistrationModal
+          event={registeringModalEvent}
+          onClose={() => setRegisteringModalEvent(null)}
+          onSuccess={(data, targetId) => {
+            setEvents((prev) => applyEventRegistrationUpdate(prev, targetId, data?.status || 'Registered'));
+            setRegisteringModalEvent(null);
+          }}
+        />
+      )}
       <PostEditDeleteModals
         editingPost={editingPost}
         postTitle={postTitle}

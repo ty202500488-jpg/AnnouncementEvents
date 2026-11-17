@@ -10,6 +10,7 @@ import {
   toggleEventRegistrationRequest,
   applyEventRegistrationUpdate,
 } from '../../assets/components/PortalShellElements';
+import EventRegistrationModal from '../../assets/components/EventRegistrationModal';
 import { getHighlightedCardProps, useHighlightedPost } from '../../utils/notificationUtils';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import {
@@ -34,18 +35,32 @@ export default function StudentDashboard() {
   const [submittingPost, setSubmittingPost] = useState(false);
   const [deletingPost, setDeletingPost] = useState(null);
   const [registeringEventId, setRegisteringEventId] = useState(null);
+  const [registeringModalEvent, setRegisteringModalEvent] = useState(null);
   const highlightedPostId = useHighlightedPost(!loading && feed.length > 0);
 
-  const handleEventRegister = async (eventId, isAlreadyRegistered) => {
+  const handleEventRegister = async (eventItem) => {
+    const eventId = eventItem.id || eventItem.post_id;
+    const statusLower = String(eventItem.registration_status || '').toLowerCase();
+    const isAlreadySubmitted = Boolean(eventItem.is_registered) || statusLower === 'registered' || statusLower === 'pending';
+
+    if (!isAlreadySubmitted) {
+      if (!token) {
+        navigate('/auth');
+        return;
+      }
+      setRegisteringModalEvent(eventItem);
+      return;
+    }
+
     setRegisteringEventId(eventId);
     try {
-      const result = await toggleEventRegistrationRequest(eventId, isAlreadyRegistered);
+      const result = await toggleEventRegistrationRequest(eventId, true);
       if (result.unauthenticated) {
         navigate('/auth');
         return;
       }
       if (result.ok) {
-        setFeed((prev) => applyEventRegistrationUpdate(prev, eventId, !isAlreadyRegistered));
+        setFeed((prev) => applyEventRegistrationUpdate(prev, eventId, null));
       } else {
         alert(result.message || 'Failed to update event registration.');
       }
@@ -408,6 +423,7 @@ export default function StudentDashboard() {
                             capacity={item.max_capacity || item.capacity}
                             createdAt={item.created_at}
                             audience={item.audience}
+                            requiresRegistration={item.requires_registration !== false}
                           />
                         ) : (
                           <>
@@ -581,8 +597,13 @@ export default function StudentDashboard() {
                 {isEvent && (
                   <EventPostActionBar
                     isRegistered={Boolean(item.is_registered)}
+                    registrationStatus={item.registration_status}
+                    rejectionReason={item.rejection_reason}
+                    requiresRegistration={item.requires_registration !== false}
+                    registeredCount={currentRegistered}
+                    capacity={item.max_capacity || item.capacity}
                     isRegistering={registeringEventId === postId}
-                    onToggleRegister={() => handleEventRegister(postId, Boolean(item.is_registered))}
+                    onToggleRegister={() => handleEventRegister(item)}
                     onScanAttendance={() => {
                       const scanToken = prompt("Scan or enter event QR token:");
                       if (scanToken) {
@@ -658,6 +679,17 @@ export default function StudentDashboard() {
             </form>
           </div>
         </div>
+      )}
+
+      {registeringModalEvent && (
+        <EventRegistrationModal
+          event={registeringModalEvent}
+          onClose={() => setRegisteringModalEvent(null)}
+          onSuccess={(data, targetId) => {
+            setFeed((prev) => applyEventRegistrationUpdate(prev, targetId, data?.status || 'Registered'));
+            setRegisteringModalEvent(null);
+          }}
+        />
       )}
 
       {/* Delete Confirmation Modal */}

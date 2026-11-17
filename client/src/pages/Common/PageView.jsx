@@ -2,7 +2,9 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import '../styles/PageView.css';
 import '../styles/StudentDashboard.css';
-import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials } from '../../assets/components/PortalShellElements';
+import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials, applyEventRegistrationUpdate } from '../../assets/components/PortalShellElements';
+import EventRegistrationModal from '../../assets/components/EventRegistrationModal';
+import EventRegistrationsManagerModal from '../../assets/components/EventRegistrationsManagerModal';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import { usePortalSearch } from '../../utils/usePortalSearch';
 
@@ -18,6 +20,8 @@ export default function PageView({ role = 'guest' }) {
   const [toastMessage, setToastMessage] = useState(null);
   const [isSubmittingFollow, setIsSubmittingFollow] = useState(false);
   const [registeringEventId, setRegisteringEventId] = useState(null);
+  const [registeringModalEvent, setRegisteringModalEvent] = useState(null);
+  const [viewingRegistrationsEvent, setViewingRegistrationsEvent] = useState(null);
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [postTitle, setPostTitle] = useState('');
@@ -395,21 +399,25 @@ export default function PageView({ role = 'guest' }) {
     }
   };
 
-  const handleEventRegister = async (eventId, isAlreadyRegistered) => {
+  const handleEventRegister = async (eventItem) => {
     if (!token) {
       navigate('/auth');
       return;
     }
 
-    setRegisteringEventId(eventId);
-    const method = isAlreadyRegistered ? 'DELETE' : 'POST';
-    const endpoint = isAlreadyRegistered 
-      ? `http://localhost:5000/api/users/events/${eventId}/cancel`
-      : `http://localhost:5000/api/users/events/${eventId}/register`;
+    const eventId = eventItem.id || eventItem.post_id;
+    const statusLower = String(eventItem.registration_status || '').toLowerCase();
+    const isAlreadySubmitted = Boolean(eventItem.is_registered) || statusLower === 'registered' || statusLower === 'pending';
 
+    if (!isAlreadySubmitted) {
+      setRegisteringModalEvent(eventItem);
+      return;
+    }
+
+    setRegisteringEventId(eventId);
     try {
-      const response = await fetch(endpoint, {
-        method,
+      const response = await fetch(`http://localhost:5000/api/users/events/${eventId}/cancel`, {
+        method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -418,8 +426,7 @@ export default function PageView({ role = 'guest' }) {
       const data = await response.json();
 
       if (response.ok) {
-        showToast(isAlreadyRegistered ? 'Registration cancelled.' : 'Successfully registered for event!');
-        // Refresh posts to reflect updated count and registration state
+        showToast('Registration cancelled.');
         fetchPageData();
       } else {
         showToast(data.message || 'Action failed.');
@@ -783,6 +790,7 @@ export default function PageView({ role = 'guest' }) {
                                 capacity={item.max_capacity || item.capacity}
                                 createdAt={item.created_at}
                                 audience={item.audience}
+                                requiresRegistration={item.requires_registration !== false}
                               />
                             ) : (
                               <>
@@ -936,8 +944,16 @@ export default function PageView({ role = 'guest' }) {
                     {isEvent && (
                       <EventPostActionBar
                         isRegistered={isRegistered}
+                        registrationStatus={item.registration_status}
+                        rejectionReason={item.rejection_reason}
+                        requiresRegistration={item.requires_registration !== false}
+                        registeredCount={currentRegistered}
+                        capacity={item.max_capacity || item.capacity}
+                        pendingCount={item.pending_registration_count || 0}
+                        isOwner={Boolean(page.is_owner || item.is_owner)}
                         isRegistering={registeringEventId === (item.id || item.post_id)}
-                        onToggleRegister={() => handleEventRegister(item.id || item.post_id, isRegistered)}
+                        onToggleRegister={!(page.is_owner || item.is_owner) ? () => handleEventRegister(item) : null}
+                        onViewRegistrations={() => setViewingRegistrationsEvent(item)}
                         onScanAttendance={token ? () => {
                           const scanToken = prompt("Scan or enter event QR token:");
                           if (scanToken) {
@@ -1216,6 +1232,40 @@ export default function PageView({ role = 'guest' }) {
             </div>
           </div>
         </div>
+      )}
+
+      {registeringModalEvent && (
+        <EventRegistrationModal
+          event={registeringModalEvent}
+          onClose={() => setRegisteringModalEvent(null)}
+          onSuccess={(data, targetId) => {
+            setPosts((prev) => applyEventRegistrationUpdate(prev, targetId, data?.status || 'Registered'));
+            showToast(data?.message || 'Registration submitted!');
+            setRegisteringModalEvent(null);
+            fetchPageData();
+          }}
+        />
+      )}
+
+      {viewingRegistrationsEvent && (
+        <EventRegistrationsManagerModal
+          event={viewingRegistrationsEvent}
+          onClose={() => setViewingRegistrationsEvent(null)}
+          onUpdated={(targetId, counts) => {
+            setPosts((prev) =>
+              prev.map((p) =>
+                (p.id || p.post_id) === targetId
+                  ? {
+                      ...p,
+                      registered_count: counts.registered_count,
+                      current_registered: counts.registered_count,
+                      pending_registration_count: counts.pending_registration_count,
+                    }
+                  : p
+              )
+            );
+          }}
+        />
       )}
 
       {/* 4. TOAST NOTIFICATION */}

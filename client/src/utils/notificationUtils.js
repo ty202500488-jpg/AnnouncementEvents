@@ -223,9 +223,39 @@ export function useNotificationCenter(baseEndpoint) {
       if (response.ok) {
         setNotifications(prev => prev.filter(n => n.id !== notifId));
         dispatchNotificationsUpdated();
+        return true;
       }
     } catch (err) {
       console.error('Failed to delete notification:', err);
+    }
+    return false;
+  };
+
+  const handleDeleteMany = async (notifIds) => {
+    if (!Array.isArray(notifIds) || notifIds.length === 0) return [];
+    const token = localStorage.getItem('token');
+    try {
+      const results = await Promise.all(
+        notifIds.map(async (id) => {
+          const response = await fetch(`${baseEndpoint}/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          return response.ok ? id : null;
+        })
+      );
+      const deletedIds = results.filter((id) => id !== null);
+      if (deletedIds.length > 0) {
+        const deletedSet = new Set(deletedIds);
+        setNotifications(prev => prev.filter(n => !deletedSet.has(n.id)));
+        dispatchNotificationsUpdated();
+      }
+      return deletedIds;
+    } catch (err) {
+      console.error('Failed to delete notifications:', err);
+      return [];
     }
   };
 
@@ -260,6 +290,7 @@ export function useNotificationCenter(baseEndpoint) {
     handleMarkAllAsRead,
     handleToggleArchive,
     handleDelete,
+    handleDeleteMany,
     handleNotificationClick
   };
 }

@@ -10,12 +10,16 @@ import {
   updatePostRequest,
   deletePostRequest,
 } from '../../../assets/components/PortalShellElements';
+import EventRegistrationModal from '../../../assets/components/EventRegistrationModal';
+import EventRegistrationsManagerModal from '../../../assets/components/EventRegistrationsManagerModal';
 import '../../styles/MyPageDashboard.css';
 
 export default function MyPageEvents() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [registeringEventId, setRegisteringEventId] = useState(null);
+  const [registeringModalEvent, setRegisteringModalEvent] = useState(null);
+  const [viewingRegistrationsEvent, setViewingRegistrationsEvent] = useState(null);
   const [activeMenuKey, setActiveMenuKey] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [postTitle, setPostTitle] = useState('');
@@ -72,16 +76,29 @@ export default function MyPageEvents() {
     }
   };
 
-  const handleEventRegister = async (eventId, isAlreadyRegistered) => {
+  const handleEventRegister = async (eventItem) => {
+    const eventId = eventItem.id || eventItem.post_id;
+    const statusLower = String(eventItem.registration_status || '').toLowerCase();
+    const isAlreadySubmitted = Boolean(eventItem.is_registered) || statusLower === 'registered' || statusLower === 'pending';
+
+    if (!isAlreadySubmitted) {
+      if (!localStorage.getItem('token')) {
+        window.location.href = '/auth';
+        return;
+      }
+      setRegisteringModalEvent(eventItem);
+      return;
+    }
+
     setRegisteringEventId(eventId);
     try {
-      const result = await toggleEventRegistrationRequest(eventId, isAlreadyRegistered);
+      const result = await toggleEventRegistrationRequest(eventId, true);
       if (result.unauthenticated) {
         window.location.href = '/auth';
         return;
       }
       if (result.ok) {
-        setEvents((prev) => applyEventRegistrationUpdate(prev, eventId, !isAlreadyRegistered));
+        setEvents((prev) => applyEventRegistrationUpdate(prev, eventId, null));
       } else {
         alert(result.message || 'Failed to update event registration.');
       }
@@ -207,6 +224,7 @@ export default function MyPageEvents() {
                             capacity={item.max_capacity || item.capacity}
                             createdAt={item.created_at}
                             audience={item.audience}
+                            requiresRegistration={item.requires_registration !== false}
                           />
                         </div>
                       </div>
@@ -270,8 +288,16 @@ export default function MyPageEvents() {
 
                   <EventPostActionBar
                     isRegistered={Boolean(item.is_registered)}
+                    registrationStatus={item.registration_status}
+                    rejectionReason={item.rejection_reason}
+                    requiresRegistration={item.requires_registration !== false}
+                    registeredCount={currentRegistered}
+                    capacity={item.max_capacity || item.capacity}
+                    pendingCount={item.pending_registration_count || 0}
+                    isOwner={Boolean(item.is_owner)}
                     isRegistering={registeringEventId === (item.id || item.post_id)}
-                    onToggleRegister={() => handleEventRegister(item.id || item.post_id, Boolean(item.is_registered))}
+                    onToggleRegister={!item.is_owner ? () => handleEventRegister(item) : null}
+                    onViewRegistrations={() => setViewingRegistrationsEvent(item)}
                     onScanAttendance={() => {
                       const scanToken = prompt("Scan or enter event QR token:");
                       if (scanToken) {
@@ -286,6 +312,36 @@ export default function MyPageEvents() {
           </div>
         )}
       </main>
+      {registeringModalEvent && (
+        <EventRegistrationModal
+          event={registeringModalEvent}
+          onClose={() => setRegisteringModalEvent(null)}
+          onSuccess={(data, targetId) => {
+            setEvents((prev) => applyEventRegistrationUpdate(prev, targetId, data?.status || 'Registered'));
+            setRegisteringModalEvent(null);
+          }}
+        />
+      )}
+      {viewingRegistrationsEvent && (
+        <EventRegistrationsManagerModal
+          event={viewingRegistrationsEvent}
+          onClose={() => setViewingRegistrationsEvent(null)}
+          onUpdated={(targetId, counts) => {
+            setEvents((prev) =>
+              prev.map((p) =>
+                (p.id || p.post_id) === targetId
+                  ? {
+                      ...p,
+                      registered_count: counts.registered_count,
+                      current_registered: counts.registered_count,
+                      pending_registration_count: counts.pending_registration_count,
+                    }
+                  : p
+              )
+            );
+          }}
+        />
+      )}
       <PostEditDeleteModals
         editingPost={editingPost}
         postTitle={postTitle}
