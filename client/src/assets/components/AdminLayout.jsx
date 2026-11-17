@@ -407,7 +407,7 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                     position: 'absolute',
                     top: 'calc(100% + 0.5rem)',
                     right: 0,
-                    width: '200px',
+                    width: '240px',
                     backgroundColor: '#ffffff',
                     borderRadius: '0.75rem',
                     border: '1px solid #e2e8f0',
@@ -419,24 +419,46 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                     gap: '0.25rem'
                   }}
                 >
-                  <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #cbd5e1', marginBottom: '0.25rem' }}>
-                    <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b' }}>
-                      {user.displayName}
+                  <Link
+                    to="/admin/profile"
+                    onClick={() => setShowProfileDropdown(false)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem',
+                      padding: '0.5rem 0.65rem',
+                      borderRadius: '0.5rem',
+                      textDecoration: 'none',
+                      borderBottom: '1px solid #cbd5e1',
+                      marginBottom: '0.25rem',
+                      paddingBottom: '0.65rem',
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <span style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#7B0D1E', color: '#ffffff', fontSize: '0.75rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', letterSpacing: '-0.02em' }}>
+                      {user.avatarUrl ? (
+                        <img src={user.avatarUrl} alt={user.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      ) : (
+                        adminInitials
+                      )}
+                    </span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {user.displayName}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {user.subtitle}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                      {user.subtitle}
-                    </div>
-                  </div>
-
-                  <Link to="/admin/profile" onClick={() => setShowProfileDropdown(false)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#334155', textDecoration: 'none' }}>
-                    <i className="fa-solid fa-user" style={{ width: '16px', color: '#64748b' }}></i> My Profile
                   </Link>
 
                   <Link to="/admin/settings" onClick={() => setShowProfileDropdown(false)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#334155', textDecoration: 'none' }}>
-                    <i className="fa-solid fa-sliders" style={{ width: '16px', color: '#64748b' }}></i> Settings
+                    <i className="fa-solid fa-gear" style={{ width: '16px', color: '#64748b' }}></i> Settings
                   </Link>
 
-                  <div style={{ borderTop: '1px solid #cbd5e1', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
+                  <div style={{ marginTop: '0.15rem' }}>
                     <button 
                       onClick={handleLogout} 
                       style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#e11d48', background: 'none', border: 'none', width: '100%', cursor: 'pointer' }}
