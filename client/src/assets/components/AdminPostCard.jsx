@@ -97,6 +97,7 @@ export default function AdminPostCard({
                   capacity={item.max_capacity || item.capacity}
                   createdAt={item.created_at}
                   audience={item.audience}
+                  requiresRegistration={item.requires_registration !== false}
                 />
               ) : (
                 <>

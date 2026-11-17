@@ -10,9 +10,13 @@ const {
     formatNotificationRow,
     ensureUpcomingEventReminders
 } = require('../utils/notificationService');
+const { ensureEventRegistrationSchema } = require('../utils/eventRegistrationHelper');
 
 ensureNotificationSchema(pool).catch((err) => {
     console.warn('Warning: failed to ensure notification schema:', err.message);
+});
+ensureEventRegistrationSchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure event registration schema:', err.message);
 });
 
 async function resolveUserId(req) {
@@ -110,20 +114,26 @@ const handleStudentDashboard = async (req, res) => {
                     ed.location AS venue,
                     ed.capacity,
                     ed.capacity AS max_capacity,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
                     pg.page_name,
                     pg.page_name AS department_name,
                     pg.avatar_url AS page_avatar_url,
                     COALESCE(pg.page_code, 'WMSU') AS code,
-                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count,
-                    CASE WHEN $1::int IS NOT NULL AND EXISTS(
-                        SELECT 1 FROM page_follows pf
-                        WHERE pf.page_id = p.page_id AND pf.follower_user_id = $1
-                    ) THEN TRUE ELSE FALSE END AS is_followed,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'pending')::int AS pending_registration_count,
                     CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed,
                     CASE WHEN $1::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM event_registrations er2
-                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
-                    ) THEN TRUE ELSE FALSE END AS is_registered
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) = 'registered'
+                    ) THEN TRUE ELSE FALSE END AS is_registered,
+                    (SELECT er_me.status FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS registration_status,
+                    (SELECT er_me.rejection_reason FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS rejection_reason
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN pages pg ON p.page_id = pg.page_id
@@ -191,18 +201,28 @@ router.get('/events-data', async (req, res) => {
                     ed.location AS venue,
                     ed.capacity,
                     ed.capacity AS max_capacity,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
                     pg.page_name,
                     pg.page_name AS department_name,
                     pg.avatar_url AS page_avatar_url,
-                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'pending')::int AS pending_registration_count,
                     CASE WHEN $1::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM page_follows pf
                         WHERE pf.page_id = p.page_id AND pf.follower_user_id = $1
                     ) THEN TRUE ELSE FALSE END AS is_followed,
                     CASE WHEN $1::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM event_registrations er2
-                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) = 'registered'
                     ) THEN TRUE ELSE FALSE END AS is_registered,
+                    (SELECT er_me.status FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS registration_status,
+                    (SELECT er_me.rejection_reason FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS rejection_reason,
                     CASE WHEN $1::int IS NOT NULL AND (
                         pg.created_by = $1
                         OR p.creator_user_id = $1

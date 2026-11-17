@@ -18,12 +18,20 @@ const {
     notifyEventUpdated
 } = require('../utils/notificationService');
 const { searchPortalContent } = require('../utils/searchHelper');
+const {
+    ensureEventRegistrationSchema,
+    normalizeRegistrationMode,
+    normalizeRegistrationRequirements
+} = require('../utils/eventRegistrationHelper');
 
 ensureUniversityWideColumn(pool).catch((err) => {
     console.error('Warning: failed to ensure posts.is_university_wide column:', err.message);
 });
 ensureNotificationSchema(pool).catch((err) => {
     console.warn('Warning: failed to ensure notification schema:', err.message);
+});
+ensureEventRegistrationSchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure event registration schema:', err.message);
 });
 
 function parseBase64Image(dataUrl) {
@@ -461,11 +469,21 @@ router.get('/spotlight', async (req, res) => {
                     ed.location AS venue,
                     ed.organizer_info,
                     ed.capacity,
-                    (SELECT COUNT(*)::int FROM event_registrations er WHERE er.event_post_id = p.post_id AND LOWER(er.status) != 'cancelled') AS registered_count,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
+                    (SELECT COUNT(*)::int FROM event_registrations er WHERE er.event_post_id = p.post_id AND LOWER(er.status) = 'registered') AS registered_count,
+                    (SELECT COUNT(*)::int FROM event_registrations er_p WHERE er_p.event_post_id = p.post_id AND LOWER(er_p.status) = 'pending') AS pending_registration_count,
                     CASE WHEN $1::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM event_registrations er2
-                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
-                    ) THEN TRUE ELSE FALSE END AS is_registered
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) = 'registered'
+                    ) THEN TRUE ELSE FALSE END AS is_registered,
+                    (SELECT er_me.status FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS registration_status,
+                    (SELECT er_me.rejection_reason FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS rejection_reason
              FROM posts p
              LEFT JOIN pages pg ON p.page_id = pg.page_id
              LEFT JOIN departments d ON pg.department_id = d.department_id
@@ -576,6 +594,9 @@ const handleDashboardFetch = async (req, res) => {
                     ed.location AS venue,
                     ed.capacity,
                     ed.capacity AS max_capacity,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
                     p.created_at,
                     CASE
                         WHEN p.post_image IS NOT NULL AND p.post_image_mime IS NOT NULL
@@ -598,7 +619,8 @@ const handleDashboardFetch = async (req, res) => {
                     COALESCE(pg.page_name, 'Student Affairs Office') AS page_name,
                     COALESCE(pg.page_name, 'Student Affairs Office') AS department_name,
                     pg.avatar_url AS page_avatar_url,
-                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'pending')::int AS pending_registration_count
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
              LEFT JOIN pages pg ON p.page_id = pg.page_id
@@ -721,6 +743,13 @@ router.get('/mypage/posts', async (req, res) => {
                     ed.location,
                     ed.location AS venue,
                     ed.capacity,
+                    ed.capacity AS max_capacity,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
+                    COALESCE((SELECT COUNT(*)::int FROM event_registrations er WHERE er.event_post_id = p.post_id AND LOWER(er.status) = 'registered'), 0) AS registered_count,
+                    COALESCE((SELECT COUNT(*)::int FROM event_registrations er WHERE er.event_post_id = p.post_id AND LOWER(er.status) = 'pending'), 0) AS pending_registration_count,
+                    TRUE AS is_owner,
                     COALESCE(pg.page_name, 'Student Affairs Office') AS page_name
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
@@ -916,7 +945,10 @@ router.post('/events', async (req, res) => {
             image_url,
             poster_url,
             organizer_info,
-            audience
+            audience,
+            requires_registration,
+            registration_mode,
+            registration_requirements
         } = req.body;
 
         const eTitle = (event_title || title || '').trim();
@@ -958,6 +990,10 @@ router.post('/events', async (req, res) => {
         const eDate = event_date || new Date().toISOString();
         const eLocation = (location || venue || 'University Campus').trim();
         const capNum = capacity ? Number(capacity) : null;
+        const requiresReg = requires_registration === undefined ? true : Boolean(requires_registration);
+        const regMode = normalizeRegistrationMode(registration_mode);
+        const regRequirements = requiresReg ? normalizeRegistrationRequirements(registration_requirements) : [];
+        await ensureEventRegistrationSchema(pool);
         const finalAudience = audience || 'All Campus';
         const needsModeration = Boolean(
             spotlight.isUniversityWide ||
@@ -1002,8 +1038,9 @@ router.post('/events', async (req, res) => {
         // 2. Insert into 1:1 subtype event_details table
         const detailRes = await client.query(
             `INSERT INTO event_details (
-                post_id, event_date, end_date, location, organizer_info, capacity
-             ) VALUES ($1, $2, $3, $4, $5, $6)
+                post_id, event_date, end_date, location, organizer_info, capacity,
+                requires_registration, registration_mode, registration_requirements
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
              RETURNING *`,
             [
                 postRow.post_id,
@@ -1011,7 +1048,10 @@ router.post('/events', async (req, res) => {
                 end_date || null,
                 eLocation,
                 organizer_info || null,
-                capNum
+                capNum,
+                requiresReg,
+                regMode,
+                JSON.stringify(regRequirements)
             ]
         );
         const detailRow = detailRes.rows[0];
@@ -1227,10 +1267,24 @@ router.put('/events/:id', async (req, res) => {
         if (!authCheck.ok) {
             return res.status(authCheck.status).json({ message: authCheck.message });
         }
-        const { event_title, title, event_description, description, content, event_date, location, venue, capacity, audience, image_data, image_url, poster_url, remove_image } = req.body;
+        const {
+            event_title, title, event_description, description, content,
+            event_date, location, venue, capacity, audience,
+            image_data, image_url, poster_url, remove_image,
+            requires_registration, registration_mode, registration_requirements
+        } = req.body;
         const eTitle = event_title || title || null;
         const eDesc = event_description || description || content || null;
         const eLoc = location || venue || null;
+        await ensureEventRegistrationSchema(pool);
+        const hasRequiresReg = Object.prototype.hasOwnProperty.call(req.body, 'requires_registration');
+        const hasRegMode = Object.prototype.hasOwnProperty.call(req.body, 'registration_mode');
+        const hasRegReqs = Object.prototype.hasOwnProperty.call(req.body, 'registration_requirements');
+        const nextRequiresReg = hasRequiresReg ? Boolean(requires_registration) : null;
+        const nextRegMode = hasRegMode ? normalizeRegistrationMode(registration_mode) : null;
+        const nextRegReqs = hasRegReqs
+            ? JSON.stringify(nextRequiresReg === false ? [] : normalizeRegistrationRequirements(registration_requirements))
+            : null;
 
         const hasSpotlightToggle = req.body.is_university_wide !== undefined || req.body.isUniversityWide !== undefined;
         let spotlight = { valid: true, isUniversityWide: false, expiresAt: null };
@@ -1290,7 +1344,10 @@ router.put('/events/:id', async (req, res) => {
             `UPDATE event_details
              SET event_date = COALESCE($1, event_date),
                  location = COALESCE($2, location),
-                 capacity = CASE WHEN $5::boolean THEN $3 ELSE capacity END
+                 capacity = CASE WHEN $5::boolean THEN $3 ELSE capacity END,
+                 requires_registration = COALESCE($6::boolean, requires_registration),
+                 registration_mode = COALESCE($7, registration_mode),
+                 registration_requirements = COALESCE($8::jsonb, registration_requirements)
              WHERE post_id = $4
              RETURNING *`,
             [
@@ -1298,7 +1355,10 @@ router.put('/events/:id', async (req, res) => {
                 eLoc,
                 capacity ? Number(capacity) : null,
                 postId,
-                hasCapacityField
+                hasCapacityField,
+                nextRequiresReg,
+                nextRegMode,
+                nextRegReqs
             ]
         );
 
@@ -1538,11 +1598,26 @@ async function handleGetPagePosts(req, res) {
                     ed.capacity AS max_capacity,
                     ed.organizer_info,
                     ed.registration_deadline,
-                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'pending')::int AS pending_registration_count,
                     CASE WHEN $2::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM event_registrations er2
-                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $2 AND LOWER(er2.status) != 'cancelled'
-                    ) THEN TRUE ELSE FALSE END AS is_registered
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $2 AND LOWER(er2.status) = 'registered'
+                    ) THEN TRUE ELSE FALSE END AS is_registered,
+                    (SELECT er_me.status FROM event_registrations er_me
+                     WHERE $2::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $2 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS registration_status,
+                    (SELECT er_me.rejection_reason FROM event_registrations er_me
+                     WHERE $2::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $2 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS rejection_reason,
+                    CASE WHEN $2::int IS NOT NULL AND (
+                        pg.created_by = $2
+                        OR p.creator_user_id = $2
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $2)
+                    ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              LEFT JOIN pages pg ON p.page_id = pg.page_id
              LEFT JOIN post_categories pc ON p.category_id = pc.category_id

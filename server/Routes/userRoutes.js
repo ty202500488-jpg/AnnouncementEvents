@@ -22,9 +22,18 @@ const {
     notifyEventRegistrationChange,
     ensureUpcomingEventReminders
 } = require('../utils/notificationService');
+const {
+    ensureEventRegistrationSchema,
+    normalizeRegistrationMode,
+    validateRegistrationSubmission,
+    fetchUserRegistrationPrefill
+} = require('../utils/eventRegistrationHelper');
 
 ensureNotificationSchema(pool).catch((err) => {
     console.warn('Warning: failed to ensure notification schema:', err.message);
+});
+ensureEventRegistrationSchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure event registration schema:', err.message);
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
@@ -1090,25 +1099,26 @@ const handleDashboardData = async (req, res) => {
                     ed.capacity AS max_capacity,
                     ed.organizer_info,
                     ed.registration_deadline,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
                     pg.page_name,
                     pg.page_name AS department_name,
                     pg.avatar_url AS page_avatar_url,
                     COALESCE(pg.page_code, d.department_code, o.org_code, 'WMSU') AS code,
-                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'pending')::int AS pending_registration_count,
                     CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed,
                     CASE WHEN $1::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM event_registrations er2
-                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) = 'registered'
                     ) THEN TRUE ELSE FALSE END AS is_registered,
-                    CASE WHEN $1::int IS NOT NULL AND (
-                        pg.created_by = $1
-                        OR p.creator_user_id = $1
-                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
-                    ) THEN TRUE ELSE FALSE END AS is_owner,
-                    CASE WHEN $1::int IS NOT NULL AND EXISTS(
-                        SELECT 1 FROM event_registrations er2
-                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
-                    ) THEN TRUE ELSE FALSE END AS is_registered,
+                    (SELECT er_me.status FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS registration_status,
+                    (SELECT er_me.rejection_reason FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS rejection_reason,
                     CASE WHEN $1::int IS NOT NULL AND (
                         pg.created_by = $1
                         OR p.creator_user_id = $1
@@ -1260,15 +1270,25 @@ router.get('/events-data', async (req, res) => {
                     ed.location AS venue,
                     ed.capacity,
                     ed.capacity AS max_capacity,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
                     pg.page_name,
                     pg.page_name AS department_name,
                     pg.avatar_url AS page_avatar_url,
-                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) != 'cancelled')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'registered')::int AS registered_count,
+                    COUNT(er.registration_id) FILTER (WHERE LOWER(er.status) = 'pending')::int AS pending_registration_count,
                     CASE WHEN $1::int IS NOT NULL AND pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed,
                     CASE WHEN $1::int IS NOT NULL AND EXISTS(
                         SELECT 1 FROM event_registrations er2
-                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) != 'cancelled'
+                        WHERE er2.event_post_id = p.post_id AND er2.registrant_user_id = $1 AND LOWER(er2.status) = 'registered'
                     ) THEN TRUE ELSE FALSE END AS is_registered,
+                    (SELECT er_me.status FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS registration_status,
+                    (SELECT er_me.rejection_reason FROM event_registrations er_me
+                     WHERE $1::int IS NOT NULL AND er_me.event_post_id = p.post_id AND er_me.registrant_user_id = $1 AND LOWER(er_me.status) != 'cancelled'
+                     LIMIT 1) AS rejection_reason,
                     CASE WHEN $1::int IS NOT NULL AND (
                         pg.created_by = $1
                         OR p.creator_user_id = $1
@@ -1343,17 +1363,25 @@ router.get('/my-events', async (req, res) => {
                     ed.end_date,
                     ed.location,
                     ed.capacity,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
                     pg.page_name,
                     pg.page_name AS department_name,
                     pg.avatar_url AS page_avatar_url,
                     er.registration_id,
                     er.status AS registration_status,
+                    er.rejection_reason,
                     er.registered_at,
-                    TRUE AS is_registered,
+                    CASE WHEN LOWER(er.status) = 'registered' THEN TRUE ELSE FALSE END AS is_registered,
                     COALESCE((
                         SELECT COUNT(*)::int FROM event_registrations er_all
-                        WHERE er_all.event_post_id = p.post_id AND LOWER(er_all.status) != 'cancelled'
+                        WHERE er_all.event_post_id = p.post_id AND LOWER(er_all.status) = 'registered'
                     ), 0) AS registered_count,
+                    COALESCE((
+                        SELECT COUNT(*)::int FROM event_registrations er_p
+                        WHERE er_p.event_post_id = p.post_id AND LOWER(er_p.status) = 'pending'
+                    ), 0) AS pending_registration_count,
                     CASE WHEN pf.follow_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_followed,
                     CASE WHEN (
                         pg.created_by = $1
@@ -1378,9 +1406,25 @@ router.get('/my-events', async (req, res) => {
     }
 });
 
+// -------- EVENT REGISTRATION PREFILL -------- //
+router.get('/events/:id/registration-prefill', async (req, res) => {
+    try {
+        const userId = await resolveUserId(req);
+        if (!userId) {
+            return res.status(401).json({ message: 'Authentication required.' });
+        }
+        const prefill = await fetchUserRegistrationPrefill(pool, userId);
+        return res.status(200).json({ prefill });
+    } catch (error) {
+        console.error('Error fetching registration prefill:', error);
+        return res.status(500).json({ message: 'Failed to load profile prefill.' });
+    }
+});
+
 // -------- REGISTER FOR EVENT -------- //
 router.post('/events/:id/register', async (req, res) => {
     try {
+        await ensureEventRegistrationSchema(pool);
         const eventId = Number(req.params.id);
         const userId = await resolveUserId(req);
 
@@ -1388,35 +1432,98 @@ router.post('/events/:id/register', async (req, res) => {
             return res.status(400).json({ message: 'User ID and Event ID are required.' });
         }
 
-        const regRes = await pool.query(
-            `INSERT INTO event_registrations (event_post_id, registrant_user_id, status)
-             VALUES ($1, $2, 'Registered')
-             ON CONFLICT (event_post_id, registrant_user_id)
-             DO UPDATE SET status = 'Registered', cancelled_at = NULL, registered_at = NOW()
-             RETURNING *`,
-            [eventId, userId]
+        const evRes = await pool.query(
+            `SELECT p.post_id,
+                    p.page_id,
+                    p.title,
+                    p.is_archived,
+                    p.moderation_status,
+                    ed.capacity,
+                    ed.registration_deadline,
+                    COALESCE(ed.requires_registration, TRUE) AS requires_registration,
+                    COALESCE(ed.registration_mode, 'first_come') AS registration_mode,
+                    COALESCE(ed.registration_requirements, '[]'::jsonb) AS registration_requirements,
+                    (SELECT COUNT(*)::int FROM event_registrations er
+                     WHERE er.event_post_id = p.post_id AND LOWER(er.status) = 'registered') AS registered_count
+             FROM posts p
+             JOIN event_details ed ON p.post_id = ed.post_id
+             WHERE p.post_id = $1 AND p.post_type = 'event'
+             LIMIT 1`,
+            [eventId]
         );
 
-        const [evInfo, regUser] = await Promise.all([
-            pool.query(`SELECT post_id, page_id, title FROM posts WHERE post_id = $1 LIMIT 1`, [eventId]),
-            pool.query(`SELECT first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`, [userId])
-        ]);
-
-        if (evInfo.rows[0]) {
-            const uRow = regUser.rows[0];
-            const regName = uRow ? `${uRow.first_name || ''} ${uRow.last_name || ''}`.trim() : 'A student';
-            await notifyEventRegistrationChange(pool, {
-                postId: eventId,
-                eventTitle: evInfo.rows[0].title,
-                pageId: evInfo.rows[0].page_id,
-                registrantUserId: userId,
-                registrantName: regName || 'A student',
-                action: 'registered'
-            });
+        const ev = evRes.rows[0];
+        if (!ev || ev.is_archived || String(ev.moderation_status || '').toLowerCase() !== 'approved') {
+            return res.status(404).json({ message: 'Event not found or unavailable.' });
         }
 
+        if (!ev.requires_registration) {
+            return res.status(400).json({ message: 'This event does not require registration.' });
+        }
+
+        if (ev.registration_deadline && new Date(ev.registration_deadline) < new Date()) {
+            return res.status(400).json({ message: 'The registration deadline for this event has passed.' });
+        }
+
+        const existingRes = await pool.query(
+            `SELECT status FROM event_registrations WHERE event_post_id = $1 AND registrant_user_id = $2 LIMIT 1`,
+            [eventId, userId]
+        );
+        const alreadyRegistered = existingRes.rows[0] && String(existingRes.rows[0].status || '').toLowerCase() === 'registered';
+
+        if (!alreadyRegistered && ev.capacity && Number(ev.registered_count) >= Number(ev.capacity)) {
+            return res.status(400).json({ message: 'This event has reached its maximum capacity.' });
+        }
+
+        const studentProfile = await fetchUserRegistrationPrefill(pool, userId);
+        const validation = validateRegistrationSubmission(
+            ev.registration_requirements,
+            req.body?.submission_data || {},
+            studentProfile
+        );
+        if (!validation.valid) {
+            return res.status(400).json({ message: validation.message, missing: validation.missing });
+        }
+
+        const regMode = normalizeRegistrationMode(ev.registration_mode);
+        const initialStatus = regMode === 'manual_approval' ? 'Pending' : 'Registered';
+
+        const regRes = await pool.query(
+            `INSERT INTO event_registrations (event_post_id, registrant_user_id, status, submission_data)
+             VALUES ($1, $2, $3, $4::jsonb)
+             ON CONFLICT (event_post_id, registrant_user_id)
+             DO UPDATE SET status = $3,
+                           submission_data = $4::jsonb,
+                           rejection_reason = NULL,
+                           reviewed_at = NULL,
+                           reviewed_by = NULL,
+                           cancelled_at = NULL,
+                           registered_at = NOW()
+             RETURNING *`,
+            [eventId, userId, initialStatus, JSON.stringify(validation.normalizedSubmission)]
+        );
+
+        const regUser = await pool.query(
+            `SELECT first_name, last_name FROM users WHERE user_id = $1 LIMIT 1`,
+            [userId]
+        );
+        const uRow = regUser.rows[0];
+        const regName = uRow ? `${uRow.first_name || ''} ${uRow.last_name || ''}`.trim() : 'A student';
+
+        await notifyEventRegistrationChange(pool, {
+            postId: eventId,
+            eventTitle: ev.title,
+            pageId: ev.page_id,
+            registrantUserId: userId,
+            registrantName: regName || 'A student',
+            action: initialStatus === 'Pending' ? 'submitted_pending' : 'registered'
+        });
+
         return res.status(201).json({
-            message: 'Successfully registered for the event!',
+            message: initialStatus === 'Pending'
+                ? 'Registration submitted! Awaiting organizer approval.'
+                : 'Successfully registered for the event!',
+            status: initialStatus,
             registration: regRes.rows[0]
         });
     } catch (error) {

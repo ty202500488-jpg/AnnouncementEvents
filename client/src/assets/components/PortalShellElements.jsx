@@ -769,6 +769,288 @@ export function PostAudienceBadge({ audience, showLabel = false }) {
   );
 }
 
+export const EVENT_PRESET_REQUIREMENTS = [
+  { id: 'full_name', label: 'Full Name', fieldType: 'text', isCustom: false, autoFill: 'full_name', locked: false, hint: 'Auto-filled' },
+  { id: 'student_id', label: 'Student ID (Picture)', fieldType: 'image', isCustom: false, autoFill: 'student_id_image', locked: false, hint: 'Image' },
+  { id: 'course_and_year', label: 'Course and Year', fieldType: 'text', isCustom: false, autoFill: 'course_and_year', locked: true, hint: 'Auto-filled & locked' },
+  { id: 'school_email', label: 'School Email', fieldType: 'text', isCustom: false, autoFill: 'email', locked: false, hint: 'Auto-filled' },
+  { id: 'contact_number', label: 'Contact Number', fieldType: 'text', isCustom: false, autoFill: null, locked: false, hint: 'Text' },
+  { id: 'cor', label: 'COR', fieldType: 'image', isCustom: false, autoFill: 'cor_image', locked: false, hint: 'Image' },
+  { id: 'parent_consent', label: "Parent's Consent / Waiver", fieldType: 'image', isCustom: false, autoFill: null, locked: false, hint: 'Image' },
+  { id: 'medical_certificate', label: 'Medical Certificate', fieldType: 'image', isCustom: false, autoFill: null, locked: false, hint: 'Image' },
+  { id: 'proof_of_payment', label: 'Proof of Payment', fieldType: 'image', isCustom: false, autoFill: null, locked: false, hint: 'Image' },
+];
+
+const PRESET_MAP = new Map(EVENT_PRESET_REQUIREMENTS.map((item) => [item.id, item]));
+
+export function normalizeEventRequirements(raw) {
+  let list = raw;
+  if (typeof raw === 'string') {
+    try {
+      list = JSON.parse(raw);
+    } catch {
+      list = [];
+    }
+  }
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  list.forEach((entry, idx) => {
+    if (typeof entry === 'string') {
+      const preset = PRESET_MAP.get(entry);
+      if (preset && !seen.has(preset.id)) {
+        seen.add(preset.id);
+        out.push({ ...preset });
+      }
+      return;
+    }
+    if (!entry || typeof entry !== 'object') return;
+    const preset = PRESET_MAP.get(entry.id);
+    if (preset && !entry.isCustom) {
+      if (!seen.has(preset.id)) {
+        seen.add(preset.id);
+        out.push({ ...preset });
+      }
+      return;
+    }
+    const label = String(entry.label || '').trim();
+    const id = String(entry.id || `custom_${idx + 1}`).trim();
+    if (!label || seen.has(id)) return;
+    seen.add(id);
+    out.push({
+      id,
+      label,
+      fieldType: String(entry.fieldType || '').toLowerCase() === 'image' ? 'image' : 'text',
+      isCustom: true,
+      autoFill: null,
+      locked: false,
+    });
+  });
+  return out;
+}
+
+/**
+ * Staff event composer controls for registration toggle, mode (FCFS vs Manual), and preset/custom requirements.
+ */
+export function EventRequirementsPicker({
+  requiresRegistration = true,
+  onChangeRequiresRegistration,
+  registrationMode = 'first_come',
+  onChangeRegistrationMode,
+  requirements = [],
+  onChangeRequirements,
+}) {
+  const [customLabel, setCustomLabel] = useState('');
+  const [customType, setCustomType] = useState('text');
+
+  const normalized = normalizeEventRequirements(requirements);
+  const selectedIds = new Set(normalized.map((r) => r.id));
+  const customItems = normalized.filter((r) => r.isCustom);
+
+  const togglePreset = (preset) => {
+    if (selectedIds.has(preset.id)) {
+      onChangeRequirements?.(normalized.filter((r) => r.id !== preset.id));
+    } else {
+      onChangeRequirements?.([...normalized, { ...preset }]);
+    }
+  };
+
+  const handleAddCustom = () => {
+    const label = customLabel.trim();
+    if (!label) return;
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 24) || 'item';
+    let suffix = 1;
+    let id = `custom_${slug}`;
+    while (selectedIds.has(id)) {
+      suffix += 1;
+      id = `custom_${slug}_${suffix}`;
+    }
+    onChangeRequirements?.([
+      ...normalized,
+      { id, label, fieldType: customType, isCustom: true, autoFill: null, locked: false },
+    ]);
+    setCustomLabel('');
+    setCustomType('text');
+  };
+
+  const handleRemoveCustom = (id) => {
+    onChangeRequirements?.(normalized.filter((r) => r.id !== id));
+  };
+
+  return (
+    <div style={{ background: '#f8fafc', padding: '0.85rem', borderRadius: '0.625rem', border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: '0.5rem' }}>
+        <div>
+          <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#0f172a' }}>Require Registration for this Event</div>
+          <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Toggle off for informational events that do not require sign-ups.</div>
+        </div>
+        <input
+          type="checkbox"
+          checked={Boolean(requiresRegistration)}
+          onChange={(e) => onChangeRequiresRegistration?.(e.target.checked)}
+          style={{ width: '1.1rem', height: '1.1rem', accentColor: '#881337', cursor: 'pointer' }}
+        />
+      </label>
+
+      {requiresRegistration && (
+        <>
+          {/* Mode Selector */}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#881337', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+              Registration Approval Mode
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              {[
+                { id: 'first_come', title: 'First Come, First Serve', desc: 'Instant slot confirmation' },
+                { id: 'manual_approval', title: 'Manual Approval', desc: 'Review & approve pending requests' },
+              ].map((opt) => {
+                const active = registrationMode === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => onChangeRegistrationMode?.(opt.id)}
+                    style={{
+                      textAlign: 'left',
+                      padding: '0.5rem 0.65rem',
+                      borderRadius: '0.5rem',
+                      border: active ? '1.5px solid #881337' : '1px solid #cbd5e1',
+                      backgroundColor: active ? '#fff1f2' : '#ffffff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: active ? '#881337' : '#0f172a' }}>{opt.title}</div>
+                    <div style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '0.1rem' }}>{opt.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Preset Requirements Checklist */}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#881337', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+              Student Requirements (Optional)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(175px, 1fr))', gap: '0.4rem' }}>
+              {EVENT_PRESET_REQUIREMENTS.map((preset) => {
+                const checked = selectedIds.has(preset.id);
+                return (
+                  <label
+                    key={preset.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.4rem 0.55rem',
+                      borderRadius: '0.45rem',
+                      border: checked ? '1px solid #fda4af' : '1px solid #e2e8f0',
+                      backgroundColor: checked ? '#fff1f2' : '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => togglePreset(preset)}
+                      style={{ accentColor: '#881337', cursor: 'pointer', flexShrink: 0 }}
+                    />
+                    <span style={{ fontWeight: 600, color: '#0f172a', flex: 1, minWidth: 0 }}>{preset.label}</span>
+                    <span style={{ fontSize: '0.64rem', color: '#64748b', flexShrink: 0 }}>{preset.hint}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Others / Custom Requirements */}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#881337', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+              Others (Custom Requirements)
+            </div>
+
+            {customItems.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.5rem' }}>
+                {customItems.map((item) => (
+                  <span
+                    key={item.id}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.25rem 0.55rem',
+                      borderRadius: '9999px',
+                      backgroundColor: '#fff1f2',
+                      border: '1px solid #fda4af',
+                      color: '#881337',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    <span>{item.label}</span>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase' }}>({item.fieldType})</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCustom(item.id)}
+                      style={{ background: 'none', border: 'none', color: '#be123c', cursor: 'pointer', padding: 0, fontSize: '0.8rem', lineHeight: 1 }}
+                      aria-label={`Remove ${item.label}`}
+                    >
+                      <i className="fa-solid fa-xmark"></i>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Custom requirement name (e.g. T-Shirt Size)..."
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCustom();
+                  }
+                }}
+                style={{ flex: '1 1 160px', padding: '0.4rem 0.6rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff' }}
+              />
+              <select
+                value={customType}
+                onChange={(e) => setCustomType(e.target.value)}
+                style={{ padding: '0.4rem 0.55rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff' }}
+              >
+                <option value="text">Text</option>
+                <option value="image">Image</option>
+              </select>
+              <button
+                type="button"
+                onClick={handleAddCustom}
+                disabled={!customLabel.trim()}
+                style={{
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  border: 'none',
+                  backgroundColor: '#881337',
+                  color: '#ffffff',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: customLabel.trim() ? 'pointer' : 'not-allowed',
+                  opacity: customLabel.trim() ? 1 : 0.55,
+                }}
+              >
+                + Add
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /**
  * Consistent metadata line for event posts across all portal feeds and pages.
  */
@@ -777,15 +1059,22 @@ export function EventPostMeta({
   capacity,
   createdAt,
   audience,
+  requiresRegistration = true,
 }) {
   const maxCapacity = capacity || 'Unlimited';
   const postedAt = createdAt ? formatPostTimestamp(createdAt) : null;
 
   return (
     <>
-      <span>
-        <i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {registeredCount} / {maxCapacity}
-      </span>
+      {requiresRegistration !== false ? (
+        <span>
+          <i className="fa-solid fa-users" style={{ color: '#94a3b8' }}></i> {registeredCount} / {maxCapacity} Slots
+        </span>
+      ) : (
+        <span>
+          <i className="fa-solid fa-door-open" style={{ color: '#94a3b8' }}></i> Open Event
+        </span>
+      )}
       {postedAt && (
         <>
           <span>•</span>
@@ -801,7 +1090,7 @@ export function EventPostMeta({
 /**
  * Toggle event registration via the shared user events API.
  */
-export async function toggleEventRegistrationRequest(eventId, isAlreadyRegistered) {
+export async function toggleEventRegistrationRequest(eventId, isAlreadyRegistered, submissionData = null) {
   const token = localStorage.getItem('token');
   if (!token) {
     return { ok: false, unauthenticated: true, message: 'Please sign in first.' };
@@ -818,26 +1107,47 @@ export async function toggleEventRegistrationRequest(eventId, isAlreadyRegistere
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
+    ...(!isAlreadyRegistered ? { body: JSON.stringify({ submission_data: submissionData || {} }) } : {}),
   });
   const data = await response.json().catch(() => ({}));
-  return { ok: response.ok, data, message: data.message };
+  return {
+    ok: response.ok,
+    data,
+    status: data.status || (isAlreadyRegistered ? null : 'Registered'),
+    message: data.message,
+  };
 }
 
 /**
- * Update an item list's `is_registered` and `registered_count` after registering/unregistering.
+ * Update an item list's `is_registered`, `registration_status`, and `registered_count` after registering/unregistering.
  */
-export function applyEventRegistrationUpdate(items, eventId, nextRegistered) {
-  const delta = nextRegistered ? 1 : -1;
+export function applyEventRegistrationUpdate(items, eventId, nextStatusOrBool) {
+  const nextStatus =
+    typeof nextStatusOrBool === 'boolean'
+      ? nextStatusOrBool
+        ? 'Registered'
+        : null
+      : nextStatusOrBool;
+
   return items.map((item) => {
     const itemId = item.id ?? item.post_id;
     const isEventItem =
       item.post_type === 'event' || item.type === 'event' || item.event_date !== undefined;
     if (!isEventItem || itemId !== eventId) return item;
+
+    const wasConfirmed =
+      Boolean(item.is_registered) || String(item.registration_status || '').toLowerCase() === 'registered';
+    const isNowConfirmed = String(nextStatus || '').toLowerCase() === 'registered';
+    const delta = (isNowConfirmed ? 1 : 0) - (wasConfirmed ? 1 : 0);
+
     const currentCount = item.registered_count ?? item.current_registered ?? 0;
     const nextCount = Math.max(0, currentCount + delta);
+
     return {
       ...item,
-      is_registered: nextRegistered,
+      is_registered: isNowConfirmed,
+      registration_status: nextStatus,
+      rejection_reason: nextStatus === 'Rejected' ? item.rejection_reason : null,
       registered_count: nextCount,
       current_registered: nextCount,
     };
@@ -845,15 +1155,64 @@ export function applyEventRegistrationUpdate(items, eventId, nextRegistered) {
 }
 
 /**
- * Consistent action bar for event posts (Register Now / Unregister + Scan Attendance).
+ * Consistent action bar for event posts (Register Now / Pending / Unregister + Scan Attendance + Staff View Registrations).
  */
 export function EventPostActionBar({
   isRegistered = false,
+  registrationStatus = null,
+  rejectionReason = null,
+  requiresRegistration = true,
+  registeredCount = 0,
+  capacity = null,
+  pendingCount = 0,
+  isOwner = false,
   isRegistering = false,
   onToggleRegister = null,
   onScanAttendance = null,
+  onViewRegistrations = null,
 }) {
-  if (!onToggleRegister && !(onScanAttendance && isRegistered)) {
+  const effectiveStatus = registrationStatus || (isRegistered ? 'Registered' : null);
+  const normStatus = String(effectiveStatus || '').toLowerCase();
+  const isConfirmed = normStatus === 'registered';
+  const isPending = normStatus === 'pending';
+  const isRejected = normStatus === 'rejected';
+  const isFull = Boolean(capacity && Number(registeredCount) >= Number(capacity));
+
+  if (requiresRegistration === false) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '0.5rem',
+          margin: '0.75rem 1rem 0.25rem 1rem',
+          paddingTop: '0.75rem',
+          borderTop: '1px solid #e6ebf0',
+        }}
+      >
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            padding: '0.38rem 0.75rem',
+            borderRadius: '0.5rem',
+            backgroundColor: '#f8fafc',
+            color: '#64748b',
+            border: '1px solid #e2e8f0',
+            fontSize: '0.78rem',
+            fontWeight: 600,
+          }}
+        >
+          <i className="fa-solid fa-door-open"></i>
+          <span>No Registration Required</span>
+        </span>
+      </div>
+    );
+  }
+
+  if (!onToggleRegister && !(onScanAttendance && isConfirmed) && !(onViewRegistrations && isOwner)) {
     return null;
   }
 
@@ -861,103 +1220,229 @@ export function EventPostActionBar({
     <div
       style={{
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
+        flexDirection: 'column',
         gap: '0.5rem',
-        flexWrap: 'wrap',
         margin: '0.75rem 1rem 0.25rem 1rem',
         paddingTop: '0.75rem',
         borderTop: '1px solid #e6ebf0',
       }}
     >
-      {onScanAttendance && isRegistered && (
-        <button
-          type="button"
-          onClick={onScanAttendance}
+      {isRejected && rejectionReason && (
+        <div
           style={{
-            backgroundColor: '#ffffff',
-            color: '#475569',
-            border: '1px solid #e2e8f0',
-            padding: '0.45rem 0.875rem',
+            padding: '0.5rem 0.75rem',
             borderRadius: '0.5rem',
-            fontSize: '0.8125rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.4rem',
+            backgroundColor: '#fff1f2',
+            border: '1px solid #fecdd3',
+            color: '#9f1239',
+            fontSize: '0.78rem',
           }}
         >
-          <i className="fa-solid fa-qrcode"></i> Scan Attendance
-        </button>
+          <strong>Registration Declined:</strong> {rejectionReason}
+        </div>
       )}
-      {onToggleRegister && (
-        isRegistered ? (
-          <>
-            <span
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: '0.5rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        {onViewRegistrations && isOwner && (
+          <button
+            type="button"
+            onClick={onViewRegistrations}
+            style={{
+              backgroundColor: '#fff1f2',
+              color: '#881337',
+              border: '1px solid #fecdd3',
+              padding: '0.45rem 0.875rem',
+              borderRadius: '0.5rem',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+            }}
+          >
+            <i className="fa-solid fa-users-viewfinder"></i>
+            <span>View Registrations ({registeredCount}{capacity ? `/${capacity}` : ''})</span>
+            {pendingCount > 0 && (
+              <span
+                style={{
+                  backgroundColor: '#d97706',
+                  color: '#ffffff',
+                  fontSize: '0.68rem',
+                  fontWeight: 800,
+                  padding: '0.1rem 0.45rem',
+                  borderRadius: '9999px',
+                }}
+              >
+                {pendingCount} Pending
+              </span>
+            )}
+          </button>
+        )}
+
+        {onScanAttendance && isConfirmed && (
+          <button
+            type="button"
+            onClick={onScanAttendance}
+            style={{
+              backgroundColor: '#ffffff',
+              color: '#475569',
+              border: '1px solid #e2e8f0',
+              padding: '0.45rem 0.875rem',
+              borderRadius: '0.5rem',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+            }}
+          >
+            <i className="fa-solid fa-qrcode"></i> Scan Attendance
+          </button>
+        )}
+
+        {onToggleRegister && (
+          isConfirmed ? (
+            <>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: '#ecfdf5',
+                  color: '#047857',
+                  border: '1px solid #a7f3d0',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                }}
+              >
+                <i className="fa-solid fa-circle-check"></i>
+                <span>Registered</span>
+              </span>
+              <button
+                type="button"
+                onClick={onToggleRegister}
+                disabled={isRegistering}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #fecdd3',
+                  color: '#e11d48',
+                  padding: '0.45rem 0.875rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: isRegistering ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                }}
+              >
+                {isRegistering ? (
+                  <i className="fa-solid fa-spinner fa-spin"></i>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-circle-xmark"></i>
+                    <span>Unregister</span>
+                  </>
+                )}
+              </button>
+            </>
+          ) : isPending ? (
+            <>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  backgroundColor: '#fffbeb',
+                  color: '#b45309',
+                  border: '1px solid #fde68a',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                }}
+              >
+                <i className="fa-solid fa-clock"></i>
+                <span>Pending Approval</span>
+              </span>
+              <button
+                type="button"
+                onClick={onToggleRegister}
+                disabled={isRegistering}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #cbd5e1',
+                  color: '#475569',
+                  padding: '0.45rem 0.875rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: isRegistering ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                }}
+              >
+                {isRegistering ? (
+                  <i className="fa-solid fa-spinner fa-spin"></i>
+                ) : (
+                  <span>Cancel Request</span>
+                )}
+              </button>
+            </>
+          ) : isFull ? (
+            <button
+              type="button"
+              disabled
               style={{
+                backgroundColor: '#f1f5f9',
+                color: '#64748b',
+                border: '1px solid #cbd5e1',
+                padding: '0.45rem 1rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+                cursor: 'not-allowed',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.35rem',
-                padding: '0.4rem 0.75rem',
-                borderRadius: '0.5rem',
-                backgroundColor: '#ecfdf5',
-                color: '#047857',
-                border: '1px solid #a7f3d0',
-                fontSize: '0.8rem',
-                fontWeight: 600,
               }}
             >
-              <i className="fa-solid fa-circle-check"></i>
-              <span>Registered</span>
-            </span>
+              <i className="fa-solid fa-ban"></i>
+              <span>Event Full</span>
+            </button>
+          ) : (
             <button
               type="button"
               onClick={onToggleRegister}
               disabled={isRegistering}
-              style={{
-                background: 'transparent',
-                border: '1px solid #fecdd3',
-                color: '#e11d48',
-                padding: '0.45rem 0.875rem',
-                borderRadius: '0.5rem',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: isRegistering ? 'not-allowed' : 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
+              className="btn-fb btn-fb-primary"
+              style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}
             >
               {isRegistering ? (
                 <i className="fa-solid fa-spinner fa-spin"></i>
               ) : (
                 <>
-                  <i className="fa-solid fa-circle-xmark"></i>
-                  <span>Unregister</span>
+                  <i className="fa-solid fa-ticket"></i>
+                  <span>{isRejected ? 'Register Again' : 'Register Now'}</span>
                 </>
               )}
             </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={onToggleRegister}
-            disabled={isRegistering}
-            className="btn-fb btn-fb-primary"
-            style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}
-          >
-            {isRegistering ? (
-              <i className="fa-solid fa-spinner fa-spin"></i>
-            ) : (
-              <>
-                <i className="fa-solid fa-ticket"></i>
-                <span>Register Now</span>
-              </>
-            )}
-          </button>
-        )
-      )}
+          )
+        )}
+      </div>
     </div>
   );
 }

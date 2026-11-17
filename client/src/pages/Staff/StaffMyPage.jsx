@@ -4,7 +4,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
 import MyPageProfile from './MyPageDashboard/MyPageProfile';
 import { formatPostTimestamp } from '../../utils/dateUtils';
-import { EventPostMeta, PostAudienceBadge } from '../../assets/components/PortalShellElements';
+import { EventPostMeta, EventPostActionBar, PostAudienceBadge } from '../../assets/components/PortalShellElements';
+import EventRegistrationsManagerModal from '../../assets/components/EventRegistrationsManagerModal';
 import '../styles/StaffDashboard.css';
 import '../styles/MyPage.css';
 
@@ -37,6 +38,7 @@ export default function StaffMyPage() {
 
   // Post Edit Modal State
   const [editingPost, setEditingPost] = useState(null);
+  const [viewingRegistrationsEvent, setViewingRegistrationsEvent] = useState(null);
   const [postTitle, setPostTitle] = useState('');
   const [postType, setPostType] = useState('Announcement');
   const [postContent, setPostContent] = useState('');
@@ -554,6 +556,7 @@ export default function StaffMyPage() {
                                 capacity={post.max_capacity || post.capacity}
                                 createdAt={post.created_at || post.date}
                                 audience={post.audience}
+                                requiresRegistration={post.requires_registration !== false}
                               />
                             ) : (
                               <>
@@ -632,6 +635,17 @@ export default function StaffMyPage() {
                           {post.description || post.content || 'No preview available.'}
                         </p>
                       </div>
+                    )}
+
+                    {isEvent && (
+                      <EventPostActionBar
+                        requiresRegistration={post.requires_registration !== false}
+                        registeredCount={currentRegistered}
+                        capacity={post.max_capacity || post.capacity}
+                        pendingCount={post.pending_registration_count || 0}
+                        isOwner={true}
+                        onViewRegistrations={() => setViewingRegistrationsEvent(post)}
+                      />
                     )}
                   </article>
                 );
@@ -1047,6 +1061,27 @@ export default function StaffMyPage() {
             </div>
           </div>,
           document.body
+        )}
+
+        {viewingRegistrationsEvent && (
+          <EventRegistrationsManagerModal
+            event={viewingRegistrationsEvent}
+            onClose={() => setViewingRegistrationsEvent(null)}
+            onUpdated={(targetId, counts) => {
+              setPosts((prev) =>
+                prev.map((p) =>
+                  (p.id || p.post_id) === targetId
+                    ? {
+                        ...p,
+                        registered_count: counts.registered_count,
+                        current_registered: counts.registered_count,
+                        pending_registration_count: counts.pending_registration_count,
+                      }
+                    : p
+                )
+              );
+            }}
+          />
         )}
 
         {/* Delete Confirmation Modal */}
