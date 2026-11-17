@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/PortalShell.css';
 import logo from '../images/logo.jpg';
+import QRCheckInScanner from './QRCheckInScanner';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import { formatNotificationDisplay } from '../../utils/notificationUtils';
 
@@ -212,8 +214,20 @@ export function PortalNavbar({
   onLogout,
 }) {
   const navigate = useNavigate();
+  const [showQrModal, setShowQrModal] = useState(false);
+  const qrRole = String(qrHref || '').includes('/staff/') ? 'staff' : 'student';
+
+  useEffect(() => {
+    if (!showQrModal) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setShowQrModal(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showQrModal]);
 
   return (
+    <>
     <header className="header">
       <div className="header-container">
         {/* Left: Mobile Hamburger + Brand Logo */}
@@ -287,23 +301,23 @@ export function PortalNavbar({
               {isSearching ? (
                 <p style={{ padding: '0.875rem', fontSize: '0.8125rem', color: '#64748b', textAlign: 'center', margin: 0 }}>
                   <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: '0.5rem', color: '#881337' }} aria-hidden="true"></i>
-                  Searching database...
+                  Searching...
                 </p>
               ) : searchResults.length === 0 ? (
                 <p style={{ padding: '0.875rem', fontSize: '0.8125rem', color: '#64748b', textAlign: 'center', margin: 0 }}>
                   <i className="fa-regular fa-folder-open" style={{ marginRight: '0.5rem', color: '#94a3b8' }} aria-hidden="true"></i>
-                  No matching records found in system
+                  No matching announcements, events, or pages found
                 </p>
               ) : (
                 searchResults.map((result) => (
                   <a
-                    key={result.id}
-                    href={result.url}
+                    key={result.key || `${result.type || 'item'}-${result.id}`}
+                    href={result.url || '#'}
                     className="search-result-item"
                     onClick={(e) => {
                       e.preventDefault();
                       if (onSelectSearchResult) onSelectSearchResult(result, false);
-                      navigate(result.url);
+                      if (result.url) navigate(result.url);
                     }}
                   >
                     <div>
@@ -311,7 +325,8 @@ export function PortalNavbar({
                         {result.title}
                       </div>
                       <div style={{ fontSize: '11px', color: '#64748b', marginTop: '0.1rem' }}>
-                        {result.type}
+                        {result.typeLabel || result.type}
+                        {result.subtitle ? ` • ${result.subtitle}` : ''}
                       </div>
                     </div>
                     <i className="fa-solid fa-chevron-right" style={{ fontSize: '10px', color: '#94a3b8' }} aria-hidden="true"></i>
@@ -328,7 +343,7 @@ export function PortalNavbar({
             <button
               type="button"
               className="icon-btn fb-header-circle-btn fb-qr-btn"
-              onClick={() => navigate(qrHref)}
+              onClick={() => setShowQrModal(true)}
               title="Scan QR Attendance with Camera"
               aria-label="Scan QR Attendance with Camera"
             >
@@ -561,6 +576,35 @@ export function PortalNavbar({
         </div>
       </div>
     </header>
+    {showQrModal &&
+      createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="QR Attendance Check-In"
+          onClick={() => setShowQrModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'clamp(0.625rem, 2.5vw, 1.25rem)',
+            boxSizing: 'border-box',
+          }}
+        >
+          <QRCheckInScanner
+            role={qrRole}
+            isModal={true}
+            onClose={() => setShowQrModal(false)}
+          />
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 

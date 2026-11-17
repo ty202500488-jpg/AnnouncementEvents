@@ -4,6 +4,7 @@ import '../../pages/styles/StudentDashboard.css';
 import '../../pages/styles/MyPageDashboard.css';
 import useSessionGuard from './useSessionGuard';
 import UniversityWideSpotlight from './UniversityWideSpotlight';
+import { usePortalSearch } from '../../utils/usePortalSearch';
 import {
   PortalNavbar,
   DepartmentPagesSidebarList,
@@ -28,12 +29,17 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // SEARCH BAR STATE & LOGIC
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const searchContainerRef = useRef(null);
+  const {
+    searchQuery,
+    filterCategory,
+    searchResults,
+    isSearching,
+    showDropdown,
+    searchContainerRef,
+    handleSearchChange,
+    handleToggleFilter: toggleFilterCategory,
+    handleSelectSearchResult,
+  } = usePortalSearch('mypage');
 
   // PROFILE DROPDOWN STATE & LOGIC
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -152,9 +158,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     fetchNotifications();
 
     const handleClickOutside = (e) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
-        setShowDropdown(false);
-      }
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(e.target)) {
         setShowProfileDropdown(false);
       }
@@ -218,61 +221,6 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     setShowNotifDropdown(false);
     if (notif.url) {
       navigate(notif.url);
-    }
-  };
-
-  const handleSearchChange = async (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-
-    if (query.trim().length > 0) {
-      setIsSearching(true);
-      setShowDropdown(true);
-
-      try {
-        const deptMatches = departments
-          .filter(d => d.name && d.name.toLowerCase().includes(query.toLowerCase()))
-          .map(d => ({
-            id: d.id,
-            title: d.name,
-            category: 'departments',
-            type: 'Department Page',
-            url: d.url || '/staff/mypage/dashboard'
-          }));
-
-        const staticSystemRecords = [
-          { id: 'ann-1', title: 'Midterm Examination Schedule', category: 'announcements', type: 'Announcement', url: '/staff/mypage/announcements' },
-          { id: 'ann-2', title: 'Graduation Ceremony Guidelines', category: 'announcements', type: 'Announcement', url: '/staff/mypage/announcements' },
-          { id: 'evt-1', title: 'Annual University Sports Fest 2026', category: 'events', type: 'Event', url: '/staff/mypage/events' },
-          { id: 'evt-2', title: 'Hackathon & Tech Expo', category: 'events', type: 'Event', url: '/staff/mypage/events' }
-        ].filter(item => item.title.toLowerCase().includes(query.toLowerCase()));
-
-        const combinedResults = [...deptMatches, ...staticSystemRecords].filter(item => {
-          return filterCategory === 'all' || item.category === filterCategory;
-        });
-
-        setSearchResults(combinedResults);
-      } catch (err) {
-        console.error('Search query failed:', err);
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    } else {
-      setSearchResults([]);
-      setShowDropdown(false);
-    }
-  };
-
-  const toggleFilterCategory = () => {
-    const categories = ['all', 'announcements', 'events', 'departments'];
-    const currentIndex = categories.indexOf(filterCategory);
-    const nextCategory = categories[(currentIndex + 1) % categories.length];
-    setFilterCategory(nextCategory);
-
-    if (searchQuery.trim().length > 0) {
-      const event = { target: { value: searchQuery } };
-      handleSearchChange(event);
     }
   };
 
@@ -359,7 +307,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
         searchResults={searchResults}
         isSearching={isSearching}
         showSearchDropdown={showDropdown}
-        onSelectSearchResult={(_result, openOnly) => setShowDropdown(Boolean(openOnly))}
+        onSelectSearchResult={handleSelectSearchResult}
         searchContainerRef={searchContainerRef}
         showQrButton={true}
         qrHref="/staff/attendance/check-in/scan"

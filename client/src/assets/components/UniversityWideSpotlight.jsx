@@ -77,7 +77,7 @@ function SpotlightDetailModal({ item, onClose, onNavigateToPage }) {
         <div className="uw-modal-topbar">
           <div className="uw-modal-badges">
             <span className="uw-modal-badge-primary">
-              <i className="fa-solid fa-bullhorn" style={{ marginRight: '0.3rem' }}></i>
+              <span className="uw-spotlight-dot" aria-hidden="true"></span>
               University-Wide
             </span>
             <span className="uw-modal-badge-type">
@@ -99,29 +99,13 @@ function SpotlightDetailModal({ item, onClose, onNavigateToPage }) {
               <div className="uw-spotlight-logo-ring">
                 <img src={logo} alt="WMSU Logo" className="uw-spotlight-logo-img" />
               </div>
-              <span className="uw-spotlight-logo-caption">Western Mindanao State University</span>
             </div>
           )}
 
           <div className="uw-modal-body">
             <h2 className="uw-modal-title">{item.title}</h2>
 
-            <div className="uw-modal-meta-row">
-              <span className="uw-modal-meta-item">
-                <i className="fa-solid fa-building-columns" style={{ color: '#800020' }}></i>
-                <strong>{item.page_name || 'University Office'}</strong>
-              </span>
-              <span className="uw-modal-meta-item">
-                <i className="fa-solid fa-clock" style={{ color: '#64748b' }}></i>
-                Posted {formatPostTimestamp(item.published_at || item.created_at)}
-              </span>
-              {item.expires_at && (
-                <span className="uw-modal-meta-item">
-                  <i className="fa-solid fa-hourglass-half" style={{ color: '#800020' }}></i>
-                  Active until {formatReadableDate(item.expires_at, true)}
-                </span>
-              )}
-            </div>
+            <p className="uw-modal-text">{item.content || item.description}</p>
 
             {isEvent && (
               <div className="uw-modal-event-box">
@@ -142,20 +126,46 @@ function SpotlightDetailModal({ item, onClose, onNavigateToPage }) {
               </div>
             )}
 
-            <p className="uw-modal-text">{item.content || item.description}</p>
+            <div className="uw-modal-meta-row">
+              <span className="uw-modal-meta-item">
+                {item.page_id ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToPage(item.page_id)}
+                    title={`Visit ${item.page_name || 'Page'}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: '#b91c1c',
+                      fontWeight: 700,
+                      fontSize: 'inherit',
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span>{item.page_name || 'University Office'}</span>
+                    <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" style={{ fontSize: '0.78rem' }}></i>
+                  </button>
+                ) : (
+                  <strong style={{ color: '#b91c1c', fontWeight: 700 }}>{item.page_name || 'University Office'}</strong>
+                )}
+              </span>
+              <span className="uw-modal-meta-item">
+                <span aria-hidden="true" style={{ color: '#94a3b8' }}>•</span>
+                {formatPostTimestamp(item.published_at || item.created_at)}
+              </span>
+              {item.expires_at && (
+                <span className="uw-modal-meta-item">
+                  <i className="fa-solid fa-hourglass-half" style={{ color: '#800020' }}></i>
+                  Active until {formatReadableDate(item.expires_at, true)}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-
-        <div className="uw-modal-footer">
-          <button type="button" className="uw-modal-btn-secondary" onClick={onClose}>
-            Close
-          </button>
-          {item.page_id && (
-            <button type="button" className="uw-modal-btn-primary" onClick={() => onNavigateToPage(item.page_id)}>
-              <span>Visit {item.page_name || 'Page'}</span>
-              <i className="fa-solid fa-arrow-up-right-from-square"></i>
-            </button>
-          )}
         </div>
       </div>
     </div>,
@@ -289,11 +299,18 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
 
                     <div className="uw-mobile-info">
                       <div className="uw-mobile-top-row">
-                        <span className="uw-mobile-badge">University-Wide</span>
+                        <span className="uw-mobile-badge">
+                          <span className="uw-spotlight-dot" aria-hidden="true"></span>
+                          University-Wide
+                        </span>
                       </div>
                       <h4 className="uw-mobile-title">{slideItem.title}</h4>
                       <div className="uw-mobile-sub">
-                        {slideItem.page_name || 'University Office'} • Tap for details
+                        <span className="uw-mobile-page">{slideItem.page_name || 'University Office'}</span>
+                        <span className="uw-spotlight-cta">
+                          View
+                          <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" style={{ fontSize: '0.62rem' }}></i>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -304,8 +321,8 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
 
           {activeItems.length > 1 && (
             <div className="uw-mobile-controls" onClick={(e) => e.stopPropagation()}>
-              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#881337' }}>
-                {safeIndex + 1}/{activeItems.length}
+              <span className="uw-spotlight-counter">
+                {safeIndex + 1} / {activeItems.length}
               </span>
               <div className="uw-mobile-arrow-row">
                 <button type="button" className="uw-mobile-arrow-btn" onClick={handlePrev} aria-label="Previous spotlight item">
@@ -339,7 +356,7 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
       >
         <div className="uw-spotlight-header">
           <div className="uw-spotlight-heading">
-            <i className="fa-solid fa-bullhorn"></i>
+            <span className="uw-spotlight-dot" aria-hidden="true"></span>
             <span>University-Wide</span>
           </div>
           {activeItems.length > 1 && (
@@ -391,7 +408,10 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
                   <div className="uw-spotlight-content">
                     <div className="uw-spotlight-meta">
                       <span className="uw-spotlight-page">{slideItem.page_name || 'University Office'}</span>
-                      <span className="uw-spotlight-cta">View Details →</span>
+                      <span className="uw-spotlight-cta">
+                        View
+                        <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" style={{ fontSize: '0.65rem' }}></i>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -424,7 +444,6 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
                 />
               ))}
             </div>
-            <span style={{ fontSize: '0.6875rem', color: '#94a3b8' }}>5s auto</span>
           </div>
         )}
       </section>

@@ -17,6 +17,7 @@ const {
     notifyPublishedPost,
     notifyEventUpdated
 } = require('../utils/notificationService');
+const { searchPortalContent } = require('../utils/searchHelper');
 
 ensureUniversityWideColumn(pool).catch((err) => {
     console.error('Warning: failed to ensure posts.is_university_wide column:', err.message);
@@ -1409,6 +1410,44 @@ router.get('/approved-pages', async (req, res) => {
     }
 });
 
+// -------- PORTAL SEARCH (ANNOUNCEMENTS, EVENTS, APPROVED PAGES) -------- //
+router.get('/search', async (req, res) => {
+    try {
+        const q = String(req.query?.q || '').trim();
+        if (!q) {
+            return res.status(200).json({ results: [] });
+        }
+
+        let tokenUserId = null;
+        const authHeader = req.headers.authorization || req.headers.Authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            try {
+                const decoded = jwt.verify(authHeader.slice(7).trim(), process.env.JWT_SECRET || 'fallback_secret');
+                if (!decoded.purpose) {
+                    const parsedId = Number(decoded.userId ?? decoded.id ?? decoded.user_id);
+                    if (Number.isSafeInteger(parsedId) && parsedId > 0) {
+                        tokenUserId = parsedId;
+                    }
+                }
+            } catch (_) {
+                tokenUserId = null;
+            }
+        }
+
+        const results = await searchPortalContent(pool, {
+            query: q,
+            type: req.query?.type || req.query?.category || 'all',
+            userId: tokenUserId,
+            limit: req.query?.limit,
+        });
+
+        return res.status(200).json({ results });
+    } catch (err) {
+        console.error('Portal search error:', err.message);
+        return res.status(500).json({ message: 'Failed to search portal records.' });
+    }
+});
+
 // ============================================================================
 // PUBLIC & STUDENT PAGE VIEW + FOLLOW ENDPOINTS
 // ============================================================================
@@ -1513,17 +1552,11 @@ async function handleGetPagePosts(req, res) {
                AND p.is_archived = FALSE
                AND LOWER(p.moderation_status) = 'approved'
                AND (
-                   LOWER(COALESCE(p.audience, 'All Campus')) NOT IN ('followers', 'followers only', 'only followers', 'private')
+                   TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) IN ('all campus', 'public', 'everyone', 'campus', '')
                    OR (
-                       $2::int IS NOT NULL AND (
-                           pg.created_by = $2
-                           OR p.creator_user_id = $2
-                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $2)
-                           OR (
-                               LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
-                               AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $2)
-                           )
-                       )
+                       $2::int IS NOT NULL
+                       AND TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) != 'private'
+                       AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $2)
                    )
                )
              GROUP BY p.post_id, pg.page_id, pc.category_id, ed.post_id

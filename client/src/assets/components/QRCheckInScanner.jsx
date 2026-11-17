@@ -53,10 +53,11 @@ function decodeQrFromCanvasSource(source, width, height) {
   return code?.data || '';
 }
 
-export default function QRCheckInScanner({ role = 'student' }) {
-  const { token } = useParams();
+export default function QRCheckInScanner({ role = 'student', isModal = false, onClose }) {
+  const params = useParams();
+  const token = isModal ? undefined : params?.token;
   const navigate = useNavigate();
-  const isScanMode = !token || token === 'scan';
+  const isScanMode = isModal || !token || token === 'scan';
   const dashboardPath = role === 'staff' ? '/staff/dashboard' : '/student/dashboard';
   const scanPath = role === 'staff' ? '/staff/attendance/check-in/scan' : '/student/attendance/check-in/scan';
 
@@ -207,179 +208,162 @@ export default function QRCheckInScanner({ role = 'student' }) {
     }
   };
 
-  return (
-    <div
+  const handleExit = () => {
+    stopCamera();
+    if (onClose) {
+      onClose();
+    } else {
+      navigate(dashboardPath);
+    }
+  };
+
+  const cardContent = (
+    <article
+      className={isModal ? 'uw-modal-dialog' : 'card'}
+      onClick={(e) => e.stopPropagation()}
       style={{
-        minHeight: '100vh',
+        width: '100%',
+        maxWidth: '500px',
+        maxHeight: isModal ? '90dvh' : undefined,
+        borderRadius: '1.125rem',
+        border: isModal ? undefined : '1px solid var(--slate-200, #e2e8f0)',
+        backgroundColor: '#ffffff',
+        overflow: 'hidden',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.5rem 1rem',
-        backgroundColor: '#f8fafc',
+        flexDirection: 'column',
+        boxShadow: isModal
+          ? '0 25px 50px -12px rgba(0, 0, 0, 0.35)'
+          : '0 10px 25px -5px rgba(15, 23, 42, 0.08)',
       }}
     >
-      <article
-        className="card"
-        style={{
-          width: '100%',
-          maxWidth: '500px',
-          padding: '1.75rem',
-          borderRadius: '1.25rem',
-          border: '1px solid var(--slate-200, #e2e8f0)',
-          backgroundColor: '#ffffff',
-          boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.08)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '0.75rem',
-            paddingBottom: '1rem',
-            borderBottom: '1px solid #f1f5f9',
-            marginBottom: '1.25rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div
-              style={{
-                width: '2.5rem',
-                height: '2.5rem',
-                borderRadius: '0.75rem',
-                backgroundColor: '#fbe4e8',
-                color: '#7B0D1E',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.1rem',
-              }}
-            >
-              <i className="fa-solid fa-qrcode"></i>
-            </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 800, color: '#0f172a' }}>
-                QR Attendance Check-In
-              </h2>
-              <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                Scan an event attendance QR code with your camera
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => navigate(dashboardPath)}
-            style={{
-              backgroundColor: '#f1f5f9',
-              color: '#334155',
-              border: 'none',
-              borderRadius: '0.5rem',
-              padding: '0.45rem 0.85rem',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Back
-          </button>
+      {/* Top Bar matching Spotlight Modal */}
+      <div className="uw-modal-topbar">
+        <div className="uw-modal-badges">
+          <span className="uw-modal-badge-primary">
+            <span className="uw-spotlight-dot" aria-hidden="true"></span>
+            QR Scan
+          </span>
+          <span className="uw-modal-badge-type">Attendance</span>
         </div>
 
+        <button
+          type="button"
+          className="uw-modal-close"
+          onClick={handleExit}
+          aria-label={isModal ? 'Close QR scanner' : 'Back to dashboard'}
+        >
+          <i className="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div className="uw-modal-scroll">
         {status === 'scanner' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <>
+            {/* Dark Hero Camera Stage matching Spotlight Modal */}
             <div
+              className="uw-modal-hero"
               style={{
-                borderRadius: '1rem',
-                border: '1px dashed #cbd5e1',
-                backgroundColor: '#f8fafc',
-                padding: '1.25rem',
-                textAlign: 'center',
+                minHeight: 'clamp(220px, 42dvh, 360px)',
+                maxHeight: 'min(420px, 55dvh)',
+                padding: cameraActive ? '0' : 'clamp(1.25rem, 4vw, 2.5rem) 1.25rem',
+                flexDirection: 'column',
+                gap: '0.75rem',
+                boxSizing: 'border-box',
               }}
             >
               {cameraActive ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
-                  <video
-                    ref={videoRef}
-                    playsInline
-                    muted
-                    style={{
-                      width: '100%',
-                      maxWidth: '380px',
-                      borderRadius: '0.85rem',
-                      backgroundColor: '#0f172a',
-                      border: '2px solid #7B0D1E',
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={stopCamera}
-                    style={{
-                      backgroundColor: '#f1f5f9',
-                      color: '#334155',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '0.5rem',
-                      padding: '0.5rem 1rem',
-                      fontSize: '0.825rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <i className="fa-solid fa-video-slash" style={{ marginRight: '0.4rem' }}></i>
-                    Stop Camera
-                  </button>
-                </div>
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  style={{
+                    width: '100%',
+                    maxHeight: 'min(420px, 55dvh)',
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
+                />
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 0' }}>
+                <>
                   <div
                     style={{
-                      width: '3.5rem',
-                      height: '3.5rem',
+                      width: '3.75rem',
+                      height: '3.75rem',
                       borderRadius: '50%',
-                      backgroundColor: '#fbe4e8',
-                      color: '#7B0D1E',
+                      backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      color: '#ffffff',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '1.5rem',
                     }}
                   >
-                    <i className="fa-solid fa-camera"></i>
+                    <i className="fa-solid fa-qrcode"></i>
                   </div>
-                  <p style={{ margin: 0, fontSize: '0.875rem', color: '#475569', fontWeight: 500 }}>
-                    Point your camera at the event attendance QR code
+                  <p style={{ margin: 0, fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.85)', fontWeight: 500, textAlign: 'center' }}>
+                    Point camera at the QR code
                   </p>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={startCamera}
-                      style={{
-                        backgroundColor: '#7B0D1E',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: '0.6rem',
-                        padding: '0.55rem 1.15rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.45rem',
-                      }}
-                    >
-                      <i className="fa-solid fa-camera"></i>
-                      <span>Start Camera Scan</span>
-                    </button>
-                  </div>
-                </div>
+                </>
               )}
+            </div>
+
+            {/* White Body matching Spotlight Modal */}
+            <div className="uw-modal-body" style={{ alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+
+                {cameraActive ? (
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    style={{
+                      backgroundColor: '#f1f5f9',
+                      color: '#0f172a',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem 1rem',
+                      fontSize: '0.825rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                    }}
+                  >
+                    <i className="fa-solid fa-video-slash"></i>
+                    <span>Stop Camera</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    style={{
+                      backgroundColor: '#800020',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      padding: '0.55rem 1.15rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                    }}
+                  >
+                    <i className="fa-solid fa-camera"></i>
+                    <span>Start Scan</span>
+                  </button>
+                )}
+              </div>
 
               {cameraError && (
-                <p style={{ margin: '0.85rem 0 0 0', fontSize: '0.8rem', color: '#b91c1c', fontWeight: 500 }}>
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#b91c1c', fontWeight: 500 }}>
                   {cameraError}
                 </p>
               )}
             </div>
-          </div>
+          </>
         )}
 
         {status === 'processing' && (
@@ -429,7 +413,7 @@ export default function QRCheckInScanner({ role = 'student' }) {
               </button>
               <button
                 type="button"
-                onClick={() => navigate(dashboardPath)}
+                onClick={handleExit}
                 style={{
                   backgroundColor: '#7B0D1E',
                   color: '#ffffff',
@@ -441,7 +425,7 @@ export default function QRCheckInScanner({ role = 'student' }) {
                   cursor: 'pointer',
                 }}
               >
-                Go to Dashboard
+                {isModal ? 'Done' : 'Go to Dashboard'}
               </button>
             </div>
           </div>
@@ -486,7 +470,7 @@ export default function QRCheckInScanner({ role = 'student' }) {
               </button>
               <button
                 type="button"
-                onClick={() => navigate(dashboardPath)}
+                onClick={handleExit}
                 style={{
                   backgroundColor: '#f1f5f9',
                   color: '#334155',
@@ -498,12 +482,31 @@ export default function QRCheckInScanner({ role = 'student' }) {
                   cursor: 'pointer',
                 }}
               >
-                Back to Dashboard
+                {isModal ? 'Close' : 'Back to Dashboard'}
               </button>
             </div>
           </div>
         )}
-      </article>
+      </div>
+    </article>
+  );
+
+  if (isModal) {
+    return cardContent;
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1.5rem 1rem',
+        backgroundColor: '#f8fafc',
+      }}
+    >
+      {cardContent}
     </div>
   );
 }

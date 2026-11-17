@@ -44,10 +44,10 @@
 
 .auth-page-root .bg-blob {
   position: absolute;
-  border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
-  opacity: 0.55;
-  filter: blur(50px);
-  will-change: transform, border-radius;
+  border-radius: 50%;
+  opacity: 0.45;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .auth-page-root .blob-1 {
@@ -133,38 +133,31 @@
   opacity: 0.4;
 }
 
-.auth-page-root .float-anim-1 { animation: floatAnim1 14s infinite ease-in-out, morphBlob 12s infinite alternate ease-in-out; }
-.auth-page-root .float-anim-2 { animation: floatAnim2 18s infinite ease-in-out, morphBlob 16s infinite alternate-reverse ease-in-out; }
-.auth-page-root .float-anim-3 { animation: floatAnim3 12s infinite ease-in-out, morphBlob 10s infinite alternate ease-in-out; }
-.auth-page-root .float-anim-4 { animation: floatAnim4 16s infinite ease-in-out, morphBlob 14s infinite alternate-reverse ease-in-out; }
+.auth-page-root .float-anim-1 { animation: floatAnim1 16s infinite ease-in-out; }
+.auth-page-root .float-anim-2 { animation: floatAnim2 20s infinite ease-in-out; }
+.auth-page-root .float-anim-3 { animation: floatAnim3 14s infinite ease-in-out; }
+.auth-page-root .float-anim-4 { animation: floatAnim4 18s infinite ease-in-out; }
 
 @keyframes floatAnim1 {
-  0%, 100% { transform: translate(0px, 0px) rotate(0deg); }
-  33% { transform: translate(35px, -45px) rotate(4deg); }
-  66% { transform: translate(-25px, 25px) rotate(-3deg); }
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  33% { transform: translate3d(30px, -40px, 0) rotate(4deg); }
+  66% { transform: translate3d(-20px, 20px, 0) rotate(-3deg); }
 }
 
 @keyframes floatAnim2 {
-  0%, 100% { transform: translate(0px, 0px) rotate(0deg); }
-  33% { transform: translate(-40px, 30px) rotate(-5deg); }
-  66% { transform: translate(30px, -35px) rotate(3deg); }
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  33% { transform: translate3d(-35px, 25px, 0) rotate(-5deg); }
+  66% { transform: translate3d(25px, -30px, 0) rotate(3deg); }
 }
 
 @keyframes floatAnim3 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  50% { transform: translate(25px, 35px) scale(1.08); }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(22px, 30px, 0) scale(1.06); }
 }
 
 @keyframes floatAnim4 {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  50% { transform: translate(-30px, -25px) scale(0.92); }
-}
-
-@keyframes morphBlob {
-  0% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
-  34% { border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%; }
-  67% { border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%; }
-  100% { border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%; }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-25px, -22px, 0) scale(0.94); }
 }
 
 .auth-page-root .star-blob {
@@ -190,13 +183,13 @@
 .auth-page-root .star-12 { width: 12px; height: 12px; top: 92%; left: 42%;  animation-delay: 0.2s, 0.9s; }
 
 @keyframes starGlow {
-  0% { opacity: 0.25; box-shadow: 0 0 6px rgba(232, 216, 196, 0.3); }
-  100% { opacity: 1; box-shadow: 0 0 22px rgba(232, 216, 196, 0.9), 0 0 35px rgba(199, 183, 163, 0.9); }
+  0% { opacity: 0.3; }
+  100% { opacity: 1; }
 }
 
 @keyframes starFloat {
-  0%, 100% { transform: translateY(0px) translateX(0px); }
-  50% { transform: translateY(-15px) translateX(10px); }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); }
+  50% { transform: translate3d(10px, -15px, 0) scale(1.1); }
 }
 
 /* ====================================================

@@ -4,6 +4,7 @@ import '../styles/PageView.css';
 import '../styles/StudentDashboard.css';
 import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials } from '../../assets/components/PortalShellElements';
 import { formatPostTimestamp } from '../../utils/dateUtils';
+import { usePortalSearch } from '../../utils/usePortalSearch';
 
 export default function PageView({ role = 'guest' }) {
   const { pageId } = useParams();
@@ -47,12 +48,17 @@ export default function PageView({ role = 'guest' }) {
   const profileInitials = getInitials(profileTitle, 'WM');
 
   // Navbar search, notifications & profile dropdown state (matching MyPage navbar)
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const searchContainerRef = useRef(null);
+  const {
+    searchQuery,
+    filterCategory,
+    searchResults,
+    isSearching,
+    showDropdown,
+    searchContainerRef,
+    handleSearchChange,
+    handleToggleFilter,
+    handleSelectSearchResult,
+  } = usePortalSearch(token ? (isStaff ? 'staff' : 'student') : 'guest');
 
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
@@ -94,9 +100,6 @@ export default function PageView({ role = 'guest' }) {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
         setShowProfileDropdown(false);
       }
@@ -107,34 +110,6 @@ export default function PageView({ role = 'guest' }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    const q = searchQuery.trim();
-    if (!q || !token) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return undefined;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        const res = await fetch(`http://localhost:5000/api/search?q=${encodeURIComponent(q)}&type=${filterCategory}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data.results || []);
-        }
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, filterCategory, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -156,28 +131,6 @@ export default function PageView({ role = 'guest' }) {
     };
     fetchNotifications();
   }, [token]);
-
-  const handleToggleFilter = () => {
-    const order = ['all', 'announcements', 'events', 'departments'];
-    const next = order[(order.indexOf(filterCategory) + 1) % order.length];
-    setFilterCategory(next);
-  };
-
-  const handleSelectSearchResult = (item, openOnly) => {
-    if (openOnly) {
-      setShowDropdown(true);
-      return;
-    }
-    setShowDropdown(false);
-    if (!item) return;
-    if (item.type === 'page') {
-      navigate(isStaff ? `/staff/page/${item.id}` : `/student/page/${item.id}`);
-    } else if (item.type === 'event') {
-      navigate(isStaff ? '/staff/events' : '/student/events');
-    } else {
-      navigate(isStaff ? '/staff/announcements' : '/student/announcements');
-    }
-  };
 
   const handleMarkAllAsRead = async () => {
     if (!token) return;
@@ -552,10 +505,7 @@ export default function PageView({ role = 'guest' }) {
           isMobileMenuOpen={false}
           onToggleMobileMenu={handleGoBack}
           searchQuery={searchQuery}
-          onSearchChange={(e) => {
-            setSearchQuery(e.target.value);
-            setShowDropdown(Boolean(e.target.value.trim()));
-          }}
+          onSearchChange={handleSearchChange}
           filterCategory={filterCategory}
           onToggleFilter={handleToggleFilter}
           searchResults={searchResults}

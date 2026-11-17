@@ -79,10 +79,6 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
   const [togglingPageId, setTogglingPageId] = useState(null);
   const [hiddenPosts, setHiddenPosts] = useState({});
   const [hiddenPageKeys, setHiddenPageKeys] = useState([]);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const emojiPopoverRef = useRef(null);
-
-  const QUICK_EMOJIS = ['📢', '🎉', '📅', '🎓', '🏆', '💡', '👏', '🔥', '✅', '📌', '❤️', '🙌'];
 
   const fetchPageAndFeedData = async () => {
     try {
@@ -147,10 +143,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
 
     fetchPageAndFeedData();
 
-    const handleClickOutside = (e) => {
-      if (emojiPopoverRef.current && !emojiPopoverRef.current.contains(e.target)) {
-        setShowEmojiPicker(false);
-      }
+    const handleClickOutside = () => {
       setActiveMenuKey(null);
     };
     document.addEventListener('click', handleClickOutside);
@@ -520,7 +513,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       >
         
         {/* Compact Horizontal Posting Composer */}
-        <div className="mypage-composer" ref={emojiPopoverRef}>
+        <div className="mypage-composer">
           <div className="mypage-composer-row">
             <div className="mypage-composer-avatar" aria-hidden="true">
               {pageAvatarUrl ? (
@@ -560,7 +553,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   onClick={() => { setEditingPost(null); setPostType('announcement'); setIsModalOpen(true); }}
                   title="Create Announcement"
                   aria-label="Create Announcement"
-                  style={{ color: '#f43f5e' }}
+                  style={{ color: '#be123c' }}
                 >
                   <i className="fa-solid fa-bullhorn"></i>
                 </button>
@@ -570,7 +563,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   onClick={() => { setEditingPost(null); setPostType('event'); setIsModalOpen(true); }}
                   title="Create Event"
                   aria-label="Create Event"
-                  style={{ color: '#f7b928' }}
+                  style={{ color: '#b45309' }}
                 >
                   <i className="fa-solid fa-calendar-days"></i>
                 </button>
@@ -580,42 +573,13 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   onClick={() => { setEditingPost(null); setIsModalOpen(true); setTimeout(() => fileInputRef.current?.click(), 100); }}
                   title="Add Photo"
                   aria-label="Add Photo"
-                  style={{ color: '#45bd62' }}
+                  style={{ color: '#15803d' }}
                 >
                   <i className="fa-solid fa-image"></i>
-                </button>
-                <button
-                  type="button"
-                  className="mypage-composer-icon-btn"
-                  onClick={() => setShowEmojiPicker((prev) => !prev)}
-                  title="Insert Emoji"
-                  aria-label="Insert Emoji"
-                  aria-expanded={showEmojiPicker}
-                  style={{ color: '#f7b928' }}
-                >
-                  <i className="fa-solid fa-face-smile"></i>
                 </button>
               </div>
             </div>
           </div>
-
-          {showEmojiPicker && (
-            <div className="mypage-emoji-popover" role="menu" aria-label="Quick emoji picker">
-              {QUICK_EMOJIS.map((emoji) => (
-                <button
-                  key={emoji}
-                  type="button"
-                  className="mypage-emoji-btn"
-                  onClick={() => {
-                    setQuickBody((prev) => (prev ? `${prev} ${emoji}` : emoji));
-                    setShowEmojiPicker(false);
-                  }}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Modal Form */}
@@ -857,23 +821,23 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   placeholder={postType === 'announcement' ? "Announcement Title..." : "Event Title..."} 
                   value={quickTitle}
                   onChange={(e) => setQuickTitle(e.target.value)}
-                  style={{ width: '100%', padding: '0.625rem 0.875rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0', fontSize: '0.9375rem', fontWeight: 700, outline: 'none', color: '#0f172a' }}
+                  style={{ width: '100%', padding: '0.625rem 0.875rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontSize: '0.9375rem', fontWeight: 700, outline: 'none', color: '#0f172a', boxSizing: 'border-box' }}
                   required
                 />
 
                 {postType === 'event' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1' }}>
                     <div>
                       <label htmlFor="event-date" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>EVENT DATE</label>
-                      <input id="event-date" name="event_date" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} required />
+                      <input id="event-date" name="event_date" type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} required />
                     </div>
                     <div>
                       <label htmlFor="event-location" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>LOCATION / VENUE</label>
-                      <input id="event-location" name="location" type="text" placeholder="e.g. CCS Gym" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} />
+                      <input id="event-location" name="location" type="text" placeholder="e.g. CCS Gym" value={location} onChange={(e) => setLocation(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
                     </div>
                     <div>
                       <label htmlFor="event-capacity" style={{ fontSize: '10px', fontWeight: 700, color: '#881337', display: 'block', marginBottom: '2px' }}>CAPACITY</label>
-                      <input id="event-capacity" name="capacity" type="number" placeholder="Max capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #e2e8f0', fontSize: '0.75rem', backgroundColor: '#ffffff' }} />
+                      <input id="event-capacity" name="capacity" type="number" placeholder="Max capacity" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={{ width: '100%', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', fontSize: '0.75rem', backgroundColor: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }} />
                     </div>
                   </div>
                 )}
@@ -885,7 +849,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                   placeholder="Write post description..." 
                   value={quickBody}
                   onChange={(e) => setQuickBody(e.target.value)}
-                  style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.9375rem', resize: 'none', outline: 'none', color: '#1e293b', fontFamily: 'inherit', minHeight: '110px' }}
+                  style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '0.5rem', padding: '0.75rem', fontSize: '0.9375rem', resize: 'none', outline: 'none', backgroundColor: '#ffffff', color: '#0f172a', fontFamily: 'inherit', minHeight: '110px', boxSizing: 'border-box' }}
                   required
                 ></textarea>
 
@@ -904,12 +868,12 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
 
                 <input id="post-image-upload" name="image" type="file" accept="image/*" ref={fileInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: '1px solid #e2e8f0', borderRadius: '0.5rem' }}>
-                  <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#334155' }}>Add to your post</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: '1px solid #cbd5e1', borderRadius: '0.5rem', backgroundColor: '#f8fafc' }}>
+                  <span style={{ fontWeight: 600, fontSize: '0.8125rem', color: '#0f172a' }}>Add to your post</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#10b981', fontSize: '1.1rem' }}><i className="fa-solid fa-image"></i></button>
-                    <button type="button" onClick={() => setPostType(postType === 'event' ? 'announcement' : 'event')} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#d97706', fontSize: '1.1rem' }}><i className="fa-solid fa-calendar-days"></i></button>
-                    <button type="button" onClick={() => { const loc = prompt('Enter Location:', location); if(loc !== null) setLocation(loc); }} style={{ background: 'none', border: 'none', padding: '0.4rem', cursor: 'pointer', color: '#ef4444', fontSize: '1.1rem' }}><i className="fa-solid fa-location-dot"></i></button>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} title="Add Photo" aria-label="Add Photo" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.4rem', padding: '0.4rem 0.55rem', cursor: 'pointer', color: '#15803d', fontSize: '1.05rem' }}><i className="fa-solid fa-image"></i></button>
+                    <button type="button" onClick={() => setPostType(postType === 'event' ? 'announcement' : 'event')} title="Toggle Event" aria-label="Toggle Event" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.4rem', padding: '0.4rem 0.55rem', cursor: 'pointer', color: '#b45309', fontSize: '1.05rem' }}><i className="fa-solid fa-calendar-days"></i></button>
+                    <button type="button" onClick={() => { const loc = prompt('Enter Location:', location); if(loc !== null) setLocation(loc); }} title="Set Location" aria-label="Set Location" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '0.4rem', padding: '0.4rem 0.55rem', cursor: 'pointer', color: '#be123c', fontSize: '1.05rem' }}><i className="fa-solid fa-location-dot"></i></button>
                   </div>
                 </div>
 

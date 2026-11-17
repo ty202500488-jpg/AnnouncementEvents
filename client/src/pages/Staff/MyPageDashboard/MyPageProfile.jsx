@@ -4,6 +4,7 @@ import '../../styles/PageView.css';
 import '../../styles/StudentDashboard.css';
 import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, PostAudienceBadge, getInitials } from '../../../assets/components/PortalShellElements';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
+import { usePortalSearch } from '../../../utils/usePortalSearch';
 
 export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashboard = false }) {
   const navigate = useNavigate();
@@ -38,12 +39,17 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
   const [deletingPost, setDeletingPost] = useState(null);
 
   // Navbar search, notifications & profile dropdown state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const searchContainerRef = useRef(null);
+  const {
+    searchQuery,
+    filterCategory,
+    searchResults,
+    isSearching,
+    showDropdown,
+    searchContainerRef,
+    handleSearchChange,
+    handleToggleFilter,
+    handleSelectSearchResult,
+  } = usePortalSearch('mypage');
 
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileDropdownRef = useRef(null);
@@ -62,9 +68,6 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setActiveMenuId(null);
       }
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target)) {
         setShowProfileDropdown(false);
       }
@@ -75,34 +78,6 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  useEffect(() => {
-    const q = searchQuery.trim();
-    if (!q || !token) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return undefined;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        const res = await fetch(`http://localhost:5000/api/search?q=${encodeURIComponent(q)}&type=${filterCategory}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data.results || []);
-        }
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, filterCategory, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -385,24 +360,6 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
     }
   };
 
-  const handleToggleFilter = () => {
-    const order = ['all', 'announcements', 'events', 'departments'];
-    const next = order[(order.indexOf(filterCategory) + 1) % order.length];
-    setFilterCategory(next);
-  };
-
-  const handleSelectSearchResult = (item, openOnly) => {
-    if (openOnly) {
-      setShowDropdown(true);
-      return;
-    }
-    setShowDropdown(false);
-    if (!item) return;
-    if (item.type === 'page') navigate(`/staff/page/${item.id}`);
-    else if (item.type === 'event') navigate('/staff/mypage/events');
-    else navigate('/staff/mypage/announcements');
-  };
-
   const handleMarkAllAsRead = async () => {
     if (!token) return;
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
@@ -487,10 +444,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
         isMobileMenuOpen={false}
         onToggleMobileMenu={() => navigate(fromStaffDashboard ? '/staff/dashboard' : '/staff/mypage/dashboard')}
         searchQuery={searchQuery}
-        onSearchChange={(e) => {
-          setSearchQuery(e.target.value);
-          setShowDropdown(Boolean(e.target.value.trim()));
-        }}
+        onSearchChange={handleSearchChange}
         filterCategory={filterCategory}
         onToggleFilter={handleToggleFilter}
         searchResults={searchResults}
