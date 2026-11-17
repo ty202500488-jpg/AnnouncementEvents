@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../pages/styles/Auth.css';
 
@@ -588,69 +588,63 @@ export default function Auth() {
   const renderDocCaptureGrid = ({ corPhoto, studentIdPhoto, corTarget, idTarget }) => (
     <div className="camera-capture-grid">
       <div className={`camera-doc-card ${corPhoto ? 'captured' : ''}`}>
-        <div className="camera-doc-title">Certificate of Registration (COR)</div>
-        {corPhoto ? (
-          <div className="captured-preview-wrap">
-            <img src={corPhoto} alt="Captured COR" className="captured-preview-img" />
-            <button
-              type="button"
-              className="btn-auth-secondary btn-compact btn-block"
-              onClick={() => startCamera(corTarget)}
-              disabled={cameraLoading}
-            >
-              Retake COR Photo
-            </button>
-          </div>
-        ) : (
-          <div className="camera-empty-state">
-            <svg className="camera-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <div className="camera-doc-row">
+          <div className="camera-doc-info">
+            <svg className="camera-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
               <circle cx="12" cy="13" r="4"></circle>
             </svg>
-            <span className="camera-empty-hint">Live photo required</span>
-            <button
-              type="button"
-              className="btn-auth-submit btn-compact btn-block"
-              onClick={() => startCamera(corTarget)}
-              disabled={cameraLoading}
-            >
-              {cameraLoading ? 'Starting Camera...' : 'Open Camera'}
-            </button>
+            <div className="camera-doc-text">
+              <div className="camera-doc-title">Certificate of Registration (COR)</div>
+              <span className={`camera-empty-hint ${corPhoto ? 'is-captured' : ''}`}>
+                {corPhoto ? 'Live photo captured' : 'Live photo required'}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className={corPhoto ? 'btn-auth-secondary btn-compact' : 'btn-auth-submit btn-compact'}
+            onClick={() => startCamera(corTarget)}
+            disabled={cameraLoading}
+          >
+            {cameraLoading ? 'Starting...' : corPhoto ? 'Retake' : 'Open Camera'}
+          </button>
+        </div>
+        {corPhoto && (
+          <div className="captured-preview-wrap">
+            <img src={corPhoto} alt="Captured COR" className="captured-preview-img" />
           </div>
         )}
       </div>
 
       <div className={`camera-doc-card ${studentIdPhoto ? 'captured' : ''}`}>
-        <div className="camera-doc-title">WMSU Student ID</div>
-        {studentIdPhoto ? (
-          <div className="captured-preview-wrap">
-            <img src={studentIdPhoto} alt="Captured Student ID" className="captured-preview-img" />
-            <button
-              type="button"
-              className="btn-auth-secondary btn-compact btn-block"
-              onClick={() => startCamera(idTarget)}
-              disabled={cameraLoading}
-            >
-              Retake ID Photo
-            </button>
-          </div>
-        ) : (
-          <div className="camera-empty-state">
-            <svg className="camera-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <div className="camera-doc-row">
+          <div className="camera-doc-info">
+            <svg className="camera-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
               <rect x="2" y="5" width="20" height="14" rx="2"></rect>
               <circle cx="8" cy="12" r="2"></circle>
               <line x1="13" y1="10" x2="19" y2="10"></line>
               <line x1="13" y1="14" x2="17" y2="14"></line>
             </svg>
-            <span className="camera-empty-hint">Live photo required</span>
-            <button
-              type="button"
-              className="btn-auth-submit btn-compact btn-block"
-              onClick={() => startCamera(idTarget)}
-              disabled={cameraLoading}
-            >
-              {cameraLoading ? 'Starting Camera...' : 'Open Camera'}
-            </button>
+            <div className="camera-doc-text">
+              <div className="camera-doc-title">WMSU Student ID</div>
+              <span className={`camera-empty-hint ${studentIdPhoto ? 'is-captured' : ''}`}>
+                {studentIdPhoto ? 'Live photo captured' : 'Live photo required'}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className={studentIdPhoto ? 'btn-auth-secondary btn-compact' : 'btn-auth-submit btn-compact'}
+            onClick={() => startCamera(idTarget)}
+            disabled={cameraLoading}
+          >
+            {cameraLoading ? 'Starting...' : studentIdPhoto ? 'Retake' : 'Open Camera'}
+          </button>
+        </div>
+        {studentIdPhoto && (
+          <div className="captured-preview-wrap">
+            <img src={studentIdPhoto} alt="Captured Student ID" className="captured-preview-img" />
           </div>
         )}
       </div>
@@ -763,23 +757,56 @@ export default function Auth() {
                   ? 'Access your campus portal and stay connected' 
                   : 'Register to unlock campus resources and tools'}
               </p>
-            </div>
 
-            <div className="auth-tabs">
-              <button 
-                type="button" 
-                className={`tab-btn ${activeTab === 'login' ? 'active' : ''}`} 
-                onClick={() => handleTabSwitch('login')}
-              >
-                Sign In
-              </button>
-              <button 
-                type="button" 
-                className={`tab-btn ${activeTab === 'register' ? 'active' : ''}`} 
-                onClick={() => handleTabSwitch('register')}
-              >
-                Register
-              </button>
+              {activeTab === 'register' && regStep !== 'awaiting_confirmation' && (() => {
+                const steps = [
+                  { step: 1, label: 'Personal Information' },
+                  { step: 2, label: 'Academic Details' },
+                  { step: 3, label: 'COR & Student ID' },
+                  { step: 4, label: 'Account Credentials' }
+                ];
+                const currentStepNum = typeof regStep === 'number' ? regStep : 1;
+                const currentLabel = steps.find((s) => s.step === currentStepNum)?.label || 'Personal Information';
+
+                return (
+                  <div className="reg-stepper-wrap" aria-label="Registration Progress">
+                    <div className="reg-stepper-track">
+                      {steps.map((s, idx) => {
+                        const isDone = s.step < currentStepNum;
+                        const isActive = s.step === currentStepNum;
+                        const connectorDone = s.step < currentStepNum;
+                        const connectorPartial = s.step === currentStepNum;
+
+                        return (
+                          <Fragment key={s.step}>
+                            <div
+                              className={`reg-step-circle ${isDone ? 'is-done' : ''} ${isActive ? 'is-active' : ''}`}
+                              aria-current={isActive ? 'step' : undefined}
+                              title={s.label}
+                            >
+                              {s.step === 4 ? (
+                                <i className="fa-solid fa-check" aria-hidden="true"></i>
+                              ) : (
+                                s.step
+                              )}
+                            </div>
+                            {idx < steps.length - 1 && (
+                              <div className="reg-step-connector" aria-hidden="true">
+                                <div
+                                  className={`reg-step-connector-fill ${connectorDone ? 'is-full' : connectorPartial ? 'is-half' : ''}`}
+                                />
+                              </div>
+                            )}
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                    <div className="reg-stepper-caption">
+                      Step {currentStepNum} of {steps.length} &middot; <strong>{currentLabel}</strong>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Login Form */}
@@ -828,61 +855,23 @@ export default function Auth() {
             <form onSubmit={handleRegisterSubmit} className={`auth-form ${activeTab === 'register' ? 'active' : ''}`}>
               <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-              {regStep !== 'awaiting_confirmation' && (() => {
-                const steps = [
-                  { step: 1, label: 'Personal' },
-                  { step: 2, label: 'Academic' },
-                  { step: 3, label: 'COR & ID' },
-                  { step: 4, label: 'Account' }
-                ];
-                const currentStepNum = typeof regStep === 'number' ? regStep : 1;
-                const progressPct = Math.round((currentStepNum / steps.length) * 100);
-                const currentLabel = steps.find((s) => s.step === currentStepNum)?.label || 'Personal';
-
-                return (
-                  <div className="reg-progress-wrap" aria-label="Registration Progress">
-                    <div className="reg-progress-meta">
-                      <span className="reg-progress-step-text">
-                        Step {currentStepNum} of {steps.length} &middot; <strong>{currentLabel}</strong>
-                      </span>
-                      <span className="reg-progress-pct">{progressPct}%</span>
-                    </div>
-
-                    <div
-                      className="reg-progress-track"
-                      role="progressbar"
-                      aria-valuenow={progressPct}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                    >
-                      <div
-                        className="reg-progress-fill"
-                        style={{ width: `${progressPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })()}
-
               {/* STEP 1: PERSONAL INFORMATION */}
               {regStep === 1 && (
                 <div className="reg-step-panel">
-                  <div className="form-section-title">Step 1 — Personal Information</div>
-
-                  <div className="form-row two-cols">
-                    <div className="form-group">
-                      <label className="form-label">Student ID</label>
-                      <div className="input-container">
-                        <input
-                          type="text"
-                          placeholder="e.g., 2024-01234"
-                          value={regData.studentId}
-                          onChange={(e) => setRegData({ ...regData, studentId: e.target.value })}
-                          required
-                        />
-                      </div>
+                  <div className="form-group">
+                    <label className="form-label">Student ID</label>
+                    <div className="input-container">
+                      <input
+                        type="text"
+                        placeholder="e.g., 2024-01234"
+                        value={regData.studentId}
+                        onChange={(e) => setRegData({ ...regData, studentId: e.target.value })}
+                        required
+                      />
                     </div>
+                  </div>
 
+                  <div className="form-row three-cols-name">
                     <div className="form-group">
                       <label className="form-label">First Name</label>
                       <div className="input-container">
@@ -898,7 +887,7 @@ export default function Auth() {
 
                     <div className="form-group">
                       <label className="form-label">
-                        M.I. <span className="optional-tag">(Optional)</span>
+                        M.I. <span className="optional-tag">(Opt.)</span>
                       </label>
                       <div className="input-container">
                         <input
@@ -934,8 +923,6 @@ export default function Auth() {
               {/* STEP 2: ACADEMIC DETAILS */}
               {regStep === 2 && (
                 <div className="reg-step-panel">
-                  <div className="form-section-title">Step 2 — Academic Details</div>
-
                   <div className="form-group">
                     <label className="form-label">College / Department</label>
                     <div className="input-container select-container">
@@ -999,11 +986,6 @@ export default function Auth() {
               {/* STEP 3: COR & STUDENT ID LIVE CAMERA CAPTURE */}
               {regStep === 3 && (
                 <div className="reg-step-panel">
-                  <div className="form-section-title">Step 3 — Capture COR &amp; Student ID</div>
-                  <p className="step-helper-text">
-                    Use your live camera to take clear photos of your Certificate of Registration (COR) and WMSU Student ID. Photos are stored securely inside the database.
-                  </p>
-
                   {!resubmitModal.isOpen && renderCameraViewfinder()}
                   {renderDocCaptureGrid({
                     corPhoto: regData.corPhoto,
@@ -1026,8 +1008,6 @@ export default function Auth() {
               {/* STEP 4: ACCOUNT CREDENTIALS */}
               {regStep === 4 && (
                 <div className="reg-step-panel">
-                  <div className="form-section-title">Step 4 — Account Credentials</div>
-
                   <div className="form-group">
                     <label className="form-label">WMSU Email</label>
                     <div className="input-container">
@@ -1153,7 +1133,29 @@ export default function Auth() {
             </form>
 
             <div className="login-footer">
-              <p>Protected by CRIMSON Identity System</p>
+              {activeTab === 'login' ? (
+                <p className="auth-switch-prompt">
+                  Don&apos;t have an account?{' '}
+                  <button
+                    type="button"
+                    className="auth-switch-link"
+                    onClick={() => handleTabSwitch('register')}
+                  >
+                    Register
+                  </button>
+                </p>
+              ) : regStep !== 'awaiting_confirmation' ? (
+                <p className="auth-switch-prompt">
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    className="auth-switch-link"
+                    onClick={() => handleTabSwitch('login')}
+                  >
+                    Sign In
+                  </button>
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

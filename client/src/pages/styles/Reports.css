@@ -642,7 +642,7 @@
 .table-scroll-wrap {
   width: 100%;
   overflow-x: auto;
-  min-height: 280px;
+  min-height: 0;
 }
 
 .reports-data-table {
@@ -700,12 +700,14 @@
 /* Status Badges */
 .status-pill {
   display: inline-block;
-  padding: 0.2rem 0.6rem;
+  padding: 0.14rem 0.48rem;
   border-radius: 9999px;
-  font-size: 0.725rem;
+  font-size: 0.65rem;
   font-weight: 700;
+  line-height: 1.2;
   text-transform: uppercase;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .status-pill.verified, .status-pill.published, .status-pill.completed, .status-pill.present, .status-pill.approved, .status-pill.active {

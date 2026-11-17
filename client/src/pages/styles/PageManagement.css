@@ -448,8 +448,9 @@ SUMMARY METRIC CARDS (FIXED TO MATCH OVERVIEW)
 }
 
 .page-management-container .status-pending { 
-  background-color: #fef3c7; 
-  color: #b45309; 
+  background-color: #fde68a; 
+  color: #92400e; 
+  border: 1px solid #f59e0b; 
 }
 
 .page-management-container .status-suspended { 
@@ -575,10 +576,67 @@ MODALS (STRICTLY SCOPED)
 
 .pm-modal-backdrop .description-box { 
   background-color: #f8fafc; 
-  border-radius: 8px; 
-  padding: 0.75rem; 
-  font-size: 0.8125rem; 
+  border: 1px solid #e2e8f0;
+  border-radius: 10px; 
+  padding: 0.875rem 1rem; 
+  font-size: 0.85rem; 
   color: #334155; 
-  line-height: 1.4; 
-  margin-top: 0.35rem; 
+  line-height: 1.5; 
+  margin: 0;
+}
+
+.pm-modal-backdrop .sub-heading {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  margin: 0 0 0.75rem 0;
+}
+
+.pm-modal-backdrop .info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1.25rem;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.pm-modal-backdrop .info-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.pm-modal-backdrop .info-grid > div strong {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+}
+
+.pm-modal-backdrop .margin-top-12 {
+  margin-top: 1rem;
+}
+
+.pm-modal-backdrop .margin-top-12 > strong {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  margin-bottom: 0.4rem;
+}
+
+@media (max-width: 600px) {
+  .pm-modal-backdrop .info-grid {
+    grid-template-columns: 1fr;
+  }
 }

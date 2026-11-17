@@ -96,7 +96,7 @@
 
 .audit-action-pill {
   display: inline-block;
-  padding: 0.2rem 0.55rem;
+  padding: 0.25rem 0.55rem;
   border-radius: 6px;
   border: 1px solid #e2e8f0;
   background-color: #f8fafc;
@@ -104,7 +104,10 @@
   font-size: 0.7rem;
   font-weight: 700;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+  max-width: 100%;
 }
 
 .audit-module-text {

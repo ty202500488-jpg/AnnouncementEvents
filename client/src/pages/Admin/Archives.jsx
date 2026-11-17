@@ -399,7 +399,7 @@ const Archives = () => {
               <option value="ALL">All School Years</option>
               {academicYears.map((yr) => (
                 <option key={yr.id} value={String(yr.id)}>
-                  {yr.year_label} ({yr.semester}) — {yr.status || (yr.is_active ? 'Active' : 'Archived')}
+                  {yr.label || `${yr.start_year}–${yr.end_year} (${yr.semester}) — ${yr.status || (yr.is_active ? 'Active' : 'Archived')}`}
                 </option>
               ))}
             </select>
@@ -434,9 +434,10 @@ const Archives = () => {
               type="button"
               onClick={handleClearFilters}
               className="admin-inline-reset-btn"
+              title="Reset filters"
+              aria-label="Reset filters"
             >
               <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
-              <span>Reset</span>
             </button>
           </div>
         </div>
@@ -448,7 +449,7 @@ const Archives = () => {
               <i className="fa-solid fa-box-archive" aria-hidden="true"></i>
               <span>Archived Records</span>
             </div>
-            <span className="admin-table-matching">{pagination.total} Matching</span>
+            <span className="admin-table-matching">{pagination.totalRecords ?? 0} Matching</span>
           </div>
 
           {recordsLoading ? (
@@ -469,16 +470,16 @@ const Archives = () => {
             <div className="archives-empty-state">
               <i className="fa-solid fa-box-open"></i>
               <h3>
-                {searchQuery || activeCategory !== 'ALL' || dateFrom
+                {searchQuery || activeCategory !== 'ALL' || selectedAcademicYear !== 'ALL' || reasonFilter !== 'ALL' || dateFrom
                   ? 'No records match your filters'
                   : 'No archived records yet'}
               </h3>
               <p>
-                {searchQuery || activeCategory !== 'ALL' || dateFrom
+                {searchQuery || activeCategory !== 'ALL' || selectedAcademicYear !== 'ALL' || reasonFilter !== 'ALL' || dateFrom
                   ? 'Try adjusting your search criteria or clear active filters.'
                   : 'Records will appear here when announcements, events, or pages are archived.'}
               </p>
-              {(searchQuery || activeCategory !== 'ALL' || dateFrom) && (
+              {(searchQuery || activeCategory !== 'ALL' || selectedAcademicYear !== 'ALL' || reasonFilter !== 'ALL' || dateFrom) && (
                 <button onClick={handleClearFilters} className="archives-btn archives-btn-primary">
                   Clear Filters
                 </button>
@@ -491,6 +492,7 @@ const Archives = () => {
                 <table className="archives-table">
                   <thead>
                     <tr>
+                      <th scope="col">ID</th>
                       <th scope="col">Title / Name</th>
                       <th scope="col">Type</th>
                       <th scope="col">Original Owner</th>
@@ -512,6 +514,11 @@ const Archives = () => {
 
                       return (
                         <tr key={record.uid || `${record.type}-${record.id}`}>
+                          <td>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                              #{record.id}
+                            </span>
+                          </td>
                           <td className="archives-td-title">
                             <button
                               type="button"

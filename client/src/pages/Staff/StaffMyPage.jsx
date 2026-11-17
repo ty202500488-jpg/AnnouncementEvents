@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, Link } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
 import MyPageProfile from './MyPageDashboard/MyPageProfile';
@@ -33,6 +34,7 @@ export default function StaffMyPage() {
   const [organizationId, setOrganizationId] = useState('1');
   const [pageBio, setPageBio] = useState('');
   const [pageProfileImage, setPageProfileImage] = useState('');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Post Edit Modal State
   const [editingPost, setEditingPost] = useState(null);
@@ -139,8 +141,8 @@ export default function StaffMyPage() {
       }
 
       const payload = {
-        pageName, 
-        pageCategory, 
+        pageName,
+        pageCategory,
         pageDescription: pageBio,
         profileImage: pageProfileImage
       };
@@ -163,6 +165,7 @@ export default function StaffMyPage() {
       const data = await response.json();
 
       if (response.ok) {
+        setIsCreateModalOpen(false);
         fetchPageData();
       } else {
         alert(`Error: ${data.message || 'Failed to create page'}`);
@@ -662,43 +665,112 @@ export default function StaffMyPage() {
             )}
           </>
         ) : (
-          /* Create Page Form View */
-          <div className="my-page-container" style={{ flexShrink: 0 }}>
-            <div className="creator-wrapper-single">
-              <div className="creator-sidebar" style={{ maxWidth: '700px', margin: '0 auto', width: '100%' }}>
-                <h2 className="creator-title">Create Page</h2>
-                <p className="creator-subtitle">
-                  Set up your official department, college, or student organization page.
-                </p>
+          /* Empty State Card prompting Staff to open Create Page Modal */
+          <div className="my-page-container" style={{ flexShrink: 0, padding: '2rem 1rem' }}>
+            <div
+              style={{
+                maxWidth: '540px',
+                margin: '2rem auto',
+                backgroundColor: '#ffffff',
+                borderRadius: '1rem',
+                border: '1px solid var(--slate-200)',
+                boxShadow: 'var(--shadow-card)',
+                padding: '2.75rem 2rem',
+                textAlign: 'center'
+              }}
+            >
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '16px',
+                  backgroundColor: '#fdf2f4',
+                  color: '#7B0D1E',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.75rem',
+                  marginBottom: '1.25rem'
+                }}
+              >
+                <i className="fa-solid fa-building-columns" aria-hidden="true"></i>
+              </div>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.5rem 0' }}>
+                No Official Page Yet
+              </h2>
+              <p style={{ fontSize: '0.9rem', color: '#64748b', lineHeight: 1.55, margin: '0 0 1.5rem 0' }}>
+                Set up your official department, college, or student organization page. Once submitted, an administrator will review and approve it.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  background: '#7B0D1E',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '0.625rem',
+                  padding: '0.75rem 1.5rem',
+                  fontSize: '0.9rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(123, 13, 30, 0.2)'
+                }}
+              >
+                <i className="fa-solid fa-plus" aria-hidden="true"></i>
+                <span>Create Official Page</span>
+              </button>
+            </div>
+          </div>
+        )}
 
-                <form onSubmit={handleCreatePage}>
-                  <div className="form-group">
-                    <label htmlFor="pageName" className="form-label">
-                      Department / Org Name <span style={{ color: 'var(--rose-600)' }}>*</span>
-                    </label>
-                    <input 
-                      type="text" 
-                      id="pageName" 
-                      className="form-input"
-                      placeholder="e.g., College of Computing Studies" 
-                      required 
-                      value={pageName}
-                      onChange={(e) => setPageName(e.target.value)}
-                    />
-                  </div>
+        {/* Create Page Modal */}
+        {isCreateModalOpen && createPortal(
+          <div
+            className="my-page-container"
+            onClick={(e) => { if (e.target === e.currentTarget && !submitting) setIsCreateModalOpen(false); }}
+            style={{ position: 'fixed', inset: 0, maxWidth: 'none', margin: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '1rem' }}
+          >
+            <div
+              className="no-scrollbar"
+              style={{ backgroundColor: '#ffffff', borderRadius: '1rem', maxWidth: '620px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15)', border: '1px solid #e2e8f0' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '1.35rem 1.75rem', borderBottom: '1px solid #f1f5f9' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#7B0D1E', margin: '0 0 0.25rem 0' }}>Create Official Page</h2>
+                  <p style={{ fontSize: '0.84rem', color: '#64748b', margin: 0 }}>
+                    Provide your official page details below for administrator review and approval.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !submitting && setIsCreateModalOpen(false)}
+                  aria-label="Close modal"
+                  style={{ width: '32px', height: '32px', borderRadius: '9999px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
 
-                  <div className="form-group">
-                    <label htmlFor="pageProfileImage" className="form-label">Profile Image URL (Logo / Avatar)</label>
-                    <input 
-                      type="url" 
-                      id="pageProfileImage" 
-                      className="form-input"
-                      placeholder="https://example.com/logo.png" 
-                      value={pageProfileImage}
-                      onChange={(e) => setPageProfileImage(e.target.value)}
-                    />
-                  </div>
+              <form onSubmit={handleCreatePage} style={{ padding: '1.5rem 1.75rem' }}>
+                <div className="form-group">
+                  <label htmlFor="pageName" className="form-label">
+                    Page / Organization Name <span style={{ color: 'var(--rose-600)' }}>*</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    id="pageName" 
+                    className="form-input"
+                    placeholder="e.g., College of Computing Studies" 
+                    required 
+                    value={pageName}
+                    onChange={(e) => setPageName(e.target.value)}
+                  />
+                </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: pageCategory ? 'repeat(2, minmax(0, 1fr))' : '1fr', gap: '1rem' }}>
                   <div className="form-group">
                     <label htmlFor="pageCategory" className="form-label">
                       Category <span style={{ color: 'var(--rose-600)' }}>*</span>
@@ -720,12 +792,15 @@ export default function StaffMyPage() {
 
                   {(pageCategory === 'Academic College' || pageCategory === 'Administrative Office') && (
                     <div className="form-group">
-                      <label htmlFor="departmentId" className="form-label">Select Specific College / Dept</label>
+                      <label htmlFor="departmentId" className="form-label">
+                        College / Department <span style={{ color: 'var(--rose-600)' }}>*</span>
+                      </label>
                       <select 
                         id="departmentId" 
                         className="form-select"
                         value={departmentId}
                         onChange={(e) => setDepartmentId(e.target.value)}
+                        required
                       >
                         <option value="1">College of Law (LAW)</option>
                         <option value="2">College of Agriculture (COA)</option>
@@ -750,42 +825,75 @@ export default function StaffMyPage() {
 
                   {(pageCategory === 'Student Organization' || pageCategory === 'Campus Council') && (
                     <div className="form-group">
-                      <label htmlFor="organizationId" className="form-label">Select Organization</label>
+                      <label htmlFor="organizationId" className="form-label">
+                        Organization Affiliation <span style={{ color: 'var(--rose-600)' }}>*</span>
+                      </label>
                       <select 
                         id="organizationId" 
                         className="form-select"
                         value={organizationId}
                         onChange={(e) => setOrganizationId(e.target.value)}
+                        required
                       >
                         <option value="1">University Student Council</option>
                       </select>
                     </div>
                   )}
+                </div>
 
-                  <div className="form-group">
-                    <label htmlFor="pageBio" className="form-label">Bio / Description (Optional)</label>
-                    <textarea 
-                      id="pageBio" 
-                      className="form-textarea"
-                      rows="4" 
-                      placeholder="Share your department's mission or summary..."
-                      value={pageBio}
-                      onChange={(e) => setPageBio(e.target.value)}
-                    ></textarea>
-                  </div>
+                <div className="form-group">
+                  <label htmlFor="pageProfileImage" className="form-label">Profile Image URL (Logo / Avatar — Optional)</label>
+                  <input 
+                    type="url" 
+                    id="pageProfileImage" 
+                    className="form-input"
+                    placeholder="https://example.com/logo.png" 
+                    value={pageProfileImage}
+                    onChange={(e) => setPageProfileImage(e.target.value)}
+                  />
+                </div>
 
-                  <button type="submit" disabled={submitting} className="btn-submit" style={{ marginTop: '0.5rem' }}>
-                    {submitting ? 'Submitting...' : 'Create Page'}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label htmlFor="pageBio" className="form-label">
+                    Page Purpose & Description <span style={{ color: 'var(--rose-600)' }}>*</span>
+                  </label>
+                  <textarea 
+                    id="pageBio" 
+                    className="form-textarea"
+                    rows="3" 
+                    required
+                    placeholder="Describe your unit's purpose, mission, and the announcements/events you will publish..."
+                    value={pageBio}
+                    onChange={(e) => setPageBio(e.target.value)}
+                  ></textarea>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => setIsCreateModalOpen(false)}
+                    style={{ background: '#ffffff', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '0.5rem', padding: '0.6rem 1.2rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Cancel
                   </button>
-                </form>
-              </div>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    style={{ background: '#7B0D1E', color: '#ffffff', border: 'none', borderRadius: '0.5rem', padding: '0.6rem 1.35rem', fontSize: '0.875rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {submitting ? 'Submitting...' : 'Submit for Approval'}
+                  </button>
+                </div>
+              </form>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Edit Page Modal */}
-        {isEditing && (
-          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+        {isEditing && createPortal(
+          <div className="my-page-container" style={{ position: 'fixed', inset: 0, maxWidth: 'none', margin: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '1rem' }}>
             <div className="no-scrollbar" style={{ backgroundColor: '#ffffff', borderRadius: '1rem', padding: '2rem', maxWidth: '500px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--slate-200)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--slate-900)', margin: 0 }}>Edit Page Information</h3>
@@ -862,12 +970,13 @@ export default function StaffMyPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {/* Edit Post Modal */}
-        {editingPost && (
-          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+        {editingPost && createPortal(
+          <div className="my-page-container" style={{ position: 'fixed', inset: 0, maxWidth: 'none', margin: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: '1rem' }}>
             <div className="no-scrollbar" style={{ backgroundColor: '#ffffff', borderRadius: '1rem', padding: '2rem', maxWidth: '550px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--slate-200)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--slate-900)', margin: 0 }}>Edit Post</h3>
@@ -950,7 +1059,8 @@ export default function StaffMyPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
         {viewingRegistrationsEvent && (

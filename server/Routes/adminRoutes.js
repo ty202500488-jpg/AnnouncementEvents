@@ -72,16 +72,6 @@ async function getActiveAcademicYearId(db = pool) {
 
 // Helper: Ensure admin has a default Campus Administration page for direct admin posts
 async function getOrCreateAdminPageId(adminUserId = null) {
-    const existing = await pool.query(
-        `SELECT page_id
-         FROM pages
-         WHERE page_code IN ('WMSU', 'ADMIN')
-            OR LOWER(page_name) = 'western mindanao state university'
-         ORDER BY CASE WHEN page_code = 'WMSU' THEN 0 ELSE 1 END, page_id ASC
-         LIMIT 1`
-    );
-    if (existing.rows.length > 0) return existing.rows[0].page_id;
-
     let ownerId = adminUserId;
     if (!ownerId) {
         const adminRes = await pool.query(
@@ -95,20 +85,47 @@ async function getOrCreateAdminPageId(adminUserId = null) {
         ownerId = adminRes.rows[0]?.user_id || null;
     }
 
-    const ins = await pool.query(
-        `INSERT INTO pages (page_name, page_code, page_description, page_type, created_by, status)
-         VALUES (
-             'Western Mindanao State University',
-             'WMSU',
-             'Official university page managing campus-wide announcements, events, and institutional updates.',
-             'office',
-             $1,
-             'Approved'
-         )
-         RETURNING page_id`,
-        [ownerId]
+    const existing = await pool.query(
+        `SELECT page_id, created_by
+         FROM pages
+         WHERE page_code IN ('WMSU', 'ADMIN')
+            OR LOWER(page_name) = 'western mindanao state university'
+         ORDER BY CASE WHEN page_code = 'WMSU' THEN 0 ELSE 1 END, page_id ASC
+         LIMIT 1`
     );
-    return ins.rows[0].page_id;
+
+    let pageId;
+    if (existing.rows.length > 0) {
+        pageId = existing.rows[0].page_id;
+        ownerId = ownerId || existing.rows[0].created_by || null;
+    } else {
+        const ins = await pool.query(
+            `INSERT INTO pages (page_name, page_code, page_description, page_type, created_by, status)
+             VALUES (
+                 'Western Mindanao State University',
+                 'WMSU',
+                 'Official university page managing campus-wide announcements, events, and institutional updates.',
+                 'office',
+                 $1,
+                 'Approved'
+             )
+             RETURNING page_id`,
+            [ownerId]
+        );
+        pageId = ins.rows[0].page_id;
+    }
+
+    if (pageId && ownerId) {
+        await pool.query(
+            `INSERT INTO page_members (page_id, user_id, role_on_page, assigned_by, status)
+             VALUES ($1, $2, 'Admin', $2, 'Active')
+             ON CONFLICT (page_id, user_id)
+             DO UPDATE SET status = 'Active'`,
+            [pageId, ownerId]
+        );
+    }
+
+    return pageId;
 }
 
 // Ensure the Official University Page exists in `pages` on server startup
@@ -765,7 +782,7 @@ router.get('/overview/search', async (req, res) => {
         let resolvedSyId = null;
         if (academicYearId === 'active') {
             resolvedSyId = await getActiveAcademicYearId();
-        } else if (academicYearId && academicYearId !== 'all') {
+        } else if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
             resolvedSyId = Number(academicYearId);
         }
 
@@ -990,7 +1007,7 @@ router.get('/content-feed', async (req, res) => {
             clauses.push(`(LOWER(p.status) = LOWER($${params.length}) OR LOWER(p.moderation_status) = LOWER($${params.length}))`);
         }
 
-        if (academicYearId && academicYearId !== 'all') {
+        if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
             params.push(Number(academicYearId));
             clauses.push(`p.academic_year_id = $${params.length}`);
         }
@@ -1706,20 +1723,57 @@ router.get('/users', async (req, res) => {
 
         if (tab === 'staff') {
             const staffParams = [];
-            const staffClauses = [`LOWER(pm.status) = 'active'`];
+            let searchClausePm = '';
+            let searchClauseUnassigned = '';
 
             if (search && search.trim()) {
                 staffParams.push(`%${search.trim()}%`);
-                staffClauses.push(`(u.first_name ILIKE $${staffParams.length} OR u.last_name ILIKE $${staffParams.length} OR u.email ILIKE $${staffParams.length} OR pg.page_name ILIKE $${staffParams.length})`);
+                searchClausePm = `AND (u.first_name ILIKE $1 OR u.last_name ILIKE $1 OR u.email ILIKE $1 OR pg.page_name ILIKE $1)`;
+                searchClauseUnassigned = `AND (u.first_name ILIKE $1 OR u.last_name ILIKE $1 OR u.email ILIKE $1)`;
             }
 
-            const staffWhere = `WHERE ${staffClauses.join(' AND ')}`;
+            const unionSql = `
+                SELECT pm.page_member_id::text AS id,
+                       pm.user_id,
+                       pm.page_id,
+                       pm.role_on_page AS role_scope,
+                       pm.status,
+                       pm.assigned_at,
+                       u.first_name,
+                       u.last_name,
+                       u.first_name || ' ' || u.last_name AS full_name,
+                       u.email,
+                       pg.page_name
+                FROM page_members pm
+                JOIN users u ON pm.user_id = u.user_id
+                JOIN pages pg ON pm.page_id = pg.page_id
+                WHERE LOWER(pm.status) = 'active'
+                ${searchClausePm}
+                UNION ALL
+                SELECT 'user-' || u.user_id::text AS id,
+                       u.user_id,
+                       NULL::int AS page_id,
+                       'Staff (Unassigned)' AS role_scope,
+                       u.account_status AS status,
+                       COALESCE(u.updated_at, u.created_at) AS assigned_at,
+                       u.first_name,
+                       u.last_name,
+                       u.first_name || ' ' || u.last_name AS full_name,
+                       u.email,
+                       NULL::text AS page_name
+                FROM users u
+                JOIN roles r ON u.role_id = r.role_id
+                WHERE LOWER(r.role_name) = 'staff'
+                  AND LOWER(u.account_status) = 'active'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM page_members pm2
+                      WHERE pm2.user_id = u.user_id AND LOWER(pm2.status) = 'active'
+                  )
+                ${searchClauseUnassigned}
+            `;
+
             const countStaffRes = await pool.query(
-                `SELECT COUNT(*)::int AS total
-                 FROM page_members pm
-                 JOIN users u ON pm.user_id = u.user_id
-                 JOIN pages pg ON pm.page_id = pg.page_id
-                 ${staffWhere}`,
+                `SELECT COUNT(*)::int AS total FROM (${unionSql}) AS combined_staff`,
                 staffParams
             );
             const totalStaff = countStaffRes.rows[0].total;
@@ -1727,22 +1781,8 @@ router.get('/users', async (req, res) => {
             staffParams.push(limitNum, offset);
             const [staffRes, eligibleRes, pagesRes] = await Promise.all([
                 pool.query(
-                    `SELECT pm.page_member_id AS id,
-                            pm.user_id,
-                            pm.page_id,
-                            pm.role_on_page AS role_scope,
-                            pm.status,
-                            pm.assigned_at,
-                            u.first_name,
-                            u.last_name,
-                            u.first_name || ' ' || u.last_name AS full_name,
-                            u.email,
-                            pg.page_name
-                     FROM page_members pm
-                     JOIN users u ON pm.user_id = u.user_id
-                     JOIN pages pg ON pm.page_id = pg.page_id
-                     ${staffWhere}
-                     ORDER BY pm.assigned_at DESC
+                    `SELECT * FROM (${unionSql}) AS combined_staff
+                     ORDER BY assigned_at DESC NULLS LAST
                      LIMIT $${staffParams.length - 1} OFFSET $${staffParams.length}`,
                     staffParams
                 ),
@@ -2028,8 +2068,8 @@ router.post('/staff-access', async (req, res) => {
     const client = await pool.connect();
     try {
         const { userId, pageId, roleScope = 'Editor' } = req.body;
-        if (!userId || !pageId) {
-            return res.status(400).json({ message: 'userId and pageId are required.' });
+        if (!userId) {
+            return res.status(400).json({ message: 'userId is required.' });
         }
 
         await client.query('BEGIN');
@@ -2041,26 +2081,35 @@ router.post('/staff-access', async (req, res) => {
             [Number(userId)]
         );
 
-        const ins = await client.query(
-            `INSERT INTO page_members (page_id, user_id, role_on_page, assigned_by, status)
-             VALUES ($1, $2, $3, $4, 'Active')
-             ON CONFLICT (page_id, user_id)
-             DO UPDATE SET role_on_page = EXCLUDED.role_on_page, status = 'Active', assigned_at = NOW()
-             RETURNING *`,
-            [Number(pageId), Number(userId), roleScope, req.user.user_id]
-        );
+        let assignment = null;
+        if (pageId && Number(pageId) > 0) {
+            const ins = await client.query(
+                `INSERT INTO page_members (page_id, user_id, role_on_page, assigned_by, status)
+                 VALUES ($1, $2, $3, $4, 'Active')
+                 ON CONFLICT (page_id, user_id)
+                 DO UPDATE SET role_on_page = EXCLUDED.role_on_page, status = 'Active', assigned_at = NOW()
+                 RETURNING *`,
+                [Number(pageId), Number(userId), roleScope, req.user.user_id]
+            );
+            assignment = ins.rows[0];
+        }
 
         await client.query('COMMIT');
 
         await logAudit(req, {
-            action: 'Granted Page Staff Access',
+            action: assignment ? 'Granted Page Staff Access' : 'Granted Staff Role Access',
             module: 'users',
-            targetType: 'page_member',
-            targetId: ins.rows[0].page_member_id,
-            details: { userId, pageId, roleScope }
+            targetType: assignment ? 'page_member' : 'user',
+            targetId: assignment ? assignment.page_member_id : Number(userId),
+            details: { userId, pageId: pageId || null, roleScope }
         });
 
-        return res.status(201).json({ message: 'Staff access granted successfully.', assignment: ins.rows[0] });
+        return res.status(201).json({
+            message: assignment
+                ? 'Staff access granted successfully.'
+                : 'User promoted to Staff. They can now create a page for admin approval.',
+            assignment
+        });
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         console.error('Grant staff access error:', error);
@@ -2072,7 +2121,25 @@ router.post('/staff-access', async (req, res) => {
 
 router.delete('/staff-access/:id', async (req, res) => {
     try {
-        const memberId = Number(req.params.id);
+        const rawId = String(req.params.id || '');
+        if (rawId.startsWith('user-')) {
+            const targetUserId = Number(rawId.replace('user-', ''));
+            await pool.query(
+                `UPDATE users
+                 SET role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1)
+                 WHERE user_id = $1 AND role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = 'staff' LIMIT 1)`,
+                [targetUserId]
+            );
+            await logAudit(req, {
+                action: 'Revoked Staff Role Access',
+                module: 'users',
+                targetType: 'user',
+                targetId: targetUserId
+            });
+            return res.json({ message: 'Staff role access revoked successfully.' });
+        }
+
+        const memberId = Number(rawId);
         await pool.query(`DELETE FROM page_members WHERE page_member_id = $1`, [memberId]);
 
         await logAudit(req, {
@@ -2524,7 +2591,9 @@ router.get('/post-approval', async (req, res) => {
                 `SELECT COUNT(*) FILTER (WHERE LOWER(moderation_status) = 'pending' AND post_type = 'announcement' AND is_archived = FALSE)::int AS "pendingAnnouncements",
                         COUNT(*) FILTER (WHERE LOWER(moderation_status) = 'pending' AND post_type = 'event' AND is_archived = FALSE)::int AS "pendingEvents",
                         COUNT(*) FILTER (WHERE LOWER(moderation_status) = 'pending' AND is_archived = FALSE)::int AS "totalPending",
-                        COUNT(*) FILTER (WHERE LOWER(moderation_status) IN ('approved', 'rejected') AND is_archived = FALSE)::int AS "totalReviewed"
+                        COUNT(*) FILTER (WHERE LOWER(moderation_status) IN ('approved', 'rejected') AND is_archived = FALSE)::int AS "totalReviewed",
+                        COUNT(*) FILTER (WHERE LOWER(moderation_status) IN ('correction', 'needs_correction') AND is_archived = FALSE)::int AS "totalCorrection",
+                        COUNT(*) FILTER (WHERE is_archived = FALSE)::int AS "totalAll"
                  FROM posts`
             )
         ]);
@@ -2697,7 +2766,7 @@ router.get('/archives/summary', async (req, res) => {
         const { academicYearId = 'all' } = req.query;
         const params = [];
         let yearClause = '';
-        if (academicYearId && academicYearId !== 'all') {
+        if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
             params.push(Number(academicYearId));
             yearClause = `AND academic_year_id = $1`;
         }
@@ -2776,7 +2845,7 @@ router.get('/archives', async (req, res) => {
             const params = [];
             const clauses = [];
 
-            if (academicYearId && academicYearId !== 'all') {
+            if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
                 params.push(Number(academicYearId));
                 clauses.push(`p.academic_year_id = $${params.length}`);
             } else {
@@ -2865,7 +2934,7 @@ router.get('/archives', async (req, res) => {
             const params = [];
             const clauses = [];
 
-            if (academicYearId && academicYearId !== 'all') {
+            if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
                 params.push(Number(academicYearId));
                 clauses.push(`p.academic_year_id = $${params.length}`);
             } else {
@@ -3077,7 +3146,7 @@ router.get('/archives', async (req, res) => {
         const params = [];
         const clauses = [];
 
-        if (academicYearId && academicYearId !== 'all') {
+        if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
             params.push(Number(academicYearId));
             clauses.push(`p.academic_year_id = $${params.length}`);
             if (String(includeAllYearRecords) !== 'true') {
@@ -3124,6 +3193,177 @@ router.get('/archives', async (req, res) => {
 
         const whereSql = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
+        const postOrderBy = effSort === 'oldest'
+            ? 'COALESCE(p.archived_at, p.updated_at, p.created_at) ASC, p.post_id ASC'
+            : effSort === 'alphabetical'
+                ? 'p.title ASC, p.post_id DESC'
+                : 'COALESCE(p.archived_at, p.updated_at, p.created_at) DESC, p.post_id DESC';
+
+        if (typeFilter === 'ALL') {
+            const postRowsRes = await pool.query(
+                `SELECT p.post_id AS id,
+                        UPPER(p.post_type) || '-' || p.post_id AS uid,
+                        p.post_id,
+                        p.title,
+                        UPPER(p.post_type) AS type,
+                        p.post_type AS record_type,
+                        COALESCE(pc.category_name, 'General') AS category,
+                        COALESCE(creator.first_name || ' ' || creator.last_name, 'Campus Staff') AS author,
+                        COALESCE(d.department_name, pg.page_name, 'University Page') AS office,
+                        COALESCE(pg.page_name, 'University Page') AS source_department,
+                        COALESCE(archiver.first_name || ' ' || archiver.last_name, 'System / Admin') AS "archivedBy",
+                        COALESCE(archiver.first_name || ' ' || archiver.last_name, 'System / Admin') AS archived_by_name,
+                        COALESCE(p.archive_reason, CASE WHEN ay.is_active = FALSE THEN 'School Year Transition' ELSE 'Administrative Archive' END) AS "archiveReason",
+                        COALESCE(p.archive_reason, CASE WHEN ay.is_active = FALSE THEN 'School Year Transition' ELSE 'Administrative Archive' END) AS reason,
+                        COALESCE(p.archived_at, p.updated_at, p.created_at) AS "archivedAt",
+                        COALESCE(p.archived_at, p.updated_at, p.created_at) AS archived_at,
+                        COALESCE(p.published_at, p.created_at) AS "publishedAt",
+                        COALESCE(p.previous_status, p.status, 'Published') AS "previousStatus",
+                        p.content,
+                        p.audience,
+                        p.is_archived,
+                        p.academic_year_id,
+                        CASE WHEN ay.academic_year_id IS NOT NULL
+                             THEN ay.start_year || '–' || ay.end_year || ' (' || ay.semester || ')'
+                             ELSE 'N/A' END AS academic_year_label,
+                        ed.event_date,
+                        ed.end_date,
+                        ed.location,
+                        (SELECT COUNT(*)::int FROM event_registrations er WHERE er.event_post_id = p.post_id) AS registered_count,
+                        (SELECT COUNT(*)::int FROM event_attendance_records ar JOIN event_registrations er2 ON ar.registration_id = er2.registration_id WHERE er2.event_post_id = p.post_id AND UPPER(ar.status) IN ('PRESENT', 'LATE')) AS attended_count
+                 FROM posts p
+                 LEFT JOIN event_details ed ON p.post_id = ed.post_id
+                 LEFT JOIN pages pg ON p.page_id = pg.page_id
+                 LEFT JOIN departments d ON pg.department_id = d.department_id
+                 LEFT JOIN post_categories pc ON p.category_id = pc.category_id
+                 LEFT JOIN users creator ON p.creator_user_id = creator.user_id
+                 LEFT JOIN users archiver ON p.archived_by = archiver.user_id
+                 LEFT JOIN academic_years ay ON p.academic_year_id = ay.academic_year_id
+                 ${whereSql}
+                 ORDER BY ${postOrderBy}`,
+                params
+            );
+
+            let combined = [...postRowsRes.rows];
+
+            if (effReason === 'ALL') {
+                const pgParams = [];
+                const pgClauses = [`LOWER(pg.status) IN ('archived', 'suspended', 'rejected')`];
+                if (search && search.trim()) {
+                    pgParams.push(`%${search.trim()}%`);
+                    pgClauses.push(`(pg.page_name ILIKE $${pgParams.length} OR pg.page_code ILIKE $${pgParams.length})`);
+                }
+                if (effStartDate) {
+                    pgParams.push(effStartDate);
+                    pgClauses.push(`DATE(pg.updated_at) >= DATE($${pgParams.length})`);
+                }
+                if (effEndDate) {
+                    pgParams.push(effEndDate);
+                    pgClauses.push(`DATE(pg.updated_at) <= DATE($${pgParams.length})`);
+                }
+                const pgRes = await pool.query(
+                    `SELECT pg.page_id AS id,
+                            'PAGE-' || pg.page_id AS uid,
+                            pg.page_name AS title,
+                            'PAGE' AS type,
+                            'PAGE' AS record_type,
+                            COALESCE(u.first_name || ' ' || u.last_name, 'Admin') AS author,
+                            COALESCE(d.department_name, pg.page_code, 'Campus Unit') AS office,
+                            COALESCE(d.department_name, pg.page_code, 'Campus Unit') AS source_department,
+                            'Admin' AS "archivedBy",
+                            'Admin' AS archived_by_name,
+                            'Page Status: ' || pg.status AS "archiveReason",
+                            'Page Status: ' || pg.status AS reason,
+                            pg.updated_at AS "archivedAt",
+                            pg.updated_at AS archived_at,
+                            pg.created_at AS "publishedAt",
+                            pg.status AS "previousStatus",
+                            COALESCE(pg.page_description, 'No description provided.') AS content
+                     FROM pages pg
+                     LEFT JOIN departments d ON pg.department_id = d.department_id
+                     LEFT JOIN users u ON pg.created_by = u.user_id
+                     WHERE ${pgClauses.join(' AND ')}`,
+                    pgParams
+                );
+                combined = combined.concat(pgRes.rows);
+            }
+
+            if (effReason === 'ALL' || effReason === 'TAKEN_DOWN') {
+                const modParams = [];
+                const modClauses = [`LOWER(m.decision) IN ('reject', 'takedown')`];
+                if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
+                    modParams.push(Number(academicYearId));
+                    modClauses.push(`p.academic_year_id = $${modParams.length}`);
+                }
+                if (search && search.trim()) {
+                    modParams.push(`%${search.trim()}%`);
+                    modClauses.push(`(p.title ILIKE $${modParams.length} OR COALESCE(m.reason, '') ILIKE $${modParams.length})`);
+                }
+                if (effStartDate) {
+                    modParams.push(effStartDate);
+                    modClauses.push(`DATE(m.created_at) >= DATE($${modParams.length})`);
+                }
+                if (effEndDate) {
+                    modParams.push(effEndDate);
+                    modClauses.push(`DATE(m.created_at) <= DATE($${modParams.length})`);
+                }
+                const modRowsRes = await pool.query(
+                    `SELECT m.moderation_id AS id,
+                            'MODERATION-' || m.moderation_id AS uid,
+                            p.post_id,
+                            p.title,
+                            'MODERATION' AS type,
+                            'MODERATION' AS record_type,
+                            COALESCE(u.first_name || ' ' || u.last_name, 'Reviewer') AS author,
+                            COALESCE(pg.page_name, 'Campus Page') AS office,
+                            COALESCE(pg.page_name, 'Campus Page') AS source_department,
+                            COALESCE(u.first_name || ' ' || u.last_name, 'Admin') AS "archivedBy",
+                            COALESCE(u.first_name || ' ' || u.last_name, 'Admin') AS archived_by_name,
+                            COALESCE(m.reason, 'Moderation Action: ' || m.decision) AS "archiveReason",
+                            COALESCE(m.reason, 'Moderation Action: ' || m.decision) AS reason,
+                            m.created_at AS "archivedAt",
+                            m.created_at AS archived_at,
+                            p.created_at AS "publishedAt",
+                            m.decision AS "previousStatus",
+                            p.content
+                     FROM post_moderation_logs m
+                     JOIN posts p ON m.post_id = p.post_id
+                     LEFT JOIN pages pg ON p.page_id = pg.page_id
+                     LEFT JOIN users u ON m.reviewer_user_id = u.user_id
+                     WHERE ${modClauses.join(' AND ')}`,
+                    modParams
+                );
+                combined = combined.concat(modRowsRes.rows);
+            }
+
+            combined.sort((a, b) => {
+                if (effSort === 'alphabetical') {
+                    return String(a.title || '').localeCompare(String(b.title || ''));
+                }
+                const ta = new Date(a.archivedAt || a.archived_at || 0).getTime();
+                const tb = new Date(b.archivedAt || b.archived_at || 0).getTime();
+                return effSort === 'oldest' ? ta - tb : tb - ta;
+            });
+
+            const totalRecords = combined.length;
+            const totalPages = Math.max(1, Math.ceil(totalRecords / limitNum));
+            const pagedRecords = combined.slice(offset, offset + limitNum);
+
+            return res.json({
+                records: pagedRecords,
+                currentPage: pageNum,
+                totalPages,
+                totalRecords,
+                limit: limitNum,
+                pagination: {
+                    currentPage: pageNum,
+                    totalPages,
+                    totalRecords,
+                    limit: limitNum
+                }
+            });
+        }
+
         const countRes = await pool.query(
             `SELECT COUNT(*)::int AS total
              FROM posts p
@@ -3135,12 +3375,6 @@ router.get('/archives', async (req, res) => {
         );
         const totalRecords = countRes.rows[0].total;
         const totalPages = Math.max(1, Math.ceil(totalRecords / limitNum));
-
-        const postOrderBy = effSort === 'oldest'
-            ? 'COALESCE(p.archived_at, p.updated_at, p.created_at) ASC, p.post_id ASC'
-            : effSort === 'alphabetical'
-                ? 'p.title ASC, p.post_id DESC'
-                : 'COALESCE(p.archived_at, p.updated_at, p.created_at) DESC, p.post_id DESC';
 
         params.push(limitNum, offset);
         const rowsRes = await pool.query(
@@ -3256,7 +3490,7 @@ router.get('/archives/export', async (req, res) => {
         const params = [];
         const clauses = [];
 
-        if (academicYearId && academicYearId !== 'all') {
+        if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
             params.push(Number(academicYearId));
             clauses.push(`p.academic_year_id = $${params.length}`);
         } else {
@@ -3330,7 +3564,7 @@ router.get('/reports/summary', async (req, res) => {
         const { academicYearId = 'all' } = req.query;
         const postParams = [];
         let postYearClause = '';
-        if (academicYearId && academicYearId !== 'all') {
+        if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
             postParams.push(Number(academicYearId));
             postYearClause = `AND academic_year_id = $1`;
         }
@@ -3542,7 +3776,7 @@ router.get('/reports/:category', async (req, res) => {
             const params = [];
             const clauses = [`p.post_type = 'announcement'`];
 
-            if (academicYearId && academicYearId !== 'all') {
+            if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
                 params.push(Number(academicYearId));
                 clauses.push(`p.academic_year_id = $${params.length}`);
             }
@@ -3642,7 +3876,7 @@ router.get('/reports/:category', async (req, res) => {
             const params = [];
             const clauses = [`p.post_type = 'event'`];
 
-            if (academicYearId && academicYearId !== 'all') {
+            if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
                 params.push(Number(academicYearId));
                 clauses.push(`p.academic_year_id = $${params.length}`);
             }
@@ -3749,7 +3983,7 @@ router.get('/reports/:category', async (req, res) => {
             const params = [];
             const clauses = [`p.post_type = 'event'`];
 
-            if (academicYearId && academicYearId !== 'all') {
+            if (Number.isInteger(Number(academicYearId)) && Number(academicYearId) > 0) {
                 params.push(Number(academicYearId));
                 clauses.push(`p.academic_year_id = $${params.length}`);
             }

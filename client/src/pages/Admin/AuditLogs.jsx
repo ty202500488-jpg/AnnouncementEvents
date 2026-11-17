@@ -300,18 +300,22 @@ const AuditLogs = () => {
           </div>
 
           <div className="audit-logs-actions">
-            <span className="audit-readonly-pill">
-              <i className="fa-solid fa-lock" aria-hidden="true"></i>
-              <span>Read-Only Security Trail</span>
-            </span>
             <button
               type="button"
               className="btn-audit-secondary"
+              onClick={() => window.print()}
+            >
+              <i className="fa-solid fa-print" aria-hidden="true"></i>
+              <span>Print Report</span>
+            </button>
+            <button
+              type="button"
+              className="btn-audit-primary"
               onClick={handleExportCSV}
               disabled={isExporting}
             >
-              <i className="fa-solid fa-file-csv" aria-hidden="true"></i>
-              <span>{isExporting ? 'Exporting...' : 'Print / Export Report'}</span>
+              <i className={`fa-solid ${isExporting ? 'fa-spinner fa-spin' : 'fa-file-csv'}`} aria-hidden="true"></i>
+              <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
             </button>
           </div>
         </div>
@@ -453,9 +457,10 @@ const AuditLogs = () => {
               type="button"
               className="admin-inline-reset-btn"
               onClick={handleClearFilters}
+              title="Reset filters"
+              aria-label="Reset filters"
             >
               <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
-              <span>Reset</span>
             </button>
           </div>
         </div>
@@ -593,22 +598,22 @@ const AuditLogs = () => {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
 
-        {/* ==================== SERVER-SIDE PAGINATION ==================== */}
-        {!loading && logs.length > 0 && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalRecords={totalRecords}
-            rowsPerPage={pageSize}
-            onPageChange={(page) => setCurrentPage(page)}
-            onRowsPerPageChange={(limit) => {
-              setPageSize(limit);
-              setCurrentPage(1);
-            }}
-          />
+            {/* ==================== INTEGRATED PAGINATION BAR ==================== */}
+            {!loading && logs.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalRecords={totalRecords}
+                rowsPerPage={pageSize}
+                onPageChange={(page) => setCurrentPage(page)}
+                onRowsPerPageChange={(limit) => {
+                  setPageSize(limit);
+                  setCurrentPage(1);
+                }}
+              />
+            )}
+          </div>
         )}
 
         {/* ==================== READ-ONLY DETAILS MODAL ==================== */}

@@ -420,6 +420,7 @@
   flex-direction: column;
   gap: 0.4rem;
   width: 100%;
+  min-width: 0;
 }
 
 .auth-page-root .form-row {
@@ -429,8 +430,9 @@
   align-items: flex-start;
 }
 
-.auth-page-root .form-row.two-cols {
-  grid-template-columns: 1fr 1fr;
+.auth-page-root .form-row.two-cols,
+.auth-page-root .form-row.three-cols-name {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* FIXED NAME ROW GRID: proportional allocation prevents overlap */
@@ -766,22 +768,124 @@
 }
 
 .auth-page-root .login-footer p {
-  font-size: 0.75rem;
+  font-size: 0.95rem;
   color: var(--color-muted-beige);
-  opacity: 0.6;
+  opacity: 0.95;
 }
 
 /* ====================================================
    MULTI-STEP REGISTRATION, LIVE CAMERA & EMAIL WAIT
    ==================================================== */
+.auth-page-root .reg-stepper-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.auth-page-root .reg-stepper-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 300px;
+}
+
+.auth-page-root .reg-step-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(199, 183, 163, 0.25);
+  color: rgba(199, 183, 163, 0.45);
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.auth-page-root .reg-step-circle.is-done {
+  background: #e7d8c9;
+  border-color: #e7d8c9;
+  color: #2b0b12;
+}
+
+.auth-page-root .reg-step-circle.is-active {
+  border-color: #e7d8c9;
+  color: #f6ede4;
+  background: rgba(231, 216, 201, 0.14);
+}
+
+.auth-page-root .reg-step-connector {
+  flex: 1;
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(199, 183, 163, 0.22);
+  overflow: hidden;
+}
+
+.auth-page-root .reg-step-connector-fill {
+  height: 100%;
+  width: 0%;
+  background: #e7d8c9;
+  border-radius: 9999px;
+  transition: width 0.25s ease;
+}
+
+.auth-page-root .reg-step-connector-fill.is-half {
+  width: 50%;
+}
+
+.auth-page-root .reg-step-connector-fill.is-full {
+  width: 100%;
+}
+
+.auth-page-root .reg-stepper-caption {
+  font-size: 0.74rem;
+  color: rgba(199, 183, 163, 0.72);
+}
+
+.auth-page-root .reg-stepper-caption strong {
+  color: var(--color-light-cream);
+  font-weight: 700;
+}
+
+.auth-page-root .auth-switch-prompt {
+  margin: 0;
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--color-muted-beige);
+}
+
+.auth-page-root .auth-switch-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-light-cream);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.auth-page-root .auth-switch-link:hover {
+  color: #ffffff;
+}
+
 .auth-page-root .reg-progress-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 0.9rem 1rem;
-  border-radius: 14px;
-  border: 1px solid var(--border-subtle);
-  background: rgba(199, 183, 163, 0.04);
+  gap: 0.55rem;
+  padding: 0;
+  border: none;
+  background: transparent;
   margin-bottom: 0.25rem;
 }
 
@@ -977,48 +1081,60 @@
 }
 
 .auth-page-root .camera-capture-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .auth-page-root .camera-doc-card {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.95rem;
-  border-radius: 12px;
-  background: rgba(199, 183, 163, 0.06);
-  border: 1px dashed var(--border-subtle);
-  transition: border-color 0.25s ease, background 0.25s ease;
+  gap: 0.65rem;
+  padding: 0.85rem 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
 }
 
-.auth-page-root .camera-doc-card.captured {
-  border-style: solid;
-  border-color: rgba(16, 185, 129, 0.45);
-  background: rgba(16, 185, 129, 0.06);
+.auth-page-root .camera-doc-card:last-child {
+  border-bottom: none;
+}
+
+.auth-page-root .camera-doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.auth-page-root .camera-doc-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.auth-page-root .camera-doc-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
 }
 
 .auth-page-root .camera-doc-title {
-  font-size: 0.8rem;
+  font-size: 0.84rem;
   font-weight: 700;
   color: var(--color-light-cream);
-  text-align: center;
-}
-
-.auth-page-root .camera-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
+  text-align: left;
 }
 
 .auth-page-root .camera-placeholder-icon {
-  width: 34px;
-  height: 34px;
+  width: 24px;
+  height: 24px;
   color: var(--color-muted-beige);
-  opacity: 0.75;
+  opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .auth-page-root .camera-empty-hint {
@@ -1027,15 +1143,21 @@
   opacity: 0.75;
 }
 
+.auth-page-root .camera-empty-hint.is-captured {
+  color: #34d399;
+  opacity: 1;
+  font-weight: 600;
+}
+
 .auth-page-root .captured-preview-wrap {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.5rem;
 }
 
 .auth-page-root .captured-preview-img {
   width: 100%;
-  height: 130px;
+  height: 110px;
   object-fit: cover;
   border-radius: 8px;
   border: 1px solid var(--border-subtle);
@@ -1139,6 +1261,7 @@
     padding: 2rem 1.25rem; 
   }
   .auth-page-root .form-row.two-cols,
+  .auth-page-root .form-row.three-cols-name,
   .auth-page-root .form-row.grid-name-row,
   .auth-page-root .camera-capture-grid,
   .auth-page-root .step-actions-row,
