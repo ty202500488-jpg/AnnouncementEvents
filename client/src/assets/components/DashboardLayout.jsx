@@ -384,6 +384,19 @@ export default function DashboardLayout({ children, activePage }) {
                     <span>Settings</span>
                   </div>
                 </a>
+                <a
+                  href="/"
+                  className="nav-item nav-item-logout"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleLogout();
+                  }}
+                >
+                  <div className="nav-item-content">
+                    <i className="fa-solid fa-right-from-bracket nav-icon"></i>
+                    <span>Logout</span>
+                  </div>
+                </a>
               </nav>
             </div>
           </div>

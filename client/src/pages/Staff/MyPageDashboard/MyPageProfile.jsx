@@ -405,26 +405,32 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
   const avatarFallback = getInitials(pageName, pageCode);
   const unreadNotifCount = notifications.filter((n) => !n.is_read).length;
 
+  const storedUser = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const staffDisplayName = `${storedUser.firstName || storedUser.first_name || ''} ${storedUser.lastName || storedUser.last_name || ''}`.trim() || 'Staff Dashboard';
+  const staffSubtitle = storedUser.program_name || storedUser.course || storedUser.program || 'BS Computer Science';
+  const staffInitials = getInitials(staffDisplayName, 'ST');
+
   const profileMenuItems = buildPortalProfileMenuItems({
     role: 'staff',
     hasApprovedPage: true,
-    swapDashboardHref: '/staff/dashboard',
+    swapDashboardHref: fromStaffDashboard ? '/staff/mypage/dashboard' : '/staff/dashboard',
+    swapTargetName: fromStaffDashboard ? pageName : staffDisplayName,
+    swapTargetInitials: fromStaffDashboard ? avatarFallback : staffInitials,
     onSwapDashboard: () => {
-      if (onSwitchToStaffDashboard) onSwitchToStaffDashboard();
-      else navigate('/staff/dashboard');
+      if (fromStaffDashboard) {
+        navigate('/staff/mypage/dashboard');
+      } else if (onSwitchToStaffDashboard) {
+        onSwitchToStaffDashboard();
+      } else {
+        navigate('/staff/dashboard');
+      }
     },
-    extraItems: [
-      {
-        label: 'MyPage Feed',
-        href: '/staff/mypage/dashboard',
-        icon: 'fa-solid fa-house',
-      },
-      {
-        label: 'Page Settings',
-        href: '/staff/mypage/settings',
-        icon: 'fa-solid fa-sliders',
-      },
-    ],
   });
 
   const navbarBlock = (
@@ -466,9 +472,10 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
         onMarkAllAsRead={handleMarkAllAsRead}
         onNotifClick={handleNotifClick}
         notifDropdownRef={notifDropdownRef}
-        profileTitle={pageName}
-        profileSubtitle={pageCategory}
-        profileInitials={avatarFallback}
+        profileTitle={fromStaffDashboard ? staffDisplayName : pageName}
+        profileSubtitle={fromStaffDashboard ? staffSubtitle : pageCategory}
+        profileInitials={fromStaffDashboard ? staffInitials : avatarFallback}
+        profileHref={fromStaffDashboard ? '/staff/profile' : '/staff/mypage/profile'}
         showProfileDropdown={showProfileDropdown}
         onToggleProfileDropdown={() => setShowProfileDropdown((prev) => !prev)}
         onCloseProfileDropdown={() => setShowProfileDropdown(false)}
@@ -567,7 +574,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
               >
                 {fromStaffDashboard ? (
                   <>
-                    <i className="fa-solid fa-right-left"></i>
+                    <i className="fa-solid fa-repeat"></i>
                     <span>Switch Now</span>
                   </>
                 ) : (

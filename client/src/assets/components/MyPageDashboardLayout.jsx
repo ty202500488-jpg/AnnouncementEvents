@@ -272,6 +272,8 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     role: 'staff',
     hasApprovedPage: true,
     swapDashboardHref: '/staff/dashboard',
+    swapTargetName: `${user.firstName} ${user.lastName}`.trim() || 'Staff Dashboard',
+    swapTargetInitials: getInitials(`${user.firstName} ${user.lastName}`, 'ST'),
     onSwapDashboard: () => {
       if (onSwitchToStaffDashboard) onSwitchToStaffDashboard();
       else navigate('/staff/dashboard');
@@ -326,6 +328,7 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
         profileTitle={pageInfo.name}
         profileSubtitle={pageInfo.subtitle}
         profileInitials={pageInitials}
+        profileHref="/staff/mypage/profile"
         showProfileDropdown={showProfileDropdown}
         onToggleProfileDropdown={() => setShowProfileDropdown(!showProfileDropdown)}
         onCloseProfileDropdown={() => setShowProfileDropdown(false)}

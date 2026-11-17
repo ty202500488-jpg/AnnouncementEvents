@@ -17,21 +17,18 @@ export function buildPortalProfileMenuItems({
   hasApprovedPage = false,
   swapDashboardHref,
   onSwapDashboard,
+  swapTargetName = '',
+  swapTargetInitials = '',
   extraItems = [],
 } = {}) {
   const isStaff = role === 'staff';
-  const items = [
-    {
-      label: 'Profile',
-      href: isStaff ? '/staff/profile' : '/student/profile',
-      icon: 'fa-solid fa-user',
-    },
-    ...extraItems,
-  ];
+  const items = [];
 
   if (isStaff && hasApprovedPage && (swapDashboardHref || onSwapDashboard)) {
     items.push({
-      label: 'Swap Dashboard',
+      isSwapItem: true,
+      label: swapTargetName || 'Switch Now',
+      initials: swapTargetInitials || getInitials(swapTargetName, 'SW'),
       href: swapDashboardHref || '/staff/mypage/dashboard',
       icon: 'fa-solid fa-repeat',
       iconColor: '#7B0D1E',
@@ -39,11 +36,14 @@ export function buildPortalProfileMenuItems({
     });
   }
 
-  items.push({
-    label: 'Settings',
-    href: isStaff ? '/staff/settings' : '/student/settings',
-    icon: 'fa-solid fa-gear',
-  });
+  items.push(
+    ...extraItems,
+    {
+      label: 'Settings',
+      href: isStaff ? '/staff/settings' : '/student/settings',
+      icon: 'fa-solid fa-gear',
+    }
+  );
 
   return items;
 }
@@ -206,6 +206,7 @@ export function PortalNavbar({
   profileTitle,
   profileSubtitle,
   profileInitials = 'WM',
+  profileHref,
   showProfileDropdown = false,
   onToggleProfileDropdown,
   onCloseProfileDropdown,
@@ -503,47 +504,122 @@ export function PortalNavbar({
                   gap: '0.25rem',
                 }}
               >
-                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #cbd5e1', marginBottom: '0.25rem' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {profileTitle}
+                <a
+                  href={profileHref || (qrRole === 'staff' ? '/staff/profile' : '/student/profile')}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (onCloseProfileDropdown) onCloseProfileDropdown();
+                    navigate(profileHref || (qrRole === 'staff' ? '/staff/profile' : '/student/profile'));
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: '0.5rem',
+                    textDecoration: 'none',
+                    borderBottom: '1px solid #cbd5e1',
+                    marginBottom: '0.25rem',
+                    paddingBottom: '0.65rem',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--slate-50)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <span style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: '#7B0D1E', color: '#ffffff', fontSize: '0.75rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, letterSpacing: '-0.02em' }}>
+                    {profileInitials}
+                  </span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--slate-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {profileTitle}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {profileSubtitle}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--slate-500)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                    {profileSubtitle}
-                  </div>
-                </div>
+                </a>
 
-                {profileMenuItems.map((item) => (
-                  <a
-                    key={item.label}
-                    href={item.href || '#'}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (onCloseProfileDropdown) onCloseProfileDropdown();
-                      if (item.onClick) {
-                        item.onClick();
-                      } else if (item.href) {
-                        navigate(item.href);
-                      }
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.5rem 0.75rem',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.8125rem',
-                      color: 'var(--slate-700)',
-                      textDecoration: 'none',
-                      transition: 'background 0.15s',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--slate-50)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                  >
-                    <i className={item.icon} style={{ width: '16px', color: item.iconColor || 'var(--slate-500)' }}></i> {item.label}
-                  </a>
-                ))}
+                {profileMenuItems.map((item) => {
+                  if (item.isSwapItem) {
+                    return (
+                      <div key={item.label} style={{ borderBottom: '1px solid #cbd5e1', marginBottom: '0.25rem', paddingBottom: '0.35rem' }}>
+                        <a
+                          href={item.href || '#'}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (onCloseProfileDropdown) onCloseProfileDropdown();
+                            if (item.onClick) {
+                              item.onClick();
+                            } else if (item.href) {
+                              navigate(item.href);
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.65rem',
+                            padding: '0.45rem 0.65rem',
+                            borderRadius: '0.5rem',
+                            fontSize: '0.8125rem',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            textDecoration: 'none',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--slate-50)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <span style={{ position: 'relative', width: '32px', height: '32px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <svg width="32" height="32" viewBox="0 0 36 36" fill="none" aria-hidden="true" style={{ position: 'absolute', inset: 0 }}>
+                              <path d="M18 3.5A14.5 14.5 0 0 1 31.8 13.5" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" />
+                              <path d="M32.5 9.5L32.1 14.1L27.7 12.7" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                              <path d="M18 32.5A14.5 14.5 0 0 1 4.2 22.5" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" />
+                              <path d="M3.5 26.5L3.9 21.9L8.3 23.3" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            <span style={{ width: '21px', height: '21px', borderRadius: '50%', backgroundColor: '#7B0D1E', color: '#ffffff', fontSize: '9px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', letterSpacing: '-0.02em' }}>
+                              {item.initials}
+                            </span>
+                          </span>
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.label}
+                          </span>
+                        </a>
+                      </div>
+                    );
+                  }
+                  return (
+                    <a
+                      key={item.label}
+                      href={item.href || '#'}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (onCloseProfileDropdown) onCloseProfileDropdown();
+                        if (item.onClick) {
+                          item.onClick();
+                        } else if (item.href) {
+                          navigate(item.href);
+                        }
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '0.375rem',
+                        fontSize: '0.8125rem',
+                        color: 'var(--slate-700)',
+                        textDecoration: 'none',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--slate-50)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <i className={item.icon} style={{ width: '16px', color: item.iconColor || 'var(--slate-500)' }}></i> {item.label}
+                    </a>
+                  );
+                })}
 
-                <div style={{ borderTop: '1px solid #cbd5e1', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
+                <div style={{ marginTop: '0.15rem' }}>
                   <button
                     type="button"
                     onClick={() => {

@@ -34,6 +34,7 @@ export default function PostComposerModal({
   const [isUniversityWide, setIsUniversityWide] = useState(false);
   const [spotlightExpiresAt, setSpotlightExpiresAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [modalPickerView, setModalPickerView] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -217,21 +218,118 @@ export default function PostComposerModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 800, color: '#0f172a' }}>
-            Create Post
+        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+          {modalPickerView && (
+            <button
+              type="button"
+              onClick={() => setModalPickerView(null)}
+              aria-label="Back to Create Post"
+              style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f1f5f9', border: 'none', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <i className="fa-solid fa-arrow-left" style={{ fontSize: '0.9rem' }}></i>
+            </button>
+          )}
+          <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#0f172a', textAlign: 'center', width: '100%' }}>
+            {modalPickerView === 'postType'
+              ? 'Post Type'
+              : modalPickerView === 'category'
+                ? 'Select Category'
+                : modalPickerView === 'audience'
+                  ? 'Post Audience'
+                  : 'Create Post'}
           </h3>
           <button
             type="button"
             disabled={submitting}
-            onClick={resetAndClose}
-            style={{ width: '2rem', height: '2rem', borderRadius: '9999px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', color: '#475569', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => { setModalPickerView(null); resetAndClose(); }}
+            style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', width: '32px', height: '32px', borderRadius: '50%', border: 'none', backgroundColor: '#f1f5f9', color: '#64748b', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
             aria-label="Close"
           >
-            <i className="fa-solid fa-xmark"></i>
+            <i className="fa-solid fa-xmark" style={{ fontSize: '1rem' }}></i>
           </button>
         </div>
 
+        {modalPickerView ? (
+          <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {(modalPickerView === 'postType'
+              ? [
+                  { value: 'announcement', label: 'Announcement', desc: 'Share campus news, updates, or reminders.', icon: 'fa-solid fa-bullhorn' },
+                  { value: 'event', label: 'Event', desc: 'Host an event with date, venue, and registration.', icon: 'fa-solid fa-calendar-days' },
+                ]
+              : modalPickerView === 'audience'
+                ? [
+                    { value: 'All Campus', label: 'Public', desc: 'Anyone on or off the portal can see this post.', icon: 'fa-solid fa-earth-americas' },
+                    { value: 'University-Wide', label: 'University-Wide Spotlight', desc: 'Rotates in the Student & Staff Spotlight after Admin approval.', icon: 'fa-solid fa-bullhorn' },
+                    { value: 'Followers Only', label: 'Followers', desc: 'Only users who follow your page can see this post.', icon: 'fa-solid fa-user-group' },
+                    { value: 'Private', label: 'Private', desc: 'Only page admins and members can see this post.', icon: 'fa-solid fa-lock' },
+                  ]
+                : [
+                    { value: '', label: 'General', desc: 'No specific category', icon: 'fa-solid fa-tag' },
+                    ...categories.map((cat) => ({
+                      value: String(cat.category_id),
+                      label: cat.category_name,
+                      desc: 'Announcement category',
+                      icon: 'fa-solid fa-folder-open',
+                    })),
+                  ]
+            ).map((opt) => {
+              const currentVal =
+                modalPickerView === 'postType'
+                  ? postType
+                  : modalPickerView === 'audience'
+                    ? (isUniversityWide ? 'University-Wide' : audience)
+                    : String(categoryId || '');
+              const isSelected = currentVal === opt.value;
+              return (
+                <button
+                  key={opt.value || 'general'}
+                  type="button"
+                  onClick={() => {
+                    if (modalPickerView === 'postType') {
+                      setPostType(opt.value);
+                    } else if (modalPickerView === 'audience') {
+                      if (opt.value === 'University-Wide') {
+                        setIsUniversityWide(true);
+                        setAudience('All Campus');
+                        if (!spotlightExpiresAt) setSpotlightExpiresAt(getLocalDateTimeValue(24 * 7));
+                      } else {
+                        setIsUniversityWide(false);
+                        setAudience(opt.value);
+                      }
+                    } else {
+                      setCategoryId(opt.value);
+                    }
+                    setModalPickerView(null);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                    width: '100%',
+                    padding: '0.75rem 0.875rem',
+                    borderRadius: '0.75rem',
+                    border: `1.5px solid ${isSelected ? '#881337' : '#e2e8f0'}`,
+                    backgroundColor: isSelected ? '#fff1f2' : '#ffffff',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                    <span style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: isSelected ? '#881337' : '#f1f5f9', color: isSelected ? '#ffffff' : '#475569', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <i className={opt.icon}></i>
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>{opt.label}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{opt.desc}</div>
+                    </div>
+                  </div>
+                  {isSelected && <i className="fa-solid fa-circle-check" style={{ color: '#881337', fontSize: '1rem', flexShrink: 0 }}></i>}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <PostPageAvatar avatarUrl={pageAvatarUrl} label={pageName} fallbackCode={pageCode} />
@@ -240,50 +338,37 @@ export default function PostComposerModal({
                 {pageName}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <select
-                  value={postType}
-                  onChange={(e) => setPostType(e.target.value)}
-                  style={{ backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.38rem 0.65rem', fontSize: '0.8rem', fontWeight: 700, color: '#881337' }}
+                <button
+                  type="button"
+                  onClick={() => setModalPickerView('postType')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.35rem 0.65rem', fontSize: '0.75rem', fontWeight: 700, color: '#881337', cursor: 'pointer' }}
                 >
-                  <option value="announcement">Announcement</option>
-                  <option value="event">Event</option>
-                </select>
+                  <i className={postType === 'event' ? 'fa-solid fa-calendar-days' : 'fa-solid fa-bullhorn'}></i>
+                  <span>{postType === 'event' ? 'Event' : 'Announcement'}</span>
+                  <i className="fa-solid fa-caret-down" style={{ fontSize: '0.7rem', color: '#64748b' }}></i>
+                </button>
 
-                {postType === 'announcement' && categories.length > 0 && (
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    style={{ backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.38rem 0.65rem', fontSize: '0.8rem', fontWeight: 600, color: '#334155' }}
+                {postType === 'announcement' && (
+                  <button
+                    type="button"
+                    onClick={() => setModalPickerView('category')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '0.5rem', padding: '0.35rem 0.65rem', fontSize: '0.75rem', fontWeight: 600, color: '#334155', cursor: 'pointer' }}
                   >
-                    <option value="">General Category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.category_id} value={cat.category_id}>
-                        {cat.category_name}
-                      </option>
-                    ))}
-                  </select>
+                    <i className="fa-solid fa-tag"></i>
+                    <span>{categories.find((c) => String(c.category_id) === String(categoryId))?.category_name || 'General'}</span>
+                    <i className="fa-solid fa-caret-down" style={{ fontSize: '0.7rem', color: '#64748b' }}></i>
+                  </button>
                 )}
 
-                <select
-                  value={isUniversityWide ? 'University-Wide' : audience}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'University-Wide') {
-                      setIsUniversityWide(true);
-                      setAudience('All Campus');
-                      if (!spotlightExpiresAt) setSpotlightExpiresAt(getLocalDateTimeValue(24 * 7));
-                    } else {
-                      setIsUniversityWide(false);
-                      setAudience(val);
-                    }
-                  }}
-                  style={{ backgroundColor: isUniversityWide ? '#fff1f2' : '#f1f5f9', border: `1px solid ${isUniversityWide ? '#fecdd3' : '#e2e8f0'}`, borderRadius: '0.5rem', padding: '0.38rem 0.65rem', fontSize: '0.8rem', fontWeight: 600, color: isUniversityWide ? '#881337' : '#334155' }}
+                <button
+                  type="button"
+                  onClick={() => setModalPickerView('audience')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', backgroundColor: isUniversityWide ? '#fff1f2' : '#f1f5f9', border: `1px solid ${isUniversityWide ? '#fecdd3' : '#e2e8f0'}`, borderRadius: '0.5rem', padding: '0.35rem 0.65rem', fontSize: '0.75rem', fontWeight: 600, color: isUniversityWide ? '#881337' : '#334155', cursor: 'pointer' }}
                 >
-                  <option value="All Campus">Public</option>
-                  <option value="Followers Only">Followers</option>
-                  <option value="Private">Private</option>
-                  <option value="University-Wide">University-Wide Spotlight</option>
-                </select>
+                  <i className={isUniversityWide ? 'fa-solid fa-bullhorn' : audience === 'Followers Only' ? 'fa-solid fa-user-group' : audience === 'Private' ? 'fa-solid fa-lock' : 'fa-solid fa-earth-americas'}></i>
+                  <span>{isUniversityWide ? 'University-Wide Spotlight' : audience === 'Followers Only' ? 'Followers' : audience === 'Private' ? 'Private' : 'Public'}</span>
+                  <i className="fa-solid fa-caret-down" style={{ fontSize: '0.7rem', color: '#64748b' }}></i>
+                </button>
               </div>
             </div>
           </div>
@@ -393,6 +478,7 @@ export default function PostComposerModal({
                   : 'Publish Post'}
           </button>
         </form>
+        )}
       </div>
     </div>,
     document.body

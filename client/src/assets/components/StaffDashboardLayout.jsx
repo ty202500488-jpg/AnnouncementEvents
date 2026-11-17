@@ -26,7 +26,9 @@ export default function StaffDashboardLayout({ children, activePage }) {
   
   const [pageStatus, setPageStatus] = useState({
     exists: false,
-    status: 'none'
+    status: 'none',
+    pageName: '',
+    pageCode: ''
   });
 
   // MOBILE MENU STATE
@@ -139,7 +141,9 @@ export default function StaffDashboardLayout({ children, activePage }) {
         if (response.ok) {
           setPageStatus({
             exists: data.exists || false,
-            status: data.status || 'none'
+            status: data.status || 'none',
+            pageName: data.pageName || data.page?.page_name || data.page_name || data.name || '',
+            pageCode: data.pageCode || ''
           });
         }
       } catch (err) {
@@ -235,6 +239,8 @@ export default function StaffDashboardLayout({ children, activePage }) {
     role: 'staff',
     hasApprovedPage: isPageApproved,
     swapDashboardHref: '/staff/mypage/dashboard',
+    swapTargetName: pageStatus.pageName || 'My Page',
+    swapTargetInitials: getInitials(pageStatus.pageName, pageStatus.pageCode || 'MP'),
   });
 
   return (
