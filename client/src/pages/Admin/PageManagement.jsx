@@ -336,11 +336,6 @@ const PageManagement = () => {
           </div>
 
           <div className="pm-header-actions">
-            <span className="admin-header-amber-pill">
-              <i className="fa-solid fa-bell" aria-hidden="true"></i>
-              <span>Pending Requests: {loading ? '...' : summaryCounts.pending}</span>
-            </span>
-
             <button 
               type="button" 
               className="btn-pm-primary"
@@ -472,6 +467,8 @@ const PageManagement = () => {
             <button 
               type="button" 
               className="admin-inline-reset-btn"
+              title="Reset filters"
+              aria-label="Reset filters"
               onClick={() => {
                 setSearchQuery('');
                 setCategoryFilter('all');
@@ -481,7 +478,6 @@ const PageManagement = () => {
               }}
             >
               <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
-              <span>Reset</span>
             </button>
           </div>
         </div>
@@ -520,6 +516,7 @@ const PageManagement = () => {
               <table className="pm-data-table">
                 <thead>
                   <tr>
+                    <th>Page ID</th>
                     <th>Page Profile</th>
                     <th>Category</th>
                     <th>Affiliation</th>
@@ -532,6 +529,11 @@ const PageManagement = () => {
                 <tbody>
                   {pagesList.map(page => (
                     <tr key={page.id}>
+                      <td>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                          #{page.id}
+                        </span>
+                      </td>
                       <td>
                         <div className="page-profile-cell">
                           <div className="page-avatar">
@@ -741,7 +743,7 @@ const PageManagement = () => {
                 </div>
               </div>
 
-              <div className="modal-footer flex-between">
+              <div className={`modal-footer ${String(selectedPage.status || '').toLowerCase() === 'pending' ? 'flex-between' : ''}`}>
                 <button type="button" className="btn-pm-secondary" onClick={() => setActiveModal(null)}>
                   Close
                 </button>

@@ -453,7 +453,6 @@ TABLE & CONTAINER
   border-radius: 0 0 16px 16px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
   overflow: hidden;
-  min-height: 280px;
   display: flex;
   flex-direction: column;
 }

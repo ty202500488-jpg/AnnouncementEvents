@@ -7,7 +7,7 @@ import '../styles/Reports.css';
 const REPORT_CATEGORIES = [
   {
     id: 'students',
-    label: 'Student Directory Report',
+    label: 'Student Registration & Verification Report',
     icon: 'fa-user-graduate',
     tone: 'emerald',
     description: 'Comprehensive student registration and verification directory across colleges, departments, programs, and year levels.',
@@ -58,7 +58,7 @@ const REPORT_CATEGORIES = [
 // CSV Column Definitions per Report Category
 const REPORT_CSV_SCHEMAS = {
   students: [
-    { label: 'Student ID', key: 'student_id' },
+    { label: 'User ID', key: 'id' },
     { label: 'First Name', key: 'first_name' },
     { label: 'Middle Name', key: 'middle_name' },
     { label: 'Last Name', key: 'last_name' },
@@ -68,7 +68,7 @@ const REPORT_CSV_SCHEMAS = {
     { label: 'Program', key: 'program_name' },
     { label: 'Year Level', key: 'year_level' },
     { label: 'Registration Date', key: 'created_at', isDate: true },
-    { label: 'Verification Status', key: 'verification_status' }
+    { label: 'Status', key: 'verification_status' }
   ],
   announcements: [
     { label: 'Announcement ID', key: 'id' },
@@ -146,6 +146,7 @@ const Reports = () => {
 
   // Filter States
   const [academicYearFilter, setAcademicYearFilter] = useState('');
+  const [datePeriodPreset, setDatePeriodPreset] = useState('school_year');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [collegeFilter, setCollegeFilter] = useState('');
@@ -300,8 +301,42 @@ const Reports = () => {
     fetchReportData();
   };
 
+  const handleDatePeriodChange = (preset) => {
+    setDatePeriodPreset(preset);
+    if (preset === 'custom') return;
+    if (preset === 'school_year') {
+      setDateFrom('');
+      setDateTo('');
+      return;
+    }
+
+    const fmt = (d) => d.toISOString().split('T')[0];
+    const now = new Date();
+    let start = new Date(now);
+    let end = new Date(now);
+
+    if (preset === 'today') {
+      // start & end are today
+    } else if (preset === '7d') {
+      start.setDate(now.getDate() - 7);
+    } else if (preset === '30d') {
+      start.setDate(now.getDate() - 30);
+    } else if (preset === 'this_month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+    } else if (preset === 'last_month') {
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      end = new Date(now.getFullYear(), now.getMonth(), 0);
+    } else if (preset === 'this_year') {
+      start = new Date(now.getFullYear(), 0, 1);
+    }
+
+    setDateFrom(fmt(start));
+    setDateTo(fmt(end));
+  };
+
   const handleResetFilters = () => {
     setAcademicYearFilter('');
+    setDatePeriodPreset('school_year');
     setDateFrom('');
     setDateTo('');
     setCollegeFilter('');
@@ -570,224 +605,312 @@ const Reports = () => {
             ))}
           </section>
         ) : (
-          <section className="reports-unified-card" aria-label="Report Data">
-            {/* ==================== C. INTEGRATED FILTER BAR ==================== */}
-            <div className="reports-unified-filter-bar">
-              <form onSubmit={handleApplyFilters} className="admin-inline-filter-row">
-                <div className="admin-inline-search">
-                  <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                  <input
-                    type="text"
-                    placeholder={`Search ${REPORT_CATEGORIES.find(c => c.id === activeReportView)?.label || 'report'}...`}
-                    value={searchTerm}
-                    onChange={e => {
-                      setSearchTerm(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="admin-inline-search-input"
-                    aria-label="Search report records"
-                  />
-                  {searchTerm && (
-                    <button
-                      type="button"
-                      className="admin-inline-clear-btn"
-                      aria-label="Clear search"
-                      onClick={() => {
-                        setSearchTerm('');
+          <>
+            {/* ==================== C. SEPARATE FILTER BAR CARD ==================== */}
+            <section className="admin-inline-filter-card" aria-label="Report filters">
+              <form onSubmit={handleApplyFilters} className="admin-ref-toolbar">
+                <div className="admin-ref-field admin-ref-search">
+                  <label htmlFor="report-search-input" className="admin-ref-label">
+                    <i className="fa-solid fa-magnifying-glass" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                    Search Report:
+                  </label>
+                  <div className="admin-inline-search" style={{ minWidth: 0 }}>
+                    <i className="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <input
+                      id="report-search-input"
+                      type="text"
+                      placeholder={`Search ${REPORT_CATEGORIES.find(c => c.id === activeReportView)?.label || 'report'}...`}
+                      value={searchTerm}
+                      onChange={e => {
+                        setSearchTerm(e.target.value);
                         setCurrentPage(1);
                       }}
-                    >
-                      <i className="fa-solid fa-xmark"></i>
-                    </button>
-                  )}
+                      className="admin-inline-search-input"
+                      aria-label="Search report records"
+                    />
+                    {searchTerm && (
+                      <button
+                        type="button"
+                        className="admin-inline-clear-btn"
+                        aria-label="Clear search"
+                        onClick={() => {
+                          setSearchTerm('');
+                          setCurrentPage(1);
+                        }}
+                      >
+                        <i className="fa-solid fa-xmark"></i>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <select
-                  id="filter-school-year"
-                  value={academicYearFilter}
-                  onChange={e => setAcademicYearFilter(e.target.value)}
-                  className="admin-inline-select"
-                  aria-label="School Year"
-                >
-                  <option value="">All School Years</option>
-                  {academicYearList.map(yr => (
-                    <option key={yr.id} value={yr.id}>
-                      {yr.year_label} ({yr.semester}) — {yr.status || (yr.is_active ? 'Active' : 'Archived')}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  id="filter-date-from"
-                  type="date"
-                  value={dateFrom}
-                  onChange={e => setDateFrom(e.target.value)}
-                  className="admin-inline-select"
-                  aria-label="Date From"
-                  title="Date From"
-                />
-
-                <input
-                  id="filter-date-to"
-                  type="date"
-                  value={dateTo}
-                  onChange={e => setDateTo(e.target.value)}
-                  className="admin-inline-select"
-                  aria-label="Date To"
-                  title="Date To"
-                />
-
-                {['students', 'announcements', 'pages'].includes(selectedCategory) && (
+                <div className="admin-ref-field">
+                  <label htmlFor="filter-school-year" className="admin-ref-label">
+                    <i className="fa-solid fa-graduation-cap" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                    School Year:
+                  </label>
                   <select
-                    id="filter-college"
-                    value={collegeFilter}
-                    onChange={e => {
-                      setCollegeFilter(e.target.value);
-                      setDeptFilter('');
-                    }}
+                    id="filter-school-year"
+                    value={academicYearFilter}
+                    onChange={e => setAcademicYearFilter(e.target.value)}
                     className="admin-inline-select"
-                    aria-label="College"
+                    aria-label="School Year"
                   >
-                    <option value="">All Colleges</option>
-                    {collegeList.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                    <option value="">All School Years</option>
+                    {academicYearList.map(yr => (
+                      <option key={yr.id} value={yr.id}>
+                        {yr.year_label} ({yr.semester}) — {yr.status || (yr.is_active ? 'Active' : 'Archived')}
+                      </option>
                     ))}
                   </select>
+                </div>
+
+                <div className="admin-ref-field">
+                  <label htmlFor="filter-date-period" className="admin-ref-label">
+                    <i className="fa-regular fa-calendar" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                    Date Filter Period:
+                  </label>
+                  <select
+                    id="filter-date-period"
+                    value={datePeriodPreset}
+                    onChange={e => handleDatePeriodChange(e.target.value)}
+                    className="admin-inline-select"
+                    aria-label="Date Filter Period"
+                  >
+                    <option value="school_year">School Year</option>
+                    <option value="today">Today</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                    <option value="this_month">This Month</option>
+                    <option value="last_month">Last Month</option>
+                    <option value="this_year">This Year</option>
+                    <option value="custom">Custom Range</option>
+                  </select>
+                </div>
+
+                {datePeriodPreset === 'custom' && (
+                  <>
+                    <div className="admin-ref-field" style={{ minWidth: '132px' }}>
+                      <label htmlFor="filter-date-from" className="admin-ref-label">
+                        <i className="fa-regular fa-calendar" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                        Date From:
+                      </label>
+                      <input
+                        id="filter-date-from"
+                        type="date"
+                        value={dateFrom}
+                        onChange={e => setDateFrom(e.target.value)}
+                        className="admin-inline-select"
+                        aria-label="Date From"
+                      />
+                    </div>
+
+                    <div className="admin-ref-field" style={{ minWidth: '132px' }}>
+                      <label htmlFor="filter-date-to" className="admin-ref-label">
+                        <i className="fa-regular fa-calendar" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                        Date To:
+                      </label>
+                      <input
+                        id="filter-date-to"
+                        type="date"
+                        value={dateTo}
+                        onChange={e => setDateTo(e.target.value)}
+                        className="admin-inline-select"
+                        aria-label="Date To"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {['students', 'announcements', 'pages'].includes(selectedCategory) && (
+                  <div className="admin-ref-field">
+                    <label htmlFor="filter-college" className="admin-ref-label">
+                      <i className="fa-solid fa-building-columns" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                      College:
+                    </label>
+                    <select
+                      id="filter-college"
+                      value={collegeFilter}
+                      onChange={e => {
+                        setCollegeFilter(e.target.value);
+                        setDeptFilter('');
+                      }}
+                      className="admin-inline-select"
+                      aria-label="College"
+                    >
+                      <option value="">All Colleges</option>
+                      {collegeList.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
 
                 {['students', 'announcements'].includes(selectedCategory) && (
-                  <select
-                    id="filter-dept"
-                    value={deptFilter}
-                    onChange={e => setDeptFilter(e.target.value)}
-                    className="admin-inline-select"
-                    aria-label="Department"
-                  >
-                    <option value="">All Departments</option>
-                    {deptList
-                      .filter(d => !collegeFilter || String(d.college_id) === String(collegeFilter))
-                      .map(d => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                  </select>
+                  <div className="admin-ref-field">
+                    <label htmlFor="filter-dept" className="admin-ref-label">
+                      <i className="fa-solid fa-sitemap" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                      Department:
+                    </label>
+                    <select
+                      id="filter-dept"
+                      value={deptFilter}
+                      onChange={e => setDeptFilter(e.target.value)}
+                      className="admin-inline-select"
+                      aria-label="Department"
+                    >
+                      <option value="">All Departments</option>
+                      {deptList
+                        .filter(d => !collegeFilter || String(d.college_id) === String(collegeFilter))
+                        .map(d => (
+                          <option key={d.id} value={d.id}>{d.name}</option>
+                        ))}
+                    </select>
+                  </div>
                 )}
 
                 {selectedCategory === 'students' && (
-                  <select
-                    id="filter-program"
-                    value={programFilter}
-                    onChange={e => setProgramFilter(e.target.value)}
-                    className="admin-inline-select"
-                    aria-label="Academic Program"
-                  >
-                    <option value="">All Programs</option>
-                    {programList
-                      .filter(p => !deptFilter || String(p.department_id) === String(deptFilter))
-                      .map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                  </select>
+                  <div className="admin-ref-field">
+                    <label htmlFor="filter-program" className="admin-ref-label">
+                      <i className="fa-solid fa-book-open" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                      Program:
+                    </label>
+                    <select
+                      id="filter-program"
+                      value={programFilter}
+                      onChange={e => setProgramFilter(e.target.value)}
+                      className="admin-inline-select"
+                      aria-label="Academic Program"
+                    >
+                      <option value="">All Programs</option>
+                      {programList
+                        .filter(p => !deptFilter || String(p.department_id) === String(deptFilter))
+                        .map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                    </select>
+                  </div>
                 )}
 
                 {['announcements', 'events', 'pages'].includes(selectedCategory) && (
+                  <div className="admin-ref-field">
+                    <label htmlFor="filter-type" className="admin-ref-label">
+                      <i className="fa-solid fa-tag" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                      Classification:
+                    </label>
+                    <select
+                      id="filter-type"
+                      value={categoryTypeFilter}
+                      onChange={e => setCategoryTypeFilter(e.target.value)}
+                      className="admin-inline-select"
+                      aria-label="Category Classification"
+                    >
+                      <option value="">All Classifications</option>
+                      {selectedCategory === 'announcements' && (
+                        <>
+                          <option value="Academic">Academic</option>
+                          <option value="Administrative">Administrative</option>
+                          <option value="Student Life">Student Life</option>
+                          <option value="Emergency">Emergency Alert</option>
+                        </>
+                      )}
+                      {selectedCategory === 'events' && (
+                        <>
+                          <option value="Academic">Academic</option>
+                          <option value="Cultural">Cultural</option>
+                          <option value="Sports">Sports</option>
+                          <option value="Webinar">Webinar / Workshop</option>
+                        </>
+                      )}
+                      {selectedCategory === 'pages' && (
+                        <>
+                          <option value="College">College</option>
+                          <option value="Department">Department</option>
+                          <option value="Organization">Student Organization</option>
+                          <option value="Office">Administrative Office</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+                )}
+
+                <div className="admin-ref-field">
+                  <label htmlFor="filter-status" className="admin-ref-label">
+                    <i className="fa-solid fa-circle-dot" style={{ color: '#881337', marginRight: '0.35rem' }} aria-hidden="true"></i>
+                    Status:
+                  </label>
                   <select
-                    id="filter-type"
-                    value={categoryTypeFilter}
-                    onChange={e => setCategoryTypeFilter(e.target.value)}
+                    id="filter-status"
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
                     className="admin-inline-select"
-                    aria-label="Category Classification"
+                    aria-label="Status"
                   >
-                    <option value="">All Classifications</option>
+                    <option value="">All Statuses</option>
+                    {selectedCategory === 'students' && (
+                      <>
+                        <option value="Verified">Verified</option>
+                        <option value="Pending">Pending Verification</option>
+                        <option value="Rejected">Rejected</option>
+                      </>
+                    )}
                     {selectedCategory === 'announcements' && (
                       <>
-                        <option value="Academic">Academic</option>
-                        <option value="Administrative">Administrative</option>
-                        <option value="Student Life">Student Life</option>
-                        <option value="Emergency">Emergency Alert</option>
+                        <option value="Published">Published</option>
+                        <option value="Pending">Pending Review</option>
+                        <option value="Archived">Archived</option>
+                        <option value="Rejected">Rejected</option>
                       </>
                     )}
                     {selectedCategory === 'events' && (
                       <>
-                        <option value="Academic">Academic</option>
-                        <option value="Cultural">Cultural</option>
-                        <option value="Sports">Sports</option>
-                        <option value="Webinar">Webinar / Workshop</option>
+                        <option value="Upcoming">Upcoming</option>
+                        <option value="Ongoing">Ongoing</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </>
+                    )}
+                    {selectedCategory === 'attendance' && (
+                      <>
+                        <option value="Present">Present</option>
+                        <option value="Absent">Absent</option>
+                        <option value="Not Marked">Not Marked</option>
                       </>
                     )}
                     {selectedCategory === 'pages' && (
                       <>
-                        <option value="College">College</option>
-                        <option value="Department">Department</option>
-                        <option value="Organization">Student Organization</option>
-                        <option value="Office">Administrative Office</option>
+                        <option value="Active">Active</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Rejected">Rejected</option>
+                      </>
+                    )}
+                    {selectedCategory === 'moderation' && (
+                      <>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Archived">Archived</option>
                       </>
                     )}
                   </select>
-                )}
+                </div>
 
-                <select
-                  id="filter-status"
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                  className="admin-inline-select"
-                  aria-label="Status"
+                <button
+                  type="button"
+                  className="admin-inline-reset-btn"
+                  onClick={handleResetFilters}
+                  disabled={loading}
+                  title="Reset filters"
+                  aria-label="Reset filters"
                 >
-                  <option value="">All Statuses</option>
-                  {selectedCategory === 'students' && (
-                    <>
-                      <option value="Verified">Verified</option>
-                      <option value="Pending">Pending Verification</option>
-                      <option value="Rejected">Rejected</option>
-                    </>
-                  )}
-                  {selectedCategory === 'announcements' && (
-                    <>
-                      <option value="Published">Published</option>
-                      <option value="Pending">Pending Review</option>
-                      <option value="Archived">Archived</option>
-                      <option value="Rejected">Rejected</option>
-                    </>
-                  )}
-                  {selectedCategory === 'events' && (
-                    <>
-                      <option value="Upcoming">Upcoming</option>
-                      <option value="Ongoing">Ongoing</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Cancelled">Cancelled</option>
-                    </>
-                  )}
-                  {selectedCategory === 'attendance' && (
-                    <>
-                      <option value="Present">Present</option>
-                      <option value="Absent">Absent</option>
-                      <option value="Not Marked">Not Marked</option>
-                    </>
-                  )}
-                  {selectedCategory === 'pages' && (
-                    <>
-                      <option value="Active">Active</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Rejected">Rejected</option>
-                    </>
-                  )}
-                  {selectedCategory === 'moderation' && (
-                    <>
-                      <option value="Approved">Approved</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Archived">Archived</option>
-                    </>
-                  )}
-                </select>
-
-                <button type="button" className="admin-inline-reset-btn" onClick={handleResetFilters} disabled={loading}>
                   <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
-                  <span>Reset</span>
                 </button>
               </form>
-            </div>
+            </section>
 
-            {/* Error Message */}
+            {/* ==================== D. SEPARATE REPORT TABLE CARD ==================== */}
+            <section className="reports-unified-card" aria-label="Report Data">
+              {/* Error Message */}
             {errorMessage && (
               <div className="report-alert-banner error" role="alert" style={{ margin: '1rem' }}>
                 <i className="fa-solid fa-circle-exclamation"></i>
@@ -836,6 +959,10 @@ const Reports = () => {
                             <span className={`status-pill ${String(row[col.key] || '').toLowerCase().replace(/\s+/g, '-')}`}>
                               {formatCellValue(row[col.key])}
                             </span>
+                          ) : (col.key === 'id' || col.key === 'event_id' || col.key === 'attendance_id') && row[col.key] != null ? (
+                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                              #{row[col.key]}
+                            </span>
                           ) : (
                             formatCellValue(row[col.key], col.isDate)
                           )}
@@ -869,6 +996,7 @@ const Reports = () => {
             />
           )}
             </section>
+          </>
         )}
       </div>
     </AdminLayout>

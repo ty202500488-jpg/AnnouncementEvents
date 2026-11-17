@@ -298,7 +298,7 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px solid #cbd5e1' }}>
                     <span style={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>
-                      Admin Notifications
+                      Notifications
                     </span>
                     {unreadNotifCount > 0 && (
                       <button
@@ -507,7 +507,17 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
 
         {/* MAIN VIEWPORT CANVAS */}
         <main className={`main-viewport ${fullBleed ? 'admin-main-fullbleed' : ''}`}>
-          {children}
+          <div className="admin-viewport-body">
+            {children}
+          </div>
+
+          {!fullBleed && (
+            <footer className="admin-portal-footer">
+              <div className="admin-footer-copy">
+                &copy; {new Date().getFullYear()} <strong>CRIMSON</strong> &middot; WMSU Campus Portal. All rights reserved.
+              </div>
+            </footer>
+          )}
         </main>
       </div>
     </div>

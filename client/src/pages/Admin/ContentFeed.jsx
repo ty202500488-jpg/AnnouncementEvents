@@ -494,9 +494,9 @@ const ContentFeed = () => {
             className="acf-header-reset-chip"
             onClick={handleResetFilters}
             title="Reset all filters"
+            aria-label="Reset all filters"
           >
-            <i className="fa-solid fa-sliders" aria-hidden="true"></i>
-            <span>Reset</span>
+            <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
           </button>
         )}
       </div>

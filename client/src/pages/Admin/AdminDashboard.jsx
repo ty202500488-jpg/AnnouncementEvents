@@ -562,9 +562,9 @@ const AdminDashboard = () => {
                 className="ov-btn ov-btn-secondary ov-reset-btn"
                 onClick={handleResetFilters}
                 title="Reset all filters"
+                aria-label="Reset all filters"
               >
                 <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
-                <span>Reset</span>
               </button>
             </div>
           </div>

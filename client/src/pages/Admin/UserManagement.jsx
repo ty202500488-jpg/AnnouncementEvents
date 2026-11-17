@@ -203,8 +203,8 @@ const UserManagement = () => {
   // Grant Staff Access Submit
   const handleGrantStaffAccess = async (e) => {
     e.preventDefault();
-    if (!grantFormData.userId || !grantFormData.pageId) {
-      setFeedback({ type: 'error', message: 'Please select both a user and an organization page.' });
+    if (!grantFormData.userId) {
+      setFeedback({ type: 'error', message: 'Please select a user.' });
       return;
     }
 
@@ -497,6 +497,8 @@ const UserManagement = () => {
               <button
                 type="button"
                 className="btn-um-secondary um-reset-btn"
+                title="Reset filters"
+                aria-label="Reset filters"
                 onClick={() => {
                   setSearchQuery('');
                   setRoleFilter('all');
@@ -506,7 +508,6 @@ const UserManagement = () => {
                 }}
               >
                 <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
-                <span>Reset</span>
               </button>
             </div>
           </div>
@@ -587,9 +588,21 @@ const UserManagement = () => {
                           </span>
                         </td>
                         <td>
-                          <span className={`status-pill ${isSuspended ? 'status-rejected' : 'status-verified'}`}>
-                            {acctStatus}
-                          </span>
+                          {(() => {
+                            const statusLower = String(acctStatus || '').toLowerCase();
+                            const pillClass = isSuspended || statusLower.includes('suspend') || statusLower.includes('reject')
+                              ? 'status-rejected'
+                              : statusLower.includes('pending')
+                                ? 'status-pending'
+                                : statusLower.includes('correction')
+                                  ? 'status-correction'
+                                  : 'status-verified';
+                            return (
+                              <span className={`status-pill ${pillClass}`}>
+                                {acctStatus}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="text-right">
                           <div className="admin-action-pill-group">
@@ -684,6 +697,7 @@ const UserManagement = () => {
                 <table className="um-data-table">
                   <thead>
                     <tr>
+                      <th>User ID</th>
                       <th>Student Name</th>
                       <th>WMSU Email</th>
                       <th>Student ID</th>
@@ -696,6 +710,7 @@ const UserManagement = () => {
                   <tbody>
                     {verificationQueue.map(item => (
                       <tr key={item.id}>
+                        <td><span className="um-id-tag">#{item.id}</span></td>
                         <td className="font-semibold text-slate-800">{item.first_name} {item.last_name}</td>
                         <td className="text-slate-600">{item.email}</td>
                         <td><span className="font-mono">{item.student_id || 'N/A'}</span></td>
@@ -710,7 +725,7 @@ const UserManagement = () => {
                           <div className="admin-action-pill-group">
                             <button 
                               type="button" 
-                              className="admin-action-icon is-edit"
+                              className="admin-action-icon is-view"
                               title="Review Submissions"
                               aria-label="Review Submissions"
                               onClick={() => {
@@ -747,7 +762,7 @@ const UserManagement = () => {
             <div className="um-table-card-head">
               <div className="um-table-card-title">
                 <i className="fa-solid fa-user-shield" aria-hidden="true"></i>
-                <span>Authorized Staff Access</span>
+                <span>Authorized Staff</span>
               </div>
               <span className="um-matching-badge">{pagination.total} Matching</span>
             </div>
@@ -766,6 +781,7 @@ const UserManagement = () => {
                 <table className="um-data-table">
                   <thead>
                     <tr>
+                      <th>User ID</th>
                       <th>Staff Member</th>
                       <th>WMSU Email</th>
                       <th>Assigned Organization / Page</th>
@@ -777,18 +793,42 @@ const UserManagement = () => {
                   <tbody>
                     {staffAssignments.map(s => (
                       <tr key={s.id}>
+                        <td><span className="um-id-tag">#{s.user_id || s.id}</span></td>
                         <td className="font-semibold text-slate-800">{s.first_name} {s.last_name}</td>
                         <td className="text-slate-600">{s.email}</td>
                         <td>
                           <span className="page-assigned-pill">
                             <i className="fa-solid fa-layer-group margin-right-4"></i>
-                            {s.page_name || 'Organization Page'}
+                            {s.page_name || 'No Page Assigned Yet'}
                           </span>
                         </td>
                         <td><span className="scope-badge">{s.role_scope || 'Page Staff'}</span></td>
-                        <td className="text-slate-500">{new Date(s.granted_at || s.created_at).toLocaleDateString()}</td>
+                        <td className="text-slate-500">
+                          {(() => {
+                            const rawDate = s.granted_at || s.assigned_at || s.created_at;
+                            const parsed = rawDate ? new Date(rawDate) : null;
+                            return parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleDateString() : '—';
+                          })()}
+                        </td>
                         <td className="text-right">
                           <div className="admin-action-pill-group">
+                            <button
+                              type="button"
+                              className="admin-action-icon is-view"
+                              title="View staff details"
+                              aria-label="View staff details"
+                              onClick={() => {
+                                setSelectedUser({
+                                  ...s,
+                                  id: s.user_id || s.id,
+                                  role: s.role || 'staff',
+                                  created_at: s.granted_at || s.assigned_at || s.created_at || null
+                                });
+                                setActiveModal('user_details');
+                              }}
+                            >
+                              <i className="fa-solid fa-eye"></i>
+                            </button>
                             <button 
                               type="button" 
                               className="admin-action-icon is-danger"
@@ -847,26 +887,13 @@ const UserManagement = () => {
                     <div><strong>Program:</strong> {selectedUser.program || selectedUser.course || 'N/A'}</div>
                     <div><strong>Submission Date:</strong> {new Date(selectedUser.created_at).toLocaleString()}</div>
                   </div>
-
-                  {/* Decision Reason Field */}
-                  <div className="form-group margin-top-16">
-                    <label htmlFor="review-reason">Review Comments / Reason (For Rejection or Correction) *</label>
-                    <textarea 
-                      id="review-reason"
-                      rows="3"
-                      value={reviewReason}
-                      onChange={(e) => setReviewReason(e.target.value)}
-                      placeholder="Specify clear instructions if requesting corrections or state rejection details..."
-                      className="um-textarea"
-                    ></textarea>
-                  </div>
                 </div>
 
-                {/* Right: Authenticated Document Preview Box */}
+                {/* Middle: Authenticated Document Previews */}
                 <div className="documents-col">
                   <h3 className="sub-heading">Uploaded Verification Documents</h3>
-                  
-                  <div className="doc-preview-box">
+                  <div className="documents-grid">
+                    <div className="doc-preview-box">
                     <div className="doc-header">
                       <i className="fa-solid fa-camera icon-pdf"></i>
                       <span>Certificate of Registration (COR)</span>
@@ -885,7 +912,8 @@ const UserManagement = () => {
                           onClick={() => handleOpenFullDocument(selectedUser.id, 'cor')}
                           className="btn-doc-view"
                         >
-                          Open Full Image (From DB)
+                          <i className="fa-solid fa-eye" aria-hidden="true"></i>
+                          <span>View</span>
                         </button>
                       </div>
                     ) : (
@@ -912,13 +940,28 @@ const UserManagement = () => {
                           onClick={() => handleOpenFullDocument(selectedUser.id, 'id')}
                           className="btn-doc-view"
                         >
-                          Open Full Image (From DB)
+                          <i className="fa-solid fa-eye" aria-hidden="true"></i>
+                          <span>View</span>
                         </button>
                       </div>
                     ) : (
                       <span className="no-doc-text">No Student ID photo stored in database</span>
                     )}
                   </div>
+                  </div>
+                </div>
+
+                {/* Bottom: Decision Reason Field */}
+                <div className="form-group">
+                  <label htmlFor="review-reason">Review Comments / Reason (For Rejection or Correction) *</label>
+                  <textarea 
+                    id="review-reason"
+                    rows="3"
+                    value={reviewReason}
+                    onChange={(e) => setReviewReason(e.target.value)}
+                    placeholder="Specify clear instructions if requesting corrections or state rejection details..."
+                    className="um-textarea"
+                  ></textarea>
                 </div>
               </div>
 
@@ -935,7 +978,8 @@ const UserManagement = () => {
                     disabled={submitting}
                     onClick={() => handleVerificationDecision('correction')}
                   >
-                    Request Corrections
+                    <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                    <span>Request Corrections</span>
                   </button>
                   <button 
                     type="button" 
@@ -943,7 +987,8 @@ const UserManagement = () => {
                     disabled={submitting}
                     onClick={() => handleVerificationDecision('reject')}
                   >
-                    Reject Verification
+                    <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+                    <span>Reject</span>
                   </button>
                   <button 
                     type="button" 
@@ -951,7 +996,8 @@ const UserManagement = () => {
                     disabled={submitting}
                     onClick={() => handleVerificationDecision('approve')}
                   >
-                    Approve Verification
+                    <i className="fa-solid fa-check" aria-hidden="true"></i>
+                    <span>Approve</span>
                   </button>
                 </div>
               </div>
@@ -988,15 +1034,14 @@ const UserManagement = () => {
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="select-page">Assign Organization / Department Page *</label>
+                  <label htmlFor="select-page">Assign Organization / Department Page (Optional)</label>
                   <select 
                     id="select-page"
                     className="um-select" 
-                    required
                     value={grantFormData.pageId}
                     onChange={(e) => setGrantFormData(prev => ({ ...prev, pageId: e.target.value }))}
                   >
-                    <option value="">-- Select Approved Page --</option>
+                    <option value="">-- No Page Assigned (Staff will create their own page) --</option>
                     {availablePagesList.map(p => (
                       <option key={p.id} value={p.id}>
                         {p.name} ({p.category || 'Page'})
@@ -1075,7 +1120,7 @@ const UserManagement = () => {
         {/* 4. USER DETAILS MODAL */}
         {activeModal === 'user_details' && selectedUser && (
           <div className="um-modal-backdrop">
-            <div className="um-modal-card">
+            <div className="um-modal-card large-modal">
               <div className="modal-header">
                 <h2>User Profile Details</h2>
                 <button type="button" className="close-btn" onClick={() => setActiveModal(null)}>
@@ -1084,16 +1129,102 @@ const UserManagement = () => {
               </div>
 
               <div className="modal-body">
-                <div className="info-grid">
-                  <div><strong>Full Name:</strong> {selectedUser.first_name} {selectedUser.last_name}</div>
-                  <div><strong>WMSU Email:</strong> {selectedUser.email}</div>
-                  <div><strong>Student ID:</strong> {selectedUser.student_id || 'N/A'}</div>
-                  <div><strong>System Role:</strong> <span className="font-semibold uppercase">{selectedUser.role}</span></div>
-                  <div><strong>College:</strong> {selectedUser.college || 'N/A'}</div>
-                  <div><strong>Program:</strong> {selectedUser.program || selectedUser.course || 'N/A'}</div>
-                  <div><strong>Verification Status:</strong> {selectedUser.verification_status || (selectedUser.is_verified ? 'Verified' : 'Pending')}</div>
-                  <div><strong>Registered On:</strong> {new Date(selectedUser.created_at).toLocaleString()}</div>
+                <div className="details-col">
+                  <h3 className="sub-heading">Account Information</h3>
+                  <div className="info-grid">
+                    <div><strong>Full Name:</strong> {selectedUser.first_name} {selectedUser.last_name}</div>
+                    <div><strong>WMSU Email:</strong> {selectedUser.email}</div>
+                    <div><strong>System Role:</strong> <span className="font-semibold uppercase">{selectedUser.role}</span></div>
+                    <div><strong>Account Status:</strong> {selectedUser.account_status || (selectedUser.is_suspended ? 'Suspended' : 'Active')}</div>
+                    {selectedUser.role === 'student' && (
+                      <>
+                        <div><strong>Student ID:</strong> {selectedUser.student_id || 'N/A'}</div>
+                        <div><strong>Verification Status:</strong> {selectedUser.verification_status || (selectedUser.is_verified ? 'Verified' : 'Pending')}</div>
+                        <div><strong>College:</strong> {selectedUser.college || 'N/A'}</div>
+                        <div><strong>Program:</strong> {selectedUser.program || selectedUser.course || 'N/A'}</div>
+                      </>
+                    )}
+                    {(selectedUser.page_name || selectedUser.role_scope) && (
+                      <>
+                        <div><strong>Assigned Page:</strong> {selectedUser.page_name || 'Organization Page'}</div>
+                        <div><strong>Permission Scope:</strong> {selectedUser.role_scope || 'Page Staff'}</div>
+                      </>
+                    )}
+                    <div>
+                      <strong>{selectedUser.granted_at ? 'Granted On:' : 'Registered On:'}</strong>{' '}
+                      {selectedUser.created_at && !Number.isNaN(new Date(selectedUser.created_at).getTime())
+                        ? new Date(selectedUser.created_at).toLocaleString()
+                        : '—'}
+                    </div>
+                  </div>
                 </div>
+
+                {(selectedUser.role === 'student' ||
+                  selectedUser.has_cor_image ||
+                  selectedUser.cor_image_data ||
+                  selectedUser.has_student_id_image ||
+                  selectedUser.student_id_image_data) && (
+                  <div className="documents-col">
+                    <h3 className="sub-heading">Uploaded Verification Documents</h3>
+                    <div className="documents-grid">
+                      <div className="doc-preview-box">
+                        <div className="doc-header">
+                          <i className="fa-solid fa-camera icon-pdf"></i>
+                          <span>Certificate of Registration (COR)</span>
+                        </div>
+                        {selectedUser.has_cor_image || selectedUser.cor_image_data ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            {selectedUser.cor_image_data && (
+                              <img
+                                src={selectedUser.cor_image_data}
+                                alt="Captured COR"
+                                style={{ width: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#0f172a' }}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFullDocument(selectedUser.id, 'cor')}
+                              className="btn-doc-view"
+                            >
+                              <i className="fa-solid fa-eye" aria-hidden="true"></i>
+                              <span>View</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="no-doc-text">No COR photo stored in database</span>
+                        )}
+                      </div>
+
+                      <div className="doc-preview-box">
+                        <div className="doc-header">
+                          <i className="fa-solid fa-id-card icon-id"></i>
+                          <span>WMSU Student ID Card</span>
+                        </div>
+                        {selectedUser.has_student_id_image || selectedUser.student_id_image_data ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                            {selectedUser.student_id_image_data && (
+                              <img
+                                src={selectedUser.student_id_image_data}
+                                alt="Captured Student ID"
+                                style={{ width: '100%', maxHeight: '180px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#0f172a' }}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFullDocument(selectedUser.id, 'id')}
+                              className="btn-doc-view"
+                            >
+                              <i className="fa-solid fa-eye" aria-hidden="true"></i>
+                              <span>View</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="no-doc-text">No Student ID photo stored in database</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="modal-footer">

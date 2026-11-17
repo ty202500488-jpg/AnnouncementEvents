@@ -270,7 +270,7 @@ const PostApproval = () => {
           >
             <div className="admin-kpi-meta">
               <span className="admin-kpi-label">Reviewed</span>
-              <span className="admin-kpi-value tone-emerald" style={{ fontSize: '1rem' }}>History</span>
+              <span className="admin-kpi-value tone-emerald">{loading ? '...' : (summaryCounts.totalReviewed ?? 0)}</span>
             </div>
             <span className="admin-kpi-icon tone-emerald" aria-hidden="true">
               <i className="fa-solid fa-circle-check"></i>
@@ -286,7 +286,7 @@ const PostApproval = () => {
           >
             <div className="admin-kpi-meta">
               <span className="admin-kpi-label">Corrections</span>
-              <span className="admin-kpi-value tone-rose" style={{ fontSize: '1rem' }}>Flagged</span>
+              <span className="admin-kpi-value tone-rose">{loading ? '...' : (summaryCounts.totalCorrection ?? 0)}</span>
             </div>
             <span className="admin-kpi-icon tone-rose" aria-hidden="true">
               <i className="fa-solid fa-triangle-exclamation"></i>
@@ -302,7 +302,7 @@ const PostApproval = () => {
           >
             <div className="admin-kpi-meta">
               <span className="admin-kpi-label">All Submissions</span>
-              <span className="admin-kpi-value tone-slate" style={{ fontSize: '1rem' }}>View All</span>
+              <span className="admin-kpi-value tone-slate">{loading ? '...' : (summaryCounts.totalAll ?? 0)}</span>
             </div>
             <span className="admin-kpi-icon tone-slate" aria-hidden="true">
               <i className="fa-solid fa-layer-group"></i>
@@ -400,6 +400,8 @@ const PostApproval = () => {
             <button 
               type="button" 
               className="admin-inline-reset-btn"
+              title="Reset filters"
+              aria-label="Reset filters"
               onClick={() => {
                 setSearchQuery('');
                 setContentTypeFilter('all');
@@ -410,7 +412,6 @@ const PostApproval = () => {
               }}
             >
               <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
-              <span>Reset</span>
             </button>
           </div>
         </div>
@@ -449,6 +450,7 @@ const PostApproval = () => {
               <table className="pa-data-table">
                 <thead>
                   <tr>
+                    <th>Post ID</th>
                     <th>Submission Title</th>
                     <th>Type</th>
                     <th>Submitted By</th>
@@ -461,6 +463,11 @@ const PostApproval = () => {
                 <tbody>
                   {items.map(item => (
                     <tr key={`${item.type}-${item.id}`}>
+                      <td>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                          #{item.id}
+                        </span>
+                      </td>
                       <td>
                         <div className="pa-item-title-cell">
                           <span className="pa-item-title-text">{item.title}</span>
@@ -668,7 +675,8 @@ const PostApproval = () => {
                         setActiveModal('decision');
                       }}
                     >
-                      Request Corrections
+                      <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                      <span>Request Corrections</span>
                     </button>
                     <button 
                       type="button" 
@@ -678,7 +686,8 @@ const PostApproval = () => {
                         setActiveModal('decision');
                       }}
                     >
-                      Reject Submission
+                      <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+                      <span>Reject</span>
                     </button>
                     <button 
                       type="button" 
@@ -688,7 +697,8 @@ const PostApproval = () => {
                         setActiveModal('decision');
                       }}
                     >
-                      Approve & Publish
+                      <i className="fa-solid fa-check" aria-hidden="true"></i>
+                      <span>Approve &amp; Publish</span>
                     </button>
                   </div>
                 )}
