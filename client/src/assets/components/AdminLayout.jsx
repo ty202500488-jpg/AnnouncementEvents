@@ -419,7 +419,7 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                     gap: '0.25rem'
                   }}
                 >
-                  <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #f1f5f9', marginBottom: '0.25rem' }}>
+                  <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #cbd5e1', marginBottom: '0.25rem' }}>
                     <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b' }}>
                       {user.displayName}
                     </div>
@@ -436,7 +436,7 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                     <i className="fa-solid fa-sliders" style={{ width: '16px', color: '#64748b' }}></i> Settings
                   </Link>
 
-                  <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
+                  <div style={{ borderTop: '1px solid #cbd5e1', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
                     <button 
                       onClick={handleLogout} 
                       style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', fontSize: '0.8125rem', color: '#e11d48', background: 'none', border: 'none', width: '100%', cursor: 'pointer' }}

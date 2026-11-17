@@ -503,7 +503,7 @@ export function PortalNavbar({
                   gap: '0.25rem',
                 }}
               >
-                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--slate-100)', marginBottom: '0.25rem' }}>
+                <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #cbd5e1', marginBottom: '0.25rem' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {profileTitle}
                   </div>
@@ -543,7 +543,7 @@ export function PortalNavbar({
                   </a>
                 ))}
 
-                <div style={{ borderTop: '1px solid var(--slate-100)', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
+                <div style={{ borderTop: '1px solid #cbd5e1', marginTop: '0.25rem', paddingTop: '0.25rem' }}>
                   <button
                     type="button"
                     onClick={() => {

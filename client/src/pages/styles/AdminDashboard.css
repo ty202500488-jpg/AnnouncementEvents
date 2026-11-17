@@ -1436,8 +1436,8 @@ GLOBAL REUSABLE PAGINATION COMPONENT
   flex-wrap: wrap;
   gap: 0.85rem;
   padding: 0.9rem 1.25rem;
-  background-color: #e2e8f0;
-  border-top: 1.5px solid #cbd5e1;
+  background-color: #ffffff;
+  border-top: 1px solid #e2e8f0;
   border-radius: 0 0 14px 14px;
   font-size: 0.82rem;
   color: #334155;
