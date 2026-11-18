@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/StudentDashboard.css';
 import '../../pages/styles/MyPageDashboard.css';
 import useSessionGuard from './useSessionGuard';
+import { performSecureLogout } from './ProtectedRoute';
 import UniversityWideSpotlight from './UniversityWideSpotlight';
 import { usePortalSearch } from '../../utils/usePortalSearch';
 import {
@@ -260,10 +261,9 @@ export default function MyPageDashboardLayout({ children, activeTab, onTabChange
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/';
+  const handleLogout = async () => {
+    await performSecureLogout();
+    window.location.href = '/auth';
   };
 
   const pageInitials = getInitials(pageInfo.name, 'MP');

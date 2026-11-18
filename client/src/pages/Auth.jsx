@@ -191,6 +191,122 @@ export default function Auth() {
     submitting: false
   });
 
+  const [forgotModal, setForgotModal] = useState({
+    isOpen: false,
+    step: 'request', // 'request' | 'verify'
+    email: '',
+    otp: '',
+    newPassword: '',
+    confirmPassword: '',
+    submitting: false,
+    error: '',
+    success: ''
+  });
+
+  const openForgotModal = (e) => {
+    if (e) e.preventDefault();
+    setForgotModal({
+      isOpen: true,
+      step: 'request',
+      email: loginData.email || '',
+      otp: '',
+      newPassword: '',
+      confirmPassword: '',
+      submitting: false,
+      error: '',
+      success: ''
+    });
+  };
+
+  const closeForgotModal = () => {
+    setForgotModal((prev) => ({ ...prev, isOpen: false, submitting: false, error: '', success: '' }));
+  };
+
+  const handleForgotRequestSubmit = async (e) => {
+    e.preventDefault();
+    const email = forgotModal.email.trim().toLowerCase();
+    if (!email) {
+      setForgotModal((prev) => ({ ...prev, error: 'Please enter your WMSU email address.' }));
+      return;
+    }
+    setForgotModal((prev) => ({ ...prev, submitting: true, error: '', success: '' }));
+    try {
+      const res = await fetch('http://localhost:5000/api/users/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setForgotModal((prev) => ({
+          ...prev,
+          submitting: false,
+          step: 'verify',
+          success: data.message || 'If an account exists, a 6-digit recovery OTP has been sent to your email.'
+        }));
+      } else {
+        setForgotModal((prev) => ({
+          ...prev,
+          submitting: false,
+          error: data.message || 'Could not process password reset request.'
+        }));
+      }
+    } catch (_) {
+      setForgotModal((prev) => ({
+        ...prev,
+        submitting: false,
+        error: 'Network error while requesting password reset.'
+      }));
+    }
+  };
+
+  const handleForgotResetSubmit = async (e) => {
+    e.preventDefault();
+    const cleanOtp = forgotModal.otp.replace(/\D/g, '').trim();
+    if (cleanOtp.length !== 6) {
+      setForgotModal((prev) => ({ ...prev, error: 'Please enter the 6-digit OTP code.' }));
+      return;
+    }
+    if (forgotModal.newPassword.length < 8) {
+      setForgotModal((prev) => ({ ...prev, error: 'New password must be at least 8 characters long.' }));
+      return;
+    }
+    if (forgotModal.newPassword !== forgotModal.confirmPassword) {
+      setForgotModal((prev) => ({ ...prev, error: 'New password and confirmation do not match.' }));
+      return;
+    }
+    setForgotModal((prev) => ({ ...prev, submitting: true, error: '', success: '' }));
+    try {
+      const res = await fetch('http://localhost:5000/api/users/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: forgotModal.email.trim().toLowerCase(),
+          otp: cleanOtp,
+          newPassword: forgotModal.newPassword
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        closeForgotModal();
+        setLoginData((prev) => ({ ...prev, email: forgotModal.email.trim().toLowerCase(), password: '' }));
+        showAlert('Password Reset Complete', data.message || 'Your password has been reset. You can now sign in.', 'success');
+      } else {
+        setForgotModal((prev) => ({
+          ...prev,
+          submitting: false,
+          error: data.message || 'Failed to reset password.'
+        }));
+      }
+    } catch (_) {
+      setForgotModal((prev) => ({
+        ...prev,
+        submitting: false,
+        error: 'Network error while resetting password.'
+      }));
+    }
+  };
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -1279,7 +1395,7 @@ export default function Auth() {
                     </button>
                   </div>
                   <div className="auth-footer-links">
-                    <a href="#forgot" className="auth-footer-link">Forgot Password?</a>
+                    <a href="#forgot" className="auth-footer-link" onClick={openForgotModal}>Forgot Password?</a>
                   </div>
                 </>
               ) : regStep !== 'awaiting_confirmation' ? (
@@ -1298,6 +1414,107 @@ export default function Auth() {
           </div>
         </div>
       </main>
+
+      {/* Forgot Password OTP Recovery Modal */}
+      {forgotModal.isOpen && (
+        <div className="auth-modal-backdrop" onClick={closeForgotModal}>
+          <div className="auth-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', textAlign: 'left' }}>
+            <h3 className="auth-modal-title" style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+              {forgotModal.step === 'request' ? 'Account Recovery' : 'Verify Recovery Code'}
+            </h3>
+            <p className="auth-modal-message" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+              {forgotModal.step === 'request'
+                ? 'Enter your institutional WMSU email address to receive a 6-digit password reset code.'
+                : `Enter the 6-digit code sent to ${forgotModal.email} and choose a new password.`}
+            </p>
+
+            {forgotModal.error && (
+              <div className="auth-inline-notice is-error" style={{ marginBottom: '0.75rem' }}>
+                <span>{forgotModal.error}</span>
+              </div>
+            )}
+            {forgotModal.success && (
+              <div className="auth-inline-notice is-success" style={{ marginBottom: '0.75rem' }}>
+                <span>{forgotModal.success}</span>
+              </div>
+            )}
+
+            {forgotModal.step === 'request' ? (
+              <form onSubmit={handleForgotRequestSubmit}>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">WMSU Email</label>
+                  <div className="input-container">
+                    <input
+                      type="email"
+                      placeholder="username@wmsu.edu.ph"
+                      value={forgotModal.email}
+                      onChange={(e) => setForgotModal((prev) => ({ ...prev, email: e.target.value, error: '' }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="step-actions-row">
+                  <button type="button" className="btn-auth-secondary" onClick={closeForgotModal} disabled={forgotModal.submitting}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-auth-submit" disabled={forgotModal.submitting}>
+                    {forgotModal.submitting ? 'Sending...' : 'Send Recovery OTP'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleForgotResetSubmit}>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label className="form-label">6-Digit OTP Code</label>
+                  <div className="input-container">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="000000"
+                      value={forgotModal.otp}
+                      onChange={(e) => setForgotModal((prev) => ({ ...prev, otp: e.target.value.replace(/\D/g, '').slice(0, 6), error: '' }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                  <label className="form-label">New Password (min. 8 characters)</label>
+                  <div className="input-container">
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={forgotModal.newPassword}
+                      onChange={(e) => setForgotModal((prev) => ({ ...prev, newPassword: e.target.value, error: '' }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Confirm New Password</label>
+                  <div className="input-container">
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={forgotModal.confirmPassword}
+                      onChange={(e) => setForgotModal((prev) => ({ ...prev, confirmPassword: e.target.value, error: '' }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="step-actions-row">
+                  <button type="button" className="btn-auth-secondary" onClick={closeForgotModal} disabled={forgotModal.submitting}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-auth-submit" disabled={forgotModal.submitting}>
+                    {forgotModal.submitting ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Pre-Login Correction Resubmit Modal (Admin requested updated COR & ID) */}
       {resubmitModal.isOpen && (

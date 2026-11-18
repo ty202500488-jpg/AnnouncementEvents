@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateUser } = require('../middleware/auth');
+const { assertStaffOrAdmin, logAudit } = require('../middleware/auth');
 const { ensureEventRegistrationSchema } = require('../utils/eventRegistrationHelper');
 const { notifyEventRegistrationChange } = require('../utils/notificationService');
 
@@ -23,7 +23,7 @@ async function getUserManagedPages(userId) {
 // GET /api/mypage/registrations/summary
 router.get('/registrations/summary', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const managedPageIds = await getUserManagedPages(user.user_id);
@@ -55,7 +55,7 @@ router.get('/registrations/summary', async (req, res) => {
 // GET /api/mypage/registrations/events
 router.get('/registrations/events', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const managedPageIds = await getUserManagedPages(user.user_id);
@@ -93,7 +93,7 @@ router.get('/registrations/events', async (req, res) => {
 // GET /api/mypage/registrations/events/:eventId/students
 router.get('/registrations/events/:eventId/students', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const eventId = Number(req.params.eventId);
@@ -209,11 +209,33 @@ router.get('/registrations/events/:eventId/students', async (req, res) => {
 // GET /api/mypage/registrations/events/:eventId/students/:registrationId
 router.get('/registrations/events/:eventId/students/:registrationId', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const eventId = Number(req.params.eventId);
         const registrationId = Number(req.params.registrationId);
+        if (!Number.isInteger(eventId) || !Number.isInteger(registrationId)) {
+            return res.status(400).json({ message: 'Invalid Event or Registration ID.' });
+        }
+
+        const managedPageIds = await getUserManagedPages(user.user_id);
+        const eventCheck = await pool.query(
+            `SELECT post_id FROM posts WHERE post_id = $1 AND page_id = ANY($2::int[])`,
+            [eventId, managedPageIds]
+        );
+        if (eventCheck.rows.length === 0 && String(user.role_name).toLowerCase() !== 'admin') {
+            await logAudit(req, {
+                action: 'Unauthorized Registrant Detail Access Attempt',
+                module: 'registrations',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                targetType: 'event',
+                targetId: eventId,
+                outcome: 'DENIED',
+                isSecurityEvent: true
+            });
+            return res.status(403).json({ message: 'Access denied to this event.' });
+        }
 
         const result = await pool.query(
             `SELECT er.registration_id AS id,
@@ -258,7 +280,7 @@ router.get('/registrations/events/:eventId/students/:registrationId', async (req
 router.put('/registrations/events/:eventId/students/:registrationId/status', async (req, res) => {
     try {
         await ensureEventRegistrationSchema(pool);
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const eventId = Number(req.params.eventId);
@@ -382,10 +404,32 @@ router.put('/registrations/events/:eventId/students/:registrationId/status', asy
 // GET /api/mypage/registrations/events/:eventId/export
 router.get('/registrations/events/:eventId/export', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const eventId = Number(req.params.eventId);
+        if (!Number.isInteger(eventId)) {
+            return res.status(400).json({ message: 'Invalid Event ID format.' });
+        }
+
+        const managedPageIds = await getUserManagedPages(user.user_id);
+        const eventCheck = await pool.query(
+            `SELECT post_id FROM posts WHERE post_id = $1 AND page_id = ANY($2::int[])`,
+            [eventId, managedPageIds]
+        );
+        if (eventCheck.rows.length === 0 && String(user.role_name).toLowerCase() !== 'admin') {
+            await logAudit(req, {
+                action: 'Unauthorized Registration CSV Export Attempt',
+                module: 'registrations',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                targetType: 'event',
+                targetId: eventId,
+                outcome: 'DENIED',
+                isSecurityEvent: true
+            });
+            return res.status(403).json({ message: 'Access denied to this event.' });
+        }
 
         const result = await pool.query(
             `SELECT COALESCE(sp.student_number, 'N/A') AS student_id,

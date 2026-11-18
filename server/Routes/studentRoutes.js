@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
-const { authenticateUser } = require('../middleware/auth');
+const { authenticateUser, optionalAuthenticateUser, logAudit } = require('../middleware/auth');
 const {
     ensureNotificationSchema,
     getUserNotificationPreferences,
@@ -20,20 +20,40 @@ ensureEventRegistrationSchema(pool).catch((err) => {
 });
 
 async function resolveUserId(req) {
-    if (req.query?.student_id) return Number(req.query.student_id);
-    if (req.query?.staff_id) return Number(req.query.staff_id);
-    if (req.body?.student_id) return Number(req.body.student_id);
+    const authUser = await optionalAuthenticateUser(req);
+    return authUser ? Number(authUser.user_id) : null;
+}
 
-    const authHeader = req.headers.authorization || req.headers.Authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-            const decoded = jwt.verify(authHeader.slice(7).trim(), process.env.JWT_SECRET || 'fallback_secret');
-            return Number(decoded.userId ?? decoded.id ?? decoded.user_id);
-        } catch (_) {
-            return null;
+async function assertNoIdorOnStudentScope(req, res, authUser) {
+    const requestedIds = [
+        req.query?.student_id,
+        req.query?.staff_id,
+        req.query?.user_id,
+        req.body?.student_id,
+        req.body?.staff_id,
+        req.body?.user_id
+    ].filter((val) => val !== undefined && val !== null && String(val).trim() !== '');
+
+    for (const rawId of requestedIds) {
+        const parsed = Number(rawId);
+        if (!Number.isSafeInteger(parsed) || parsed !== Number(authUser.user_id)) {
+            await logAudit(req, {
+                action: 'IDOR Attempt Blocked on Student Route',
+                module: 'security',
+                actorUserId: authUser.user_id,
+                actorRole: authUser.role_name,
+                outcome: 'DENIED',
+                isSecurityEvent: true,
+                details: {
+                    path: req.originalUrl || req.url,
+                    attemptedUserId: rawId
+                }
+            });
+            res.status(403).json({ message: 'Forbidden: You cannot access or modify another user\'s records.' });
+            return false;
         }
     }
-    return null;
+    return true;
 }
 
 // -------- DASHBOARD FEED -------- //
@@ -226,7 +246,7 @@ router.get('/events-data', async (req, res) => {
                     CASE WHEN $1::int IS NOT NULL AND (
                         pg.created_by = $1
                         OR p.creator_user_id = $1
-                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                     ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
@@ -241,7 +261,7 @@ router.get('/events-data', async (req, res) => {
                        $1::int IS NOT NULL AND (
                            pg.created_by = $1
                            OR p.creator_user_id = $1
-                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                            OR (
                                LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
                                AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
@@ -290,10 +310,10 @@ router.post('/notifications/preferences', saveStudentPreferences);
 
 router.get('/notifications', async (req, res) => {
     try {
-        const userId = await resolveUserId(req);
-        if (!userId) {
-            return res.status(200).json({ notifications: [], unreadCount: 0 });
-        }
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        if (!(await assertNoIdorOnStudentScope(req, res, authUser))) return;
+        const userId = authUser.user_id;
 
         await ensureUpcomingEventReminders(pool, userId, 'student');
 

@@ -5,14 +5,15 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { authenticateUser, logAudit } = require('../middleware/auth');
-const { sendVerificationEmail } = require('../utils/emailService');
+const { authenticateUser, optionalAuthenticateUser, revokeToken, logAudit } = require('../middleware/auth');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/emailService');
 const {
     getRequireStudentVerification,
     evaluatePrePasswordGate,
     evaluatePostPasswordGate
 } = require('../utils/verificationPolicy');
 const { ensureUniversityWideColumn } = require('../utils/universityWideHelper');
+const { ensureSecuritySchema } = require('../utils/securitySchema');
 const {
     ensureNotificationSchema,
     getUserNotificationPreferences,
@@ -29,6 +30,9 @@ const {
     fetchUserRegistrationPrefill
 } = require('../utils/eventRegistrationHelper');
 
+ensureSecuritySchema(pool).catch((err) => {
+    console.warn('Warning: failed to ensure security schema:', err.message);
+});
 ensureNotificationSchema(pool).catch((err) => {
     console.warn('Warning: failed to ensure notification schema:', err.message);
 });
@@ -38,44 +42,140 @@ ensureEventRegistrationSchema(pool).catch((err) => {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 const RESUBMIT_TOKEN_SECRET = `${JWT_SECRET}:cor_resubmit`;
+const DUMMY_PASSWORD_HASH = '$2b$10$PArhHDCvsNTqIZoP2LmX7eVGC1U7X1PWdjw23.SyS3D1CFK.fjDn2';
+const MAX_OTP_ATTEMPTS = 5;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+
+function timingSafeHexEqual(hexA, hexB) {
+    if (typeof hexA !== 'string' || typeof hexB !== 'string') return false;
+    if (hexA.length !== hexB.length) return false;
+    try {
+        return crypto.timingSafeEqual(Buffer.from(hexA, 'hex'), Buffer.from(hexB, 'hex'));
+    } catch (_) {
+        return false;
+    }
+}
+
+const skipRateLimit = () => process.env.DISABLE_RATE_LIMIT === 'true';
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 15,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => process.env.NODE_ENV === 'development',
+    skip: skipRateLimit,
     message: { message: 'Too many login attempts. Please try again after 15 minutes.' }
 });
 
 const registerLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 15,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => process.env.NODE_ENV === 'development',
+    skip: skipRateLimit,
     message: { message: 'Too many registration attempts. Please wait a few minutes.' }
 });
 
-// Helper: extract user ID optionally from token or query/body
-async function resolveUserId(req) {
-    if (req.query?.student_id) return Number(req.query.student_id);
-    if (req.query?.staff_id) return Number(req.query.staff_id);
-    if (req.body?.student_id) return Number(req.body.student_id);
-    if (req.body?.staff_id) return Number(req.body.staff_id);
-    if (req.body?.user_id) return Number(req.body.user_id);
+const otpVerifyLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipRateLimit,
+    message: { message: 'Too many OTP verification attempts. Please wait 10 minutes or request a new code.' }
+});
 
-    const authHeader = req.headers.authorization || req.headers.Authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-            const decoded = jwt.verify(authHeader.slice(7).trim(), JWT_SECRET);
-            if (decoded.purpose) return null;
-            return Number(decoded.userId ?? decoded.id ?? decoded.user_id);
-        } catch (_) {
-            return null;
+const otpResendLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipRateLimit,
+    message: { message: 'Too many OTP resend requests. Please wait before requesting another code.' }
+});
+
+const passwordResetLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 8,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipRateLimit,
+    message: { message: 'Too many password reset attempts. Please try again after 15 minutes.' }
+});
+
+const availabilityLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipRateLimit,
+    message: { message: 'Too many availability checks. Please slow down.' }
+});
+
+// Helper: extract user ID strictly from verified Bearer JWT (NEVER from query/body)
+async function resolveUserId(req) {
+    const user = await optionalAuthenticateUser(req);
+    return user ? user.user_id : null;
+}
+
+/**
+ * Detect and block Horizontal Privilege Escalation / IDOR attempts when a client
+ * supplies a mismatched student_id, staff_id, or user_id in query or body.
+ */
+async function assertNoIdorOnUserScope(req, res, authUser) {
+    if (!authUser) return false;
+    if (String(authUser.role_name || '').toLowerCase() === 'admin') {
+        return true;
+    }
+
+    const candidates = [
+        req.query?.student_id,
+        req.query?.staff_id,
+        req.query?.user_id,
+        req.body?.student_id,
+        req.body?.staff_id,
+        req.body?.user_id
+    ].filter((v) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== 'undefined');
+
+    if (candidates.length === 0) return true;
+
+    let ownStudentNumber = null;
+    try {
+        const spRes = await pool.query(
+            `SELECT student_number FROM student_profiles WHERE user_id = $1 LIMIT 1`,
+            [authUser.user_id]
+        );
+        ownStudentNumber = spRes.rows[0]?.student_number || null;
+    } catch (_) {
+        ownStudentNumber = null;
+    }
+
+    for (const raw of candidates) {
+        const str = String(raw).trim();
+        const asNum = Number(str);
+        const matchesUserId = Number.isInteger(asNum) && asNum === Number(authUser.user_id);
+        const matchesStudentNum = ownStudentNumber && str.toLowerCase() === String(ownStudentNumber).toLowerCase();
+
+        if (!matchesUserId && !matchesStudentNum) {
+            await logAudit(req, {
+                action: 'Blocked IDOR Attempt on User Resource',
+                module: 'auth',
+                actorUserId: authUser.user_id,
+                actorRole: authUser.role_name,
+                targetType: 'user',
+                targetId: str,
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { path: req.originalUrl, method: req.method, attemptedTargetId: str }
+            });
+            res.status(403).json({
+                message: 'Access denied: you are not authorized to access or modify another user\'s records.'
+            });
+            return false;
         }
     }
-    return null;
+
+    return true;
 }
 
 function parseBase64Image(dataUrl) {
@@ -94,7 +194,7 @@ router.get('/test', (req, res) => {
 });
 
 // -------- CHECK REGISTRATION AVAILABILITY (Verified Accounts Only) -------- //
-router.get('/check-availability', async (req, res) => {
+router.get('/check-availability', availabilityLimiter, async (req, res) => {
     try {
         const studentId = String(req.query.student_id || '').trim();
         const email = String(req.query.email || '').trim().toLowerCase();
@@ -329,7 +429,7 @@ router.post('/', registerLimiter, async (req, res) => {
 });
 
 // -------- VERIFY OTP -------- //
-router.post('/verify-otp', async (req, res) => {
+router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
     let client;
     let tx = false;
     try {
@@ -347,24 +447,98 @@ router.post('/verify-otp', async (req, res) => {
         const pendingRes = await client.query(
             `SELECT *
              FROM pending_registrations
-             WHERE LOWER(email) = $1 AND token_hash = $2
+             WHERE LOWER(email) = $1
              FOR UPDATE`,
-            [normalizedEmail, tokenHash]
+            [normalizedEmail]
         );
 
         if (pendingRes.rowCount === 0) {
             await client.query('ROLLBACK');
             tx = false;
+            await logAudit(req, {
+                action: 'OTP Verification Failed (No Pending Registration)',
+                module: 'auth',
+                actorRole: 'student',
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: normalizedEmail }
+            });
             return res.status(400).json({ message: 'Invalid verification code. Please check your email and try again.' });
         }
 
         const pending = pendingRes.rows[0];
+
         if (new Date() > new Date(pending.expires_at)) {
             await client.query('ROLLBACK');
             tx = false;
+            await logAudit(req, {
+                action: 'OTP Verification Failed (Expired Code)',
+                module: 'auth',
+                targetType: 'pending_registration',
+                targetId: pending.pending_id,
+                actorRole: 'student',
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: normalizedEmail }
+            });
             return res.status(400).json({
                 code: 'OTP_EXPIRED',
                 message: 'Your OTP code has expired. Click Resend Code to get a new one.'
+            });
+        }
+
+        const currentAttempts = Number(pending.otp_attempts || 0);
+        if (currentAttempts >= MAX_OTP_ATTEMPTS) {
+            await client.query('ROLLBACK');
+            tx = false;
+            await logAudit(req, {
+                action: 'OTP Verification Blocked (Max Attempts Reached)',
+                module: 'auth',
+                targetType: 'pending_registration',
+                targetId: pending.pending_id,
+                actorRole: 'student',
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: normalizedEmail, attempts: currentAttempts }
+            });
+            return res.status(429).json({
+                code: 'OTP_MAX_ATTEMPTS',
+                message: 'Too many incorrect OTP attempts. Please click Resend Code to get a new OTP.'
+            });
+        }
+
+        if (!timingSafeHexEqual(pending.token_hash, tokenHash)) {
+            const nextAttempts = currentAttempts + 1;
+            await client.query(
+                `UPDATE pending_registrations
+                 SET otp_attempts = $1
+                 WHERE pending_id = $2`,
+                [nextAttempts, pending.pending_id]
+            );
+            await client.query('COMMIT');
+            tx = false;
+
+            await logAudit(req, {
+                action: 'OTP Verification Failed (Incorrect Code)',
+                module: 'auth',
+                targetType: 'pending_registration',
+                targetId: pending.pending_id,
+                actorRole: 'student',
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: normalizedEmail, attempt: nextAttempts, maxAttempts: MAX_OTP_ATTEMPTS }
+            });
+
+            if (nextAttempts >= MAX_OTP_ATTEMPTS) {
+                return res.status(429).json({
+                    code: 'OTP_MAX_ATTEMPTS',
+                    message: 'Too many incorrect OTP attempts. Your code has been invalidated. Please click Resend Code.'
+                });
+            }
+
+            return res.status(400).json({
+                message: 'Invalid verification code. Please check your email and try again.',
+                remainingAttempts: MAX_OTP_ATTEMPTS - nextAttempts
             });
         }
 
@@ -741,7 +915,7 @@ function needsAdminVerificationMessage(needsAdminVerif) {
 }
 
 // -------- CHECK EMAIL VERIFICATION STATUS -------- //
-router.get('/verification-status', async (req, res) => {
+router.get('/verification-status', availabilityLimiter, async (req, res) => {
     try {
         const email = String(req.query.email || '').trim().toLowerCase();
         if (!email) {
@@ -785,7 +959,7 @@ router.get('/verification-status', async (req, res) => {
 });
 
 // -------- RESEND EMAIL CONFIRMATION -------- //
-router.post('/resend-confirmation', registerLimiter, async (req, res) => {
+router.post('/resend-confirmation', otpResendLimiter, async (req, res) => {
     let client;
     let tx = false;
     try {
@@ -813,6 +987,36 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
                 });
             }
 
+            const prevTok = await client.query(
+                `SELECT last_sent_at, created_at
+                 FROM auth_tokens
+                 WHERE user_id = $1 AND token_type = 'email_verification'
+                 ORDER BY created_at DESC LIMIT 1`,
+                [user.user_id]
+            );
+            if (prevTok.rowCount > 0) {
+                const lastSent = new Date(prevTok.rows[0].last_sent_at || prevTok.rows[0].created_at).getTime();
+                const elapsed = Date.now() - lastSent;
+                if (elapsed < OTP_RESEND_COOLDOWN_MS) {
+                    const retryAfterSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsed) / 1000);
+                    await client.query('ROLLBACK');
+                    tx = false;
+                    await logAudit(req, {
+                        action: 'Repeated OTP Request Blocked (Cooldown)',
+                        module: 'auth',
+                        actorUserId: user.user_id,
+                        outcome: 'FAILURE',
+                        isSecurityEvent: true,
+                        details: { email, retryAfterSeconds }
+                    });
+                    return res.status(429).json({
+                        code: 'OTP_COOLDOWN',
+                        message: `Please wait ${retryAfterSeconds} seconds before requesting another confirmation email.`,
+                        retryAfterSeconds
+                    });
+                }
+            }
+
             await client.query(
                 `DELETE FROM auth_tokens WHERE user_id = $1 AND token_type = 'email_verification'`,
                 [user.user_id]
@@ -823,8 +1027,8 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
             const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
             await client.query(
-                `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at)
-                 VALUES ($1, 'email_verification', $2, $3)`,
+                `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at, last_sent_at)
+                 VALUES ($1, 'email_verification', $2, $3, NOW())`,
                 [user.user_id, tokenHash, expiresAt]
             );
 
@@ -847,7 +1051,7 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
         }
 
         const pendingRes = await client.query(
-            `SELECT pending_id, first_name, email
+            `SELECT pending_id, first_name, email, last_sent_at, created_at
              FROM pending_registrations
              WHERE LOWER(email) = $1
              FOR UPDATE`,
@@ -863,13 +1067,40 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
         }
 
         const pending = pendingRes.rows[0];
+        const lastSentMs = new Date(pending.last_sent_at || pending.created_at || 0).getTime();
+        const elapsedMs = Date.now() - lastSentMs;
+        if (elapsedMs < OTP_RESEND_COOLDOWN_MS) {
+            const retryAfterSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsedMs) / 1000);
+            await client.query('ROLLBACK');
+            tx = false;
+            await logAudit(req, {
+                action: 'Repeated OTP Request Blocked (Cooldown)',
+                module: 'auth',
+                targetType: 'pending_registration',
+                targetId: pending.pending_id,
+                actorRole: 'student',
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email, retryAfterSeconds }
+            });
+            return res.status(429).json({
+                code: 'OTP_COOLDOWN',
+                message: `Please wait ${retryAfterSeconds} seconds before requesting a new OTP code.`,
+                retryAfterSeconds
+            });
+        }
+
         const otpCode = String(crypto.randomInt(100000, 1000000));
         const tokenHash = crypto.createHash('sha256').update(`${String(pending.email).trim().toLowerCase()}:${otpCode}`).digest('hex');
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+        // Overwrite token_hash (invalidating previous OTP), reset otp_attempts to 0, update last_sent_at
         await client.query(
             `UPDATE pending_registrations
-             SET token_hash = $1, expires_at = $2
+             SET token_hash = $1,
+                 expires_at = $2,
+                 otp_attempts = 0,
+                 last_sent_at = NOW()
              WHERE pending_id = $3`,
             [tokenHash, expiresAt, pending.pending_id]
         );
@@ -884,6 +1115,15 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
 
         await client.query('COMMIT');
         tx = false;
+
+        await logAudit(req, {
+            action: 'Student Registration OTP Resent (Previous OTP Invalidated)',
+            module: 'auth',
+            targetType: 'pending_registration',
+            targetId: pending.pending_id,
+            actorRole: 'student',
+            details: { email: pending.email }
+        });
 
         return res.status(200).json({
             message: 'A new 6-digit OTP code has been sent to your email.'
@@ -902,14 +1142,18 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
 // -------- LOGIN -------- //
 router.post('/login', loginLimiter, async (req, res) => {
     try {
-        const { email, password } = req.body;
-        if (!email || !password) {
+        const { email, password } = req.body || {};
+        if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
             return res.status(400).json({ message: 'Email and password are required.' });
         }
 
+        const trimmedEmail = email.trim();
+
         const result = await pool.query(
             `SELECT u.user_id, u.first_name, u.middle_initial, u.last_name, u.email,
-                    u.password_hash, u.role_id, u.is_email_verified, u.account_status AS status, r.role_name,
+                    u.password_hash, u.role_id, u.is_email_verified, u.account_status AS status,
+                    u.token_version, u.failed_login_attempts, u.locked_until,
+                    r.role_name,
                     sp.student_number AS student_id, sp.department_id, sp.program_id,
                     sp.year_level, sp.verification_status, sp.verification_remarks,
                     d.department_name, pr.program_name
@@ -919,35 +1163,41 @@ router.post('/login', loginLimiter, async (req, res) => {
              LEFT JOIN departments d ON sp.department_id = d.department_id
              LEFT JOIN programs pr ON sp.program_id = pr.program_id
              WHERE LOWER(u.email) = LOWER($1)`,
-            [email.trim()]
+            [trimmedEmail]
         );
 
         if (result.rowCount === 0) {
             const pendingRes = await pool.query(
-                `SELECT pending_id, email, expires_at
+                `SELECT pending_id, email, password_hash, expires_at
                  FROM pending_registrations
                  WHERE LOWER(email) = LOWER($1)
                  LIMIT 1`,
-                [email.trim()]
+                [trimmedEmail]
             );
 
             if (pendingRes.rowCount > 0) {
                 const pending = pendingRes.rows[0];
-                if (new Date() <= new Date(pending.expires_at)) {
+                const pendingPassMatch = await bcrypt.compare(password, pending.password_hash || DUMMY_PASSWORD_HASH);
+                if (new Date() <= new Date(pending.expires_at) && pendingPassMatch) {
                     await logAudit(req, {
                         action: 'Failed Login Attempt',
                         module: 'auth',
                         outcome: 'FAILURE',
                         isSecurityEvent: true,
-                        details: { email: email.trim(), reason: 'Pending email verification' }
+                        details: { email: trimmedEmail, reason: 'Pending email verification' }
                     });
                     return res.status(403).json({
-                        message: 'Please confirm your email address via the link sent to your Gmail before signing in.',
+                        message: 'Please confirm your email address via the OTP sent to your Gmail before signing in.',
                         requiresEmailConfirmation: true,
                         email: pending.email
                     });
                 }
-                await pool.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
+                if (new Date() > new Date(pending.expires_at)) {
+                    await pool.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
+                }
+            } else {
+                // Constant-time dummy comparison to prevent timing-based account enumeration
+                await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
             }
 
             await logAudit(req, {
@@ -955,12 +1205,62 @@ router.post('/login', loginLimiter, async (req, res) => {
                 module: 'auth',
                 outcome: 'FAILURE',
                 isSecurityEvent: true,
-                details: { email: email.trim(), reason: 'User not found' }
+                details: { email: trimmedEmail, reason: 'Invalid credentials' }
             });
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
         const user = result.rows[0];
+
+        // Check per-account brute-force lockout
+        if (user.locked_until && new Date(user.locked_until) > new Date()) {
+            const remainingMin = Math.max(1, Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60000));
+            await logAudit(req, {
+                action: 'Blocked Login Attempt (Account Locked)',
+                module: 'auth',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: trimmedEmail, remainingMinutes: remainingMin }
+            });
+            return res.status(429).json({
+                message: `Too many failed login attempts. Your account is temporarily locked. Please try again in ${remainingMin} minute(s).`
+            });
+        }
+
+        // Verify password FIRST before disclosing account status or verification state
+        const passwordMatch = await bcrypt.compare(password, user.password_hash);
+        if (!passwordMatch) {
+            const nextFailed = Number(user.failed_login_attempts || 0) + 1;
+            const shouldLock = nextFailed >= 5;
+            await pool.query(
+                `UPDATE users
+                 SET failed_login_attempts = $1,
+                     locked_until = CASE WHEN $2::boolean THEN NOW() + INTERVAL '15 minutes' ELSE locked_until END
+                 WHERE user_id = $3`,
+                [nextFailed, shouldLock, user.user_id]
+            );
+
+            await logAudit(req, {
+                action: shouldLock ? 'Account Temporarily Locked (Max Failed Logins)' : 'Failed Login Attempt',
+                module: 'auth',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                targetType: 'user',
+                targetId: user.user_id,
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: trimmedEmail, reason: 'Incorrect password', failedAttempts: nextFailed }
+            });
+            if (shouldLock) {
+                return res.status(429).json({
+                    code: 'ACCOUNT_LOCKED',
+                    message: 'Too many failed login attempts. Your account has been temporarily locked for 15 minutes.'
+                });
+            }
+            return res.status(401).json({ message: 'Invalid email or password.' });
+        }
 
         const preGate = evaluatePrePasswordGate({
             isEmailVerified: user.is_email_verified,
@@ -968,21 +1268,18 @@ router.post('/login', loginLimiter, async (req, res) => {
             email: user.email
         });
         if (!preGate.allowed) {
-            return res.status(preGate.httpStatus).json(preGate.payload);
-        }
-
-        const passwordMatch = await bcrypt.compare(password, user.password_hash);
-        if (!passwordMatch) {
             await logAudit(req, {
-                action: 'Failed Login Attempt',
+                action: `Failed Login Attempt (${preGate.code || user.status})`,
                 module: 'auth',
                 actorUserId: user.user_id,
                 actorRole: user.role_name,
+                targetType: 'user',
+                targetId: user.user_id,
                 outcome: 'FAILURE',
                 isSecurityEvent: true,
-                details: { email: email.trim(), reason: 'Incorrect password' }
+                details: { email: trimmedEmail, reason: preGate.code || user.status }
             });
-            return res.status(401).json({ message: 'Invalid email or password.' });
+            return res.status(preGate.httpStatus).json(preGate.payload);
         }
 
         const requireStudentVerification = await getRequireStudentVerification(pool);
@@ -993,6 +1290,17 @@ router.post('/login', loginLimiter, async (req, res) => {
             requireStudentVerification
         });
         if (!postGate.allowed) {
+            await logAudit(req, {
+                action: `Failed Login Attempt (${postGate.code || 'Student Verification Pending'})`,
+                module: 'auth',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                targetType: 'user',
+                targetId: user.user_id,
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: trimmedEmail, reason: postGate.code }
+            });
             const responsePayload = { ...postGate.payload };
             if (postGate.code === 'ADMIN_CORRECTION') {
                 responsePayload.resubmitToken = jwt.sign(
@@ -1004,13 +1312,23 @@ router.post('/login', loginLimiter, async (req, res) => {
             return res.status(postGate.httpStatus).json(responsePayload);
         }
 
+        if (Number(user.failed_login_attempts || 0) > 0 || user.locked_until) {
+            await pool.query(
+                `UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE user_id = $1`,
+                [user.user_id]
+            );
+        }
+
+        const tokenVersion = Number(user.token_version || 1);
         const token = jwt.sign(
-            { userId: user.user_id, roleId: user.role_id, role: user.role_name },
+            { userId: user.user_id, roleId: user.role_id, role: user.role_name, tokenVersion },
             JWT_SECRET,
             { expiresIn: '8h' }
         );
 
         delete user.password_hash;
+        delete user.failed_login_attempts;
+        delete user.locked_until;
         user.id = user.user_id;
 
         await logAudit(req, {
@@ -1031,6 +1349,493 @@ router.post('/login', loginLimiter, async (req, res) => {
     } catch (error) {
         console.error('Login error:', error);
         return res.status(500).json({ message: 'Server error during login.' });
+    }
+});
+
+// -------- CURRENT AUTHENTICATED USER (/api/users/me) -------- //
+router.get('/me', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const result = await pool.query(
+            `SELECT u.user_id, u.user_id AS id, u.first_name, u.middle_initial, u.last_name, u.email,
+                    u.role_id, u.is_email_verified, u.account_status AS status, u.account_status,
+                    r.role_name, r.role_name AS role,
+                    sp.student_number AS student_id, sp.department_id, sp.program_id,
+                    sp.year_level, sp.verification_status,
+                    d.department_name, pr.program_name
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+             LEFT JOIN departments d ON sp.department_id = d.department_id
+             LEFT JOIN programs pr ON sp.program_id = pr.program_id
+             WHERE u.user_id = $1
+             LIMIT 1`,
+            [authUser.user_id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        return res.status(200).json({ user: result.rows[0] });
+    } catch (error) {
+        console.error('Fetch current user error:', error);
+        return res.status(500).json({ message: 'Failed to load authenticated user profile.' });
+    }
+});
+
+// -------- UPDATE CURRENT USER PROFILE (/api/users/me/profile) -------- //
+router.put('/me/profile', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        // Explicitly block privilege escalation / role / status manipulation via profile update
+        const forbiddenFields = ['role', 'role_id', 'roleId', 'role_name', 'account_status', 'is_email_verified', 'verification_status'];
+        for (const field of forbiddenFields) {
+            if (req.body && req.body[field] !== undefined) {
+                const attemptedVal = String(req.body[field]).toLowerCase();
+                const currentVal = String(authUser[field] ?? '').toLowerCase();
+                if (attemptedVal !== currentVal) {
+                    await logAudit(req, {
+                        action: 'Blocked Role/Privilege Manipulation Attempt',
+                        module: 'auth',
+                        actorUserId: authUser.user_id,
+                        actorRole: authUser.role_name,
+                        targetType: 'user',
+                        targetId: authUser.user_id,
+                        outcome: 'FAILURE',
+                        isSecurityEvent: true,
+                        details: { field, attemptedValue: req.body[field] }
+                    });
+                    return res.status(403).json({
+                        message: 'Forbidden: role, account status, and verification state cannot be modified by the user.'
+                    });
+                }
+            }
+        }
+
+        const firstName = String(req.body?.first_name ?? req.body?.firstName ?? '').trim();
+        const middleInitial = req.body?.middle_initial !== undefined || req.body?.middleInitial !== undefined
+            ? String(req.body?.middle_initial ?? req.body?.middleInitial ?? '').trim().slice(0, 10)
+            : undefined;
+        const lastName = String(req.body?.last_name ?? req.body?.lastName ?? '').trim();
+
+        if (!firstName || !lastName) {
+            return res.status(400).json({ message: 'First name and last name are required.' });
+        }
+
+        const upd = await pool.query(
+            `UPDATE users
+             SET first_name = $1,
+                 middle_initial = COALESCE($2, middle_initial),
+                 last_name = $3,
+                 updated_at = NOW()
+             WHERE user_id = $4
+             RETURNING user_id, user_id AS id, first_name, middle_initial, last_name, email, role_id, account_status AS status`,
+            [firstName, middleInitial !== undefined ? (middleInitial || null) : null, lastName, authUser.user_id]
+        );
+
+        await logAudit(req, {
+            action: 'Updated Personal Profile',
+            module: 'users',
+            actorUserId: authUser.user_id,
+            actorRole: authUser.role_name,
+            targetType: 'user',
+            targetId: authUser.user_id
+        });
+
+        return res.status(200).json({
+            message: 'Profile updated successfully.',
+            user: {
+                ...upd.rows[0],
+                role: authUser.role_name,
+                role_name: authUser.role_name
+            }
+        });
+    } catch (error) {
+        console.error('Update profile error:', error);
+        return res.status(500).json({ message: 'Failed to update profile.' });
+    }
+});
+
+// -------- LOGOUT & TOKEN INVALIDATION (/api/users/logout) -------- //
+router.post('/logout', async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        if (req.authToken) {
+            await revokeToken(req.authToken, authUser.user_id, pool);
+        }
+
+        await logAudit(req, {
+            action: 'User Logout',
+            module: 'auth',
+            actorUserId: authUser.user_id,
+            actorRole: authUser.role_name,
+            targetType: 'user',
+            targetId: authUser.user_id,
+            outcome: 'SUCCESS'
+        });
+
+        return res.status(200).json({ message: 'Logged out successfully.' });
+    } catch (error) {
+        console.error('Logout error:', error);
+        return res.status(500).json({ message: 'Failed to process logout.' });
+    }
+});
+
+// -------- CHANGE PASSWORD (/api/users/change-password) -------- //
+router.post('/change-password', loginLimiter, async (req, res) => {
+    try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+
+        const { currentPassword, newPassword, confirmPassword } = req.body || {};
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: 'Current password and new password are required.' });
+        }
+        if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+            return res.status(400).json({ message: 'New password and confirmation do not match.' });
+        }
+        if (String(newPassword).length < 8) {
+            return res.status(400).json({ message: 'New password must be at least 8 characters long.' });
+        }
+
+        const userRes = await pool.query(
+            `SELECT password_hash, token_version FROM users WHERE user_id = $1 LIMIT 1`,
+            [authUser.user_id]
+        );
+        if (userRes.rowCount === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const isCurrentValid = await bcrypt.compare(String(currentPassword), userRes.rows[0].password_hash);
+        if (!isCurrentValid) {
+            await logAudit(req, {
+                action: 'Failed Password Change (Incorrect Current Password)',
+                module: 'auth',
+                actorUserId: authUser.user_id,
+                actorRole: authUser.role_name,
+                targetType: 'user',
+                targetId: authUser.user_id,
+                outcome: 'FAILURE',
+                isSecurityEvent: true
+            });
+            return res.status(401).json({ message: 'Current password is incorrect.' });
+        }
+
+        const newHash = await bcrypt.hash(String(newPassword), 12);
+        const updRes = await pool.query(
+            `UPDATE users
+             SET password_hash = $1,
+                 token_version = COALESCE(token_version, 1) + 1,
+                 updated_at = NOW()
+             WHERE user_id = $2
+             RETURNING token_version`,
+            [newHash, authUser.user_id]
+        );
+
+        const nextVersion = Number(updRes.rows[0]?.token_version || 2);
+        const freshToken = jwt.sign(
+            { userId: authUser.user_id, roleId: authUser.role_id, role: authUser.role_name, tokenVersion: nextVersion },
+            JWT_SECRET,
+            { expiresIn: '8h' }
+        );
+
+        await logAudit(req, {
+            action: 'User Changed Password',
+            module: 'auth',
+            actorUserId: authUser.user_id,
+            actorRole: authUser.role_name,
+            targetType: 'user',
+            targetId: authUser.user_id,
+            outcome: 'SUCCESS',
+            isSecurityEvent: true
+        });
+
+        return res.status(200).json({
+            message: 'Password changed successfully.',
+            token: freshToken
+        });
+    } catch (error) {
+        console.error('Change password error:', error);
+        return res.status(500).json({ message: 'Server error while changing password.' });
+    }
+});
+
+// -------- FORGOT PASSWORD (SEND OTP) -------- //
+router.post('/forgot-password', passwordResetLimiter, async (req, res) => {
+    let client;
+    let tx = false;
+    try {
+        const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
+        if (!normalizedEmail) {
+            return res.status(400).json({ message: 'Email address is required.' });
+        }
+
+        const genericSuccessMessage = 'If an active verified account exists for this email, a 6-digit password reset code has been sent.';
+
+        client = await pool.connect();
+        await client.query('BEGIN');
+        tx = true;
+
+        const userRes = await client.query(
+            `SELECT u.user_id, u.first_name, u.email, u.is_email_verified, u.account_status, r.role_name
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             WHERE LOWER(u.email) = $1
+             LIMIT 1`,
+            [normalizedEmail]
+        );
+
+        if (userRes.rowCount === 0) {
+            await client.query('ROLLBACK');
+            tx = false;
+            await logAudit(req, {
+                action: 'Password Reset Requested (Unknown Email)',
+                module: 'auth',
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: normalizedEmail }
+            });
+            return res.status(200).json({ message: genericSuccessMessage });
+        }
+
+        const user = userRes.rows[0];
+        if (!user.is_email_verified || ['suspended', 'archived'].includes(String(user.account_status).toLowerCase())) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(200).json({ message: genericSuccessMessage });
+        }
+
+        // Check 60s resend cooldown on password_reset tokens
+        const prevReset = await client.query(
+            `SELECT token_id, last_sent_at, created_at
+             FROM auth_tokens
+             WHERE user_id = $1 AND token_type = 'password_reset' AND used_at IS NULL
+             ORDER BY created_at DESC LIMIT 1`,
+            [user.user_id]
+        );
+        if (prevReset.rowCount > 0) {
+            const lastSentMs = new Date(prevReset.rows[0].last_sent_at || prevReset.rows[0].created_at || 0).getTime();
+            const elapsedMs = Date.now() - lastSentMs;
+            if (elapsedMs < OTP_RESEND_COOLDOWN_MS) {
+                const retryAfterSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsedMs) / 1000);
+                await client.query('ROLLBACK');
+                tx = false;
+                await logAudit(req, {
+                    action: 'Repeated Password Reset OTP Blocked (Cooldown)',
+                    module: 'auth',
+                    actorUserId: user.user_id,
+                    actorRole: user.role_name,
+                    outcome: 'FAILURE',
+                    isSecurityEvent: true,
+                    details: { email: normalizedEmail, retryAfterSeconds }
+                });
+                return res.status(429).json({
+                    code: 'OTP_COOLDOWN',
+                    message: `Please wait ${retryAfterSeconds} seconds before requesting another password reset code.`,
+                    retryAfterSeconds
+                });
+            }
+        }
+
+        // Invalidate any previous unused password_reset tokens for this user
+        await client.query(
+            `DELETE FROM auth_tokens WHERE user_id = $1 AND token_type = 'password_reset'`,
+            [user.user_id]
+        );
+
+        const otpCode = String(crypto.randomInt(100000, 1000000));
+        const tokenHash = crypto.createHash('sha256').update(`reset:${normalizedEmail}:${otpCode}`).digest('hex');
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+        await client.query(
+            `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at, otp_attempts, last_sent_at)
+             VALUES ($1, 'password_reset', $2, $3, 0, NOW())`,
+            [user.user_id, tokenHash, expiresAt]
+        );
+
+        try {
+            await sendPasswordResetEmail(user.email, user.first_name, otpCode);
+        } catch (emailErr) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(502).json({ message: 'Failed to send password reset email.' });
+        }
+
+        await client.query('COMMIT');
+        tx = false;
+
+        await logAudit(req, {
+            action: 'Password Reset OTP Issued',
+            module: 'auth',
+            actorUserId: user.user_id,
+            actorRole: user.role_name,
+            targetType: 'user',
+            targetId: user.user_id,
+            outcome: 'SUCCESS',
+            isSecurityEvent: true
+        });
+
+        return res.status(200).json({ message: genericSuccessMessage });
+    } catch (error) {
+        if (client && tx) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
+        }
+        console.error('Forgot password error:', error);
+        return res.status(500).json({ message: 'Server error while processing password reset request.' });
+    } finally {
+        client?.release();
+    }
+});
+
+// -------- RESET PASSWORD WITH OTP -------- //
+router.post('/reset-password', passwordResetLimiter, async (req, res) => {
+    let client;
+    let tx = false;
+    try {
+        const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
+        const otp = String(req.body?.otp || '').trim();
+        const newPassword = String(req.body?.newPassword || req.body?.password || '');
+        const confirmPassword = req.body?.confirmPassword ?? req.body?.confirm_password;
+
+        if (!normalizedEmail || !/^\d{6}$/.test(otp) || !newPassword) {
+            return res.status(400).json({ message: 'Email, valid 6-digit OTP code, and new password are required.' });
+        }
+        if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+            return res.status(400).json({ message: 'Passwords do not match.' });
+        }
+        if (newPassword.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
+        }
+
+        const expectedHash = crypto.createHash('sha256').update(`reset:${normalizedEmail}:${otp}`).digest('hex');
+
+        client = await pool.connect();
+        await client.query('BEGIN');
+        tx = true;
+
+        const userRes = await client.query(
+            `SELECT u.user_id, r.role_name
+             FROM users u
+             JOIN roles r ON u.role_id = r.role_id
+             WHERE LOWER(u.email) = $1
+             LIMIT 1`,
+            [normalizedEmail]
+        );
+        if (userRes.rowCount === 0) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(400).json({ message: 'Invalid or expired password reset code.' });
+        }
+        const user = userRes.rows[0];
+
+        const tokRes = await client.query(
+            `SELECT token_id, token_hash, expires_at, used_at, otp_attempts
+             FROM auth_tokens
+             WHERE user_id = $1 AND token_type = 'password_reset'
+             ORDER BY created_at DESC
+             LIMIT 1
+             FOR UPDATE`,
+            [user.user_id]
+        );
+
+        if (tokRes.rowCount === 0 || tokRes.rows[0].used_at) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(400).json({ message: 'Invalid or already used password reset code.' });
+        }
+
+        const tok = tokRes.rows[0];
+        if (new Date() > new Date(tok.expires_at)) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(400).json({ code: 'OTP_EXPIRED', message: 'Your password reset code has expired. Please request a new one.' });
+        }
+
+        const currentAttempts = Number(tok.otp_attempts || 0);
+        if (currentAttempts >= MAX_OTP_ATTEMPTS) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(429).json({
+                code: 'OTP_MAX_ATTEMPTS',
+                message: 'Too many incorrect attempts. Please request a new password reset code.'
+            });
+        }
+
+        if (!timingSafeHexEqual(tok.token_hash, expectedHash)) {
+            const nextAttempts = currentAttempts + 1;
+            await client.query(
+                `UPDATE auth_tokens SET otp_attempts = $1 WHERE token_id = $2`,
+                [nextAttempts, tok.token_id]
+            );
+            await client.query('COMMIT');
+            tx = false;
+
+            await logAudit(req, {
+                action: 'Password Reset OTP Verification Failed',
+                module: 'auth',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                outcome: 'FAILURE',
+                isSecurityEvent: true,
+                details: { email: normalizedEmail, attempt: nextAttempts }
+            });
+
+            if (nextAttempts >= MAX_OTP_ATTEMPTS) {
+                return res.status(429).json({
+                    code: 'OTP_MAX_ATTEMPTS',
+                    message: 'Too many incorrect attempts. Your reset code has been invalidated.'
+                });
+            }
+            return res.status(400).json({ message: 'Invalid password reset code.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await client.query(
+            `UPDATE users
+             SET password_hash = $1,
+                 token_version = COALESCE(token_version, 1) + 1,
+                 failed_login_attempts = 0,
+                 locked_until = NULL,
+                 updated_at = NOW()
+             WHERE user_id = $2`,
+            [hashedPassword, user.user_id]
+        );
+
+        await client.query(
+            `UPDATE auth_tokens SET used_at = NOW() WHERE token_id = $1`,
+            [tok.token_id]
+        );
+
+        await client.query('COMMIT');
+        tx = false;
+
+        await logAudit(req, {
+            action: 'Password Reset Completed via OTP',
+            module: 'auth',
+            actorUserId: user.user_id,
+            actorRole: user.role_name,
+            targetType: 'user',
+            targetId: user.user_id,
+            outcome: 'SUCCESS',
+            isSecurityEvent: true
+        });
+
+        return res.status(200).json({ message: 'Password has been reset successfully! You can now sign in.' });
+    } catch (error) {
+        if (client && tx) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
+        }
+        console.error('Reset password error:', error);
+        return res.status(500).json({ message: 'Server error while resetting password.' });
+    } finally {
+        client?.release();
     }
 });
 
@@ -1179,7 +1984,7 @@ const handleDashboardData = async (req, res) => {
                     CASE WHEN $1::int IS NOT NULL AND (
                         pg.created_by = $1
                         OR p.creator_user_id = $1
-                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                     ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              LEFT JOIN pages pg ON p.page_id = pg.page_id
@@ -1268,7 +2073,7 @@ const handleDashboardData = async (req, res) => {
                     CASE WHEN $1::int IS NOT NULL AND (
                         pg.created_by = $1
                         OR p.creator_user_id = $1
-                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                     ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
@@ -1438,7 +2243,7 @@ router.get('/events-data', async (req, res) => {
                     CASE WHEN $1::int IS NOT NULL AND (
                         pg.created_by = $1
                         OR p.creator_user_id = $1
-                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                     ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              JOIN event_details ed ON p.post_id = ed.post_id
@@ -1454,7 +2259,7 @@ router.get('/events-data', async (req, res) => {
                        $1::int IS NOT NULL AND (
                            pg.created_by = $1
                            OR p.creator_user_id = $1
-                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                            OR (
                                LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
                                AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
@@ -1480,10 +2285,10 @@ router.get('/events-data', async (req, res) => {
 // -------- MY REGISTERED EVENTS -------- //
 router.get('/my-events', async (req, res) => {
     try {
-        const userId = await resolveUserId(req);
-        if (!userId) {
-            return res.status(200).json({ events: [] });
-        }
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        if (!(await assertNoIdorOnUserScope(req, res, authUser))) return;
+        const userId = authUser.user_id;
 
         const result = await pool.query(
             `SELECT p.post_id AS id,
@@ -1532,7 +2337,7 @@ router.get('/my-events', async (req, res) => {
                     CASE WHEN (
                         pg.created_by = $1
                         OR p.creator_user_id = $1
-                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                     ) THEN TRUE ELSE FALSE END AS is_owner
              FROM event_registrations er
              JOIN event_details ed ON er.event_post_id = ed.post_id
@@ -1555,10 +2360,10 @@ router.get('/my-events', async (req, res) => {
 // -------- EVENT REGISTRATION PREFILL -------- //
 router.get('/events/:id/registration-prefill', async (req, res) => {
     try {
-        const userId = await resolveUserId(req);
-        if (!userId) {
-            return res.status(401).json({ message: 'Authentication required.' });
-        }
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        if (!(await assertNoIdorOnUserScope(req, res, authUser))) return;
+        const userId = authUser.user_id;
         const prefill = await fetchUserRegistrationPrefill(pool, userId);
         return res.status(200).json({ prefill });
     } catch (error) {
@@ -1570,9 +2375,13 @@ router.get('/events/:id/registration-prefill', async (req, res) => {
 // -------- REGISTER FOR EVENT -------- //
 router.post('/events/:id/register', async (req, res) => {
     try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        if (!(await assertNoIdorOnUserScope(req, res, authUser))) return;
+        const userId = authUser.user_id;
+
         await ensureEventRegistrationSchema(pool);
         const eventId = Number(req.params.id);
-        const userId = await resolveUserId(req);
 
         if (!userId || !eventId) {
             return res.status(400).json({ message: 'User ID and Event ID are required.' });
@@ -1681,8 +2490,11 @@ router.post('/events/:id/register', async (req, res) => {
 // -------- CANCEL EVENT REGISTRATION -------- //
 const handleCancelRegistration = async (req, res) => {
     try {
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        if (!(await assertNoIdorOnUserScope(req, res, authUser))) return;
         const eventId = Number(req.params.id);
-        const userId = await resolveUserId(req);
+        const userId = authUser.user_id;
 
         if (!userId || !eventId) {
             return res.status(400).json({ message: 'User ID and Event ID are required.' });
@@ -1764,10 +2576,10 @@ router.patch('/notifications/preferences', handleUpdatePreferences);
 // -------- USER NOTIFICATIONS -------- //
 router.get('/notifications', async (req, res) => {
     try {
-        const userId = await resolveUserId(req);
-        if (!userId) {
-            return res.status(200).json({ notifications: [], unreadCount: 0 });
-        }
+        const authUser = await authenticateUser(req, res);
+        if (!authUser) return;
+        if (!(await assertNoIdorOnUserScope(req, res, authUser))) return;
+        const userId = authUser.user_id;
 
         const roleRes = await pool.query(
             `SELECT r.role_name

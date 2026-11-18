@@ -44,6 +44,7 @@ import AuditLogs from './pages/Admin/AuditLogs.jsx';
 import SystemSettings from './pages/Admin/SystemSettings.jsx';
 import AdminProfile from './pages/Admin/AdminProfile.jsx';
 import PageView from './pages/Common/PageView';
+import { ProtectedRoute, PublicOnlyRoute } from './assets/components/ProtectedRoute';
 
 function App() {
   return (
@@ -51,86 +52,86 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/auth" element={<Auth />} />
+        <Route path="/auth" element={<PublicOnlyRoute><Auth /></PublicOnlyRoute>} />
         <Route path="/confirm-email" element={<ConfirmEmail />} />
         <Route path="/page/:pageId" element={<PageView role="guest" />} />
 
-        {/* Student Routes */}
-        <Route path="/student/dashboard" element={<StudentDashboard />} />
-        <Route path="/student/page/:pageId" element={<PageView role="student" />} />
-        <Route path="/student/announcements" element={<StudentAnnouncements />} />
-        <Route path="/student/events" element={<StudentEvents />} />
-        <Route path="/student/profile" element={<StudentProfile />} />
-        <Route path="/student/notifications" element={<StudentNotifications />} />
-        <Route path="/student/my-events" element={<StudentMyEvents />} />
-        <Route path="/student/settings" element={<StudentSettings />} />
-        <Route path="/student/attendance/check-in/scan" element={<StudentQRCheckIn />} />
-        <Route path="/student/attendance/check-in/:token" element={<StudentQRCheckIn />} />
+        {/* Student Routes (Strictly Protected for Student Role) */}
+        <Route path="/student/dashboard" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
+        <Route path="/student/page/:pageId" element={<ProtectedRoute allowedRoles={['student']}><PageView role="student" /></ProtectedRoute>} />
+        <Route path="/student/announcements" element={<ProtectedRoute allowedRoles={['student']}><StudentAnnouncements /></ProtectedRoute>} />
+        <Route path="/student/events" element={<ProtectedRoute allowedRoles={['student']}><StudentEvents /></ProtectedRoute>} />
+        <Route path="/student/profile" element={<ProtectedRoute allowedRoles={['student']}><StudentProfile /></ProtectedRoute>} />
+        <Route path="/student/notifications" element={<ProtectedRoute allowedRoles={['student']}><StudentNotifications /></ProtectedRoute>} />
+        <Route path="/student/my-events" element={<ProtectedRoute allowedRoles={['student']}><StudentMyEvents /></ProtectedRoute>} />
+        <Route path="/student/settings" element={<ProtectedRoute allowedRoles={['student']}><StudentSettings /></ProtectedRoute>} />
+        <Route path="/student/attendance/check-in/scan" element={<ProtectedRoute allowedRoles={['student']}><StudentQRCheckIn /></ProtectedRoute>} />
+        <Route path="/student/attendance/check-in/:token" element={<ProtectedRoute allowedRoles={['student']}><StudentQRCheckIn /></ProtectedRoute>} />
 
-        {/* Staff Routes */}
-        <Route path="/staff/dashboard" element={<StaffDashboard />} />
-        <Route path="/staff/page/:pageId" element={<PageView role="staff" />} />
-        <Route path="/staff/announcements" element={<StaffAnnouncements />} />
-        <Route path="/staff/events" element={<StaffEvents />} />
-        <Route path="/staff/mypage" element={<StaffMyPage />} />
+        {/* Staff Routes (Strictly Protected for Staff Role) */}
+        <Route path="/staff/dashboard" element={<ProtectedRoute allowedRoles={['staff']}><StaffDashboard /></ProtectedRoute>} />
+        <Route path="/staff/page/:pageId" element={<ProtectedRoute allowedRoles={['staff']}><PageView role="staff" /></ProtectedRoute>} />
+        <Route path="/staff/announcements" element={<ProtectedRoute allowedRoles={['staff']}><StaffAnnouncements /></ProtectedRoute>} />
+        <Route path="/staff/events" element={<ProtectedRoute allowedRoles={['staff']}><StaffEvents /></ProtectedRoute>} />
+        <Route path="/staff/mypage" element={<ProtectedRoute allowedRoles={['staff']}><StaffMyPage /></ProtectedRoute>} />
 
-        {/* Mypage Routes */}
+        {/* Mypage Routes (Strictly Protected for Staff Role) */}
         <Route 
           path="/staff/mypage/dashboard" 
-          element={<MyPageDashboard onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+          element={<ProtectedRoute allowedRoles={['staff']}><MyPageDashboard onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} /></ProtectedRoute>} 
         />
         <Route 
           path="/staff/mypage/profile" 
-          element={<MyPageProfile onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+          element={<ProtectedRoute allowedRoles={['staff']}><MyPageProfile onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} /></ProtectedRoute>} 
         />
         <Route 
           path="/staff/mypage/announcements" 
-          element={<MyPageAnnouncements onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+          element={<ProtectedRoute allowedRoles={['staff']}><MyPageAnnouncements onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} /></ProtectedRoute>} 
         />
         <Route 
           path="/staff/mypage/events" 
-          element={<MyPageEvents onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+          element={<ProtectedRoute allowedRoles={['staff']}><MyPageEvents onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} /></ProtectedRoute>} 
         />
         <Route 
           path="/staff/mypage/registrations" 
-          element={<MyPageRegistration onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+          element={<ProtectedRoute allowedRoles={['staff']}><MyPageRegistration onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} /></ProtectedRoute>} 
         />
         <Route 
           path="/staff/mypage/attendance" 
-          element={<MyPageAttendance onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+          element={<ProtectedRoute allowedRoles={['staff']}><MyPageAttendance onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} /></ProtectedRoute>} 
         />
         <Route 
           path="/staff/mypage/notifications" 
-          element={<MyPageNotifications onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />} 
+          element={<ProtectedRoute allowedRoles={['staff']}><MyPageNotifications onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} /></ProtectedRoute>} 
         />
         <Route
           path="/staff/mypage/settings"
-          element={<MyPageSettings onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} />}
+          element={<ProtectedRoute allowedRoles={['staff']}><MyPageSettings onSwitchToStaffDashboard={() => window.location.href = '/staff/dashboard'} /></ProtectedRoute>}
         />
         
-        <Route path="/staff/profile" element={<StaffProfile />} />
-        <Route path="/staff/notifications" element={<StaffNotifications />} />
-        <Route path="/staff/my-events" element={<StaffMyEvents />} />
-        <Route path="/staff/settings" element={<StaffSettings />} />
-        <Route path="/staff/attendance/check-in/scan" element={<StaffQRCheckIn />} />
-        <Route path="/staff/attendance/check-in/:token" element={<StaffQRCheckIn />} />
+        <Route path="/staff/profile" element={<ProtectedRoute allowedRoles={['staff']}><StaffProfile /></ProtectedRoute>} />
+        <Route path="/staff/notifications" element={<ProtectedRoute allowedRoles={['staff']}><StaffNotifications /></ProtectedRoute>} />
+        <Route path="/staff/my-events" element={<ProtectedRoute allowedRoles={['staff']}><StaffMyEvents /></ProtectedRoute>} />
+        <Route path="/staff/settings" element={<ProtectedRoute allowedRoles={['staff']}><StaffSettings /></ProtectedRoute>} />
+        <Route path="/staff/attendance/check-in/scan" element={<ProtectedRoute allowedRoles={['staff']}><StaffQRCheckIn /></ProtectedRoute>} />
+        <Route path="/staff/attendance/check-in/:token" element={<ProtectedRoute allowedRoles={['staff']}><StaffQRCheckIn /></ProtectedRoute>} />
 
-        {/* Admin Routes */}
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin/content-feed" element={<ContentFeed />} />
-        <Route path="/admin/users" element={<UserManagement />} />
-        <Route path="/admin/pages" element={<PageManagement />} />
-        <Route path="/admin/pages/:tab" element={<PageManagement />} />
-        <Route path="/admin/posts" element={<PostApproval />} />
-        <Route path="/admin/post-approval" element={<PostApproval />} />
-        <Route path="/admin/archives" element={<Archives />} />
-        <Route path="/admin/reports" element={<Reports />} />
-        <Route path="/admin/audit-logs" element={<AuditLogs />} />
-        <Route path="/admin/settings" element={<SystemSettings />} />
-        <Route path="/admin/profile" element={<AdminProfile />} />
-        <Route path="/admin/mypage/profile" element={<AdminProfile />} />
-        <Route path="/admin/*" element={<AdminDashboard />} />
+        {/* Admin Routes (Strictly Protected for Administrator Role) */}
+        <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+        <Route path="/admin/content-feed" element={<ProtectedRoute allowedRoles={['admin']}><ContentFeed /></ProtectedRoute>} />
+        <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']}><UserManagement /></ProtectedRoute>} />
+        <Route path="/admin/pages" element={<ProtectedRoute allowedRoles={['admin']}><PageManagement /></ProtectedRoute>} />
+        <Route path="/admin/pages/:tab" element={<ProtectedRoute allowedRoles={['admin']}><PageManagement /></ProtectedRoute>} />
+        <Route path="/admin/posts" element={<ProtectedRoute allowedRoles={['admin']}><PostApproval /></ProtectedRoute>} />
+        <Route path="/admin/post-approval" element={<ProtectedRoute allowedRoles={['admin']}><PostApproval /></ProtectedRoute>} />
+        <Route path="/admin/archives" element={<ProtectedRoute allowedRoles={['admin']}><Archives /></ProtectedRoute>} />
+        <Route path="/admin/reports" element={<ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>} />
+        <Route path="/admin/audit-logs" element={<ProtectedRoute allowedRoles={['admin']}><AuditLogs /></ProtectedRoute>} />
+        <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><SystemSettings /></ProtectedRoute>} />
+        <Route path="/admin/profile" element={<ProtectedRoute allowedRoles={['admin']}><AdminProfile /></ProtectedRoute>} />
+        <Route path="/admin/mypage/profile" element={<ProtectedRoute allowedRoles={['admin']}><AdminProfile /></ProtectedRoute>} />
+        <Route path="/admin/*" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
 
         {/* Fallback Catch-All Route */}
         <Route path="*" element={<Navigate to="/" replace />} />

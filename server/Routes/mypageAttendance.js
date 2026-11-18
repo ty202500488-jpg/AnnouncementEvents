@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const pool = require('../db');
-const { authenticateToken, authenticateUser } = require('../middleware/auth');
+const { authenticateToken, requireStaffOrAdmin, logAudit } = require('../middleware/auth');
 const { notifyAttendanceWindowChange } = require('../utils/notificationService');
 
 const authorizeStaffForEvent = async (req, res, next) => {
@@ -21,6 +21,16 @@ const authorizeStaffForEvent = async (req, res, next) => {
         );
 
         if (result.rows.length === 0) {
+            await logAudit(req, {
+                action: 'Unauthorized Event Attendance Access Attempt',
+                module: 'attendance',
+                actorUserId: userId,
+                actorRole: req.user.role_name,
+                targetType: 'event',
+                targetId: eventId,
+                outcome: 'DENIED',
+                isSecurityEvent: true
+            });
             return res.status(403).json({ message: 'Unauthorized: You are not staff for this page event.' });
         }
         next();
@@ -31,7 +41,7 @@ const authorizeStaffForEvent = async (req, res, next) => {
 };
 
 // Get Authorized Events for Staff
-router.get('/events', authenticateToken, async (req, res) => {
+router.get('/events', requireStaffOrAdmin, async (req, res) => {
     try {
         const { rows } = await pool.query(
             `SELECT DISTINCT p.post_id AS id,
@@ -57,7 +67,7 @@ router.get('/events', authenticateToken, async (req, res) => {
 });
 
 // Get Event Overview, Session Status & Attendance Roster
-router.get('/events/:eventId', authenticateToken, authorizeStaffForEvent, async (req, res) => {
+router.get('/events/:eventId', requireStaffOrAdmin, authorizeStaffForEvent, async (req, res) => {
     const eventId = Number(req.params.eventId);
     try {
         const eventRes = await pool.query(
@@ -119,7 +129,7 @@ router.get('/events/:eventId', authenticateToken, authorizeStaffForEvent, async 
 });
 
 // Control Attendance Window (OPEN / CLOSE)
-router.post('/events/:eventId/window', authenticateToken, authorizeStaffForEvent, async (req, res) => {
+router.post('/events/:eventId/window', requireStaffOrAdmin, authorizeStaffForEvent, async (req, res) => {
     const eventId = Number(req.params.eventId);
     const { action } = req.body;
     const client = await pool.connect();
@@ -214,7 +224,7 @@ router.post('/events/:eventId/window', authenticateToken, authorizeStaffForEvent
 });
 
 // Rotate QR Credential (30s Expiry)
-router.get('/events/:eventId/qr-credential', authenticateToken, authorizeStaffForEvent, async (req, res) => {
+router.get('/events/:eventId/qr-credential', requireStaffOrAdmin, authorizeStaffForEvent, async (req, res) => {
     const eventId = Number(req.params.eventId);
     try {
         const rawToken = crypto.randomBytes(32).toString('hex');
@@ -305,21 +315,61 @@ router.post('/check-in', authenticateToken, async (req, res) => {
 });
 
 // Manual Staff Correction
-router.put('/records/:recordId/correct', authenticateToken, async (req, res) => {
+router.put('/records/:recordId/correct', requireStaffOrAdmin, async (req, res) => {
     const recordId = Number(req.params.recordId);
     const { status, reason } = req.body;
     const userId = req.user.id;
 
     try {
+        if (!Number.isInteger(recordId) || recordId <= 0) {
+            return res.status(400).json({ message: 'Invalid attendance record ID.' });
+        }
+
+        if (!['PRESENT', 'ABSENT', 'NOT_MARKED'].includes(String(status || '').toUpperCase())) {
+            return res.status(400).json({ message: 'Invalid attendance status.' });
+        }
+
         const existingRes = await pool.query(
-            `SELECT attendance_id AS id, status, checkin_time FROM event_attendance_records WHERE attendance_id = $1`,
-            [recordId]
+            `SELECT ar.attendance_id AS id,
+                    ar.status,
+                    ar.checkin_time,
+                    er.event_post_id,
+                    p.page_id,
+                    pg.created_by AS page_created_by,
+                    EXISTS(
+                        SELECT 1 FROM page_members pm
+                        WHERE pm.page_id = p.page_id AND pm.user_id = $2 AND LOWER(pm.status) = 'active'
+                    ) AS is_page_member
+             FROM event_attendance_records ar
+             JOIN event_registrations er ON ar.registration_id = er.registration_id
+             JOIN posts p ON er.event_post_id = p.post_id
+             LEFT JOIN pages pg ON p.page_id = pg.page_id
+             WHERE ar.attendance_id = $1`,
+            [recordId, userId]
         );
         if (existingRes.rows.length === 0) {
             return res.status(404).json({ message: 'Record not found.' });
         }
 
         const oldRecord = existingRes.rows[0];
+        const isAdmin = String(req.user.role_name || '').toLowerCase() === 'admin';
+        const isEventStaff = isAdmin || Number(oldRecord.page_created_by) === Number(userId) || Boolean(oldRecord.is_page_member);
+
+        if (!isEventStaff) {
+            await logAudit(req, {
+                action: 'Unauthorized Attendance Correction Attempt',
+                module: 'attendance',
+                actorUserId: userId,
+                actorRole: req.user.role_name,
+                targetType: 'attendance_record',
+                targetId: recordId,
+                outcome: 'DENIED',
+                isSecurityEvent: true
+            });
+            return res.status(403).json({ message: 'Unauthorized: You do not manage the page for this attendance record.' });
+        }
+
+        const normalizedStatus = String(status).toUpperCase();
 
         const updatedRes = await pool.query(
             `UPDATE event_attendance_records
@@ -328,13 +378,13 @@ router.put('/records/:recordId/correct', authenticateToken, async (req, res) => 
                  checkin_time = CASE WHEN $1 = 'PRESENT' AND checkin_time IS NULL THEN NOW() ELSE checkin_time END
              WHERE attendance_id = $2
              RETURNING attendance_id AS id, status, checkin_time`,
-            [status, recordId]
+            [normalizedStatus, recordId]
         );
 
         await pool.query(
             `INSERT INTO event_attendance_audits (attendance_id, actor_user_id, previous_status, new_status, source, reason)
              VALUES ($1, $2, $3, $4, 'staff', $5)`,
-            [recordId, userId, oldRecord.status, status, reason || 'Manual correction']
+            [recordId, userId, oldRecord.status, normalizedStatus, reason || 'Manual correction']
         );
 
         return res.json({ message: 'Record updated successfully', record: updatedRes.rows[0] });
@@ -345,10 +395,7 @@ router.put('/records/:recordId/correct', authenticateToken, async (req, res) => 
 });
 
 // Export Attendance CSV
-router.get('/events/:eventId/export', async (req, res) => {
-    const user = await authenticateUser(req, res);
-    if (!user) return;
-
+router.get('/events/:eventId/export', requireStaffOrAdmin, authorizeStaffForEvent, async (req, res) => {
     const eventId = Number(req.params.eventId);
     try {
         const { rows } = await pool.query(

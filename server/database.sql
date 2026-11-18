@@ -634,4 +634,36 @@ WHERE academic_year_id IS NULL;
 CREATE INDEX IF NOT EXISTS idx_posts_academic_year ON posts(academic_year_id, post_type, status, is_archived);
 CREATE INDEX IF NOT EXISTS idx_posts_university_spotlight ON posts(is_university_wide, moderation_status, is_archived, expires_at DESC);
 
+-- =============================================================================
+-- PHASE 8: AUTHENTICATION HARDENING, OTP SECURITY & SESSION REVOCATION
+-- =============================================================================
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS token_version INTEGER DEFAULT 1 NOT NULL,
+    ADD COLUMN IF NOT EXISTS failed_login_attempts SMALLINT DEFAULT 0 NOT NULL,
+    ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
+
+ALTER TABLE pending_registrations
+    ADD COLUMN IF NOT EXISTS otp_attempts SMALLINT DEFAULT 0 NOT NULL,
+    ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL;
+
+ALTER TABLE auth_tokens
+    ADD COLUMN IF NOT EXISTS otp_attempts SMALLINT DEFAULT 0 NOT NULL,
+    ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'auth_tokens_token_type_check'
+    ) THEN
+        ALTER TABLE auth_tokens DROP CONSTRAINT auth_tokens_token_type_check;
+    END IF;
+    ALTER TABLE auth_tokens
+        ADD CONSTRAINT auth_tokens_token_type_check
+        CHECK (token_type IN ('email_verification', 'password_reset', 'revoked_jwt'));
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_auth_tokens_lookup ON auth_tokens(token_hash, token_type, expires_at);
+
 COMMIT;

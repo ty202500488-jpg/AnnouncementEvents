@@ -2033,14 +2033,19 @@ const handleUserAccountStatus = async (req, res) => {
         else if (norm.includes('pend')) nextAccountStatus = 'Pending';
 
         await pool.query(
-            `UPDATE users SET account_status = $1, updated_at = NOW() WHERE user_id = $2`,
+            `UPDATE users
+             SET account_status = $1,
+                 token_version = COALESCE(token_version, 1) + 1,
+                 updated_at = NOW()
+             WHERE user_id = $2`,
             [nextAccountStatus, targetUserId]
         );
 
         if (role && ['student', 'staff', 'admin'].includes(String(role).toLowerCase())) {
             await pool.query(
                 `UPDATE users
-                 SET role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = LOWER($1) LIMIT 1)
+                 SET role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = LOWER($1) LIMIT 1),
+                     token_version = COALESCE(token_version, 1) + 1
                  WHERE user_id = $2`,
                 [String(role).toLowerCase(), targetUserId]
             );
@@ -2051,6 +2056,7 @@ const handleUserAccountStatus = async (req, res) => {
             module: 'users',
             targetType: 'user',
             targetId: targetUserId,
+            isSecurityEvent: true,
             details: { status: nextAccountStatus, role, reason }
         });
 
@@ -2076,7 +2082,8 @@ router.post('/staff-access', async (req, res) => {
 
         await client.query(
             `UPDATE users
-             SET role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = 'staff' LIMIT 1)
+             SET role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = 'staff' LIMIT 1),
+                 token_version = COALESCE(token_version, 1) + 1
              WHERE user_id = $1 AND role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1)`,
             [Number(userId)]
         );
@@ -2101,6 +2108,7 @@ router.post('/staff-access', async (req, res) => {
             module: 'users',
             targetType: assignment ? 'page_member' : 'user',
             targetId: assignment ? assignment.page_member_id : Number(userId),
+            isSecurityEvent: true,
             details: { userId, pageId: pageId || null, roleScope }
         });
 
@@ -2126,7 +2134,8 @@ router.delete('/staff-access/:id', async (req, res) => {
             const targetUserId = Number(rawId.replace('user-', ''));
             await pool.query(
                 `UPDATE users
-                 SET role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1)
+                 SET role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1),
+                     token_version = COALESCE(token_version, 1) + 1
                  WHERE user_id = $1 AND role_id = (SELECT role_id FROM roles WHERE LOWER(role_name) = 'staff' LIMIT 1)`,
                 [targetUserId]
             );
@@ -2134,7 +2143,8 @@ router.delete('/staff-access/:id', async (req, res) => {
                 action: 'Revoked Staff Role Access',
                 module: 'users',
                 targetType: 'user',
-                targetId: targetUserId
+                targetId: targetUserId,
+                isSecurityEvent: true
             });
             return res.json({ message: 'Staff role access revoked successfully.' });
         }
@@ -2146,7 +2156,8 @@ router.delete('/staff-access/:id', async (req, res) => {
             action: 'Revoked Page Staff Access',
             module: 'users',
             targetType: 'page_member',
-            targetId: memberId
+            targetId: memberId,
+            isSecurityEvent: true
         });
 
         return res.json({ message: 'Staff access revoked successfully.' });

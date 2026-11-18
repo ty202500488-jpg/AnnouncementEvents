@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import { performSecureLogout } from '../../assets/components/ProtectedRoute';
 import '../styles/StaffDashboard.css';
 import '../styles/Profile.css';
 import '../styles/Settings.css';
@@ -147,8 +148,12 @@ export default function StaffSettings() {
     }
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
+    if (!passwordForm.currentPassword) {
+      showToast('', 'Current password is required.');
+      return;
+    }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       showToast('', 'New password and confirmation do not match.');
       return;
@@ -158,12 +163,39 @@ export default function StaffSettings() {
       return;
     }
 
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('', 'Please sign in again to change your password.');
+      return;
+    }
+
     setIsChangingPassword(true);
-    setTimeout(() => {
-      setIsChangingPassword(false);
+    try {
+      const res = await fetch('/api/users/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to change password.');
+      }
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      showToast('Staff credentials updated successfully.');
-    }, 600);
+      showToast(data.message || 'Staff credentials updated successfully.');
+    } catch (err) {
+      showToast('', err.message || 'Unable to change password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleSupportSubmit = (e) => {
@@ -180,12 +212,11 @@ export default function StaffSettings() {
     }, 600);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('Are you sure you want to log out of your staff account?')) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      await performSecureLogout();
       localStorage.removeItem('staff_id');
-      window.location.href = '/login';
+      window.location.href = '/auth';
     }
   };
 

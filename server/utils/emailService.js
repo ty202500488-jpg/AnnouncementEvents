@@ -48,13 +48,57 @@ async function sendVerificationEmail(toEmail, firstName, otpCode) {
             });
             return { sent: true };
         } else if (autoConfirmInDev) {
-            console.log('🔑 [DEV FALLBACK] OTP CODE:', safeOtp);
+            console.info('📧 [DEV FALLBACK] Verification email simulated (OTP redacted from logs).');
             return { sent: true, fallback: true };
         }
         return { sent: false };
     } catch (emailErr) {
         if (autoConfirmInDev) {
-            console.log('🔑 [DEV FALLBACK] OTP CODE:', safeOtp);
+            console.info('📧 [DEV FALLBACK] Verification email simulated (OTP redacted from logs).');
+            return { sent: true, fallback: true };
+        }
+        throw emailErr;
+    }
+}
+
+async function sendPasswordResetEmail(toEmail, firstName, otpCode) {
+    const autoConfirmInDev =
+        process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_EMAIL_FALLBACK === 'true';
+    const safeName = escapeHtml(firstName || 'Campus User');
+    const safeOtp = escapeHtml(String(otpCode || '').trim());
+
+    try {
+        if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+            await transporter.sendMail({
+                from: `"WMSU CampusHub" <${process.env.EMAIL_USER}>`,
+                to: toEmail,
+                subject: 'CRIMSON - Password Reset Code',
+                html: `
+                    <div style="font-family: Arial, sans-serif; padding: 24px; color: #333; max-width: 560px; margin: auto; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+                        <h2 style="color: #7B0D1E; margin-top: 0;">Password Reset Request</h2>
+                        <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+                            Hello ${safeName}, use the 6-digit One-Time Password (OTP) below to reset your CRIMSON account password. This code expires in <strong>10 minutes</strong>.
+                        </p>
+                        <div style="text-align: center; margin: 28px 0;">
+                            <div style="display: inline-block; background-color: #fdf2f4; border: 1.5px solid #f5c2cb; color: #7B0D1E; padding: 14px 28px; border-radius: 10px; font-size: 30px; font-weight: 800; letter-spacing: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">
+                                ${safeOtp}
+                            </div>
+                        </div>
+                        <p style="font-size: 12px; color: #64748b; margin-bottom: 0;">
+                            If you did not request a password reset, please ignore this email. Your password will remain unchanged.
+                        </p>
+                    </div>
+                `
+            });
+            return { sent: true };
+        } else if (autoConfirmInDev) {
+            console.info('📧 [DEV FALLBACK] Password reset email simulated (OTP redacted from logs).');
+            return { sent: true, fallback: true };
+        }
+        return { sent: false };
+    } catch (emailErr) {
+        if (autoConfirmInDev) {
+            console.info('📧 [DEV FALLBACK] Password reset email simulated (OTP redacted from logs).');
             return { sent: true, fallback: true };
         }
         throw emailErr;
@@ -192,6 +236,7 @@ async function sendNotificationEmail({
 module.exports = {
     isEmailConfigured,
     sendVerificationEmail,
+    sendPasswordResetEmail,
     sendStudentVerificationDecisionEmail,
     sendNotificationEmail
 };

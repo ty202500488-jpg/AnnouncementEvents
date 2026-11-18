@@ -4,6 +4,7 @@ import logo from '../../assets/images/logo.jpg';
 import { PostPageAvatar, getInitials } from './PortalShellElements';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import { formatNotificationDisplay } from '../../utils/notificationUtils';
+import { performSecureLogout } from './ProtectedRoute';
 import '../../pages/styles/AdminDashboard.css';
 
 const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
@@ -165,10 +166,9 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
     navigate(notif.url || '/admin/post-approval?tab=pending');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/';
+  const handleLogout = async () => {
+    await performSecureLogout();
+    window.location.href = '/auth';
   };
 
   const navigationSections = [

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/StudentDashboard.css';
 import useSessionGuard from './useSessionGuard';
+import { performSecureLogout } from './ProtectedRoute';
 import UniversityWideSpotlight from './UniversityWideSpotlight';
 import { usePortalSearch } from '../../utils/usePortalSearch';
 import {
@@ -192,10 +193,9 @@ export default function DashboardLayout({ children, activePage }) {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/';
+  const handleLogout = async () => {
+    await performSecureLogout();
+    window.location.href = '/auth';
   };
 
   const userInitials = getInitials(`${user.firstName} ${user.lastName}`, 'ST');

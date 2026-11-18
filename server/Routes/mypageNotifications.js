@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateUser } = require('../middleware/auth');
+const { assertStaffOrAdmin } = require('../middleware/auth');
 const {
     ensureNotificationSchema,
     formatNotificationRow,
@@ -14,7 +14,7 @@ ensureNotificationSchema(pool).catch((err) => {
 
 const fetchScopedNotifications = async (req, res, scopes) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         await ensureUpcomingEventReminders(pool, user.user_id, user.role_name);
@@ -63,7 +63,7 @@ router.get('/staff/notifications', (req, res) => fetchScopedNotifications(req, r
 
 const handleMarkRead = async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const upd = await pool.query(
@@ -91,7 +91,7 @@ router.patch('/staff/notifications/:id/read', handleMarkRead);
 
 const handleMarkAllRead = (scopes) => async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         await pool.query(
@@ -118,7 +118,7 @@ router.patch('/staff/notifications/read-all', handleMarkAllRead(['staff', 'mypag
 
 const handleArchive = async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const isArchived = req.body?.is_archived !== undefined ? Boolean(req.body.is_archived) : true;
@@ -147,7 +147,7 @@ router.patch('/staff/notifications/:id/archive', handleArchive);
 
 const handleDelete = async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const del = await pool.query(

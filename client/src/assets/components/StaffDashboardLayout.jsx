@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/StudentDashboard.css';
 import useSessionGuard from './useSessionGuard';
+import { performSecureLogout } from './ProtectedRoute';
 import UniversityWideSpotlight from './UniversityWideSpotlight';
 import { usePortalSearch } from '../../utils/usePortalSearch';
 import {
@@ -226,10 +227,9 @@ export default function StaffDashboardLayout({ children, activePage }) {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/';
+  const handleLogout = async () => {
+    await performSecureLogout();
+    window.location.href = '/auth';
   };
 
   const isPageApproved = pageStatus.exists && (pageStatus.status === 'approved' || pageStatus.status === 'active');
@@ -430,7 +430,14 @@ export default function StaffDashboardLayout({ children, activePage }) {
                     <span>Settings</span>
                   </div>
                 </a>
-                <a href="/" className="nav-item nav-item-logout">
+                <a
+                  href="/auth"
+                  className="nav-item nav-item-logout"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleLogout();
+                  }}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-right-from-bracket nav-icon"></i>
                     <span>Logout</span>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '../../assets/components/DashboardLayout';
+import { performSecureLogout } from '../../assets/components/ProtectedRoute';
 import '../styles/StudentDashboard.css';
 import '../styles/Profile.css';
 import '../styles/Settings.css';
@@ -141,8 +142,12 @@ export default function Settings() {
     }
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
+    if (!passwordForm.currentPassword) {
+      showToast('', 'Current password is required.');
+      return;
+    }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       showToast('', 'New password and confirmation do not match.');
       return;
@@ -152,12 +157,39 @@ export default function Settings() {
       return;
     }
 
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showToast('', 'Please sign in again to change your password.');
+      return;
+    }
+
     setIsChangingPassword(true);
-    setTimeout(() => {
-      setIsChangingPassword(false);
+    try {
+      const res = await fetch('/api/users/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to change password.');
+      }
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      showToast('Password changed successfully.');
-    }, 600);
+      showToast(data.message || 'Password changed successfully.');
+    } catch (err) {
+      showToast('', err.message || 'Unable to change password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleSupportSubmit = (e) => {
@@ -174,11 +206,10 @@ export default function Settings() {
     }, 600);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (window.confirm('Are you sure you want to log out of your session?')) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      await performSecureLogout();
+      window.location.href = '/auth';
     }
   };
 

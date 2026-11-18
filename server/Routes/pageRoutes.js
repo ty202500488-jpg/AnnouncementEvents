@@ -2,7 +2,13 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const jwt = require('jsonwebtoken');
-const { authenticateUser, logAudit } = require('../middleware/auth');
+const {
+    authenticateUser,
+    optionalAuthenticateUser,
+    assertStaffOrAdmin,
+    canManagePage,
+    logAudit
+} = require('../middleware/auth');
 const {
     parseSpotlightOptions,
     ensureUniversityWideColumn,
@@ -81,28 +87,49 @@ router.get('/posts/:id/image', async (req, res) => {
 });
 
 async function resolveUserId(req) {
-    if (req.query?.student_id) return Number(req.query.student_id);
-    if (req.query?.staff_id) return Number(req.query.staff_id);
-    if (req.query?.user_id) return Number(req.query.user_id);
-    if (req.body?.student_id) return Number(req.body.student_id);
-    if (req.body?.staff_id) return Number(req.body.staff_id);
-    if (req.body?.user_id) return Number(req.body.user_id);
+    const authUser = await optionalAuthenticateUser(req);
+    return authUser ? Number(authUser.user_id) : null;
+}
 
-    const authHeader = req.headers.authorization || req.headers.Authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        try {
-            const decoded = jwt.verify(authHeader.slice(7).trim(), process.env.JWT_SECRET || 'fallback_secret');
-            return Number(decoded.userId ?? decoded.id ?? decoded.user_id);
-        } catch (_) {
-            return null;
+async function assertNoIdorOnPageUserScope(req, res, authUser) {
+    const requestedIds = [
+        req.query?.student_id,
+        req.query?.staff_id,
+        req.query?.user_id,
+        req.body?.student_id,
+        req.body?.staff_id,
+        req.body?.user_id
+    ].filter((val) => val !== undefined && val !== null && String(val).trim() !== '');
+
+    for (const rawId of requestedIds) {
+        const parsed = Number(rawId);
+        if (!Number.isSafeInteger(parsed) || parsed !== Number(authUser.user_id)) {
+            await logAudit(req, {
+                action: 'IDOR Attempt Blocked on Page User Scope',
+                module: 'security',
+                actorUserId: authUser.user_id,
+                actorRole: authUser.role_name,
+                outcome: 'DENIED',
+                isSecurityEvent: true,
+                details: {
+                    path: req.originalUrl || req.url,
+                    attemptedUserId: rawId
+                }
+            });
+            res.status(403).json({ message: 'Forbidden: You cannot access or modify another user\'s records.' });
+            return false;
         }
     }
-    return null;
+    return true;
 }
 
 // Helper: Fetch a staff user's primary managed page (by page_members or created_by)
+// SECURITY: Never fall back to another user's page!
 async function getUserPageDetails(userId) {
     try {
+        if (!userId) {
+            return { page_id: null, page_name: null, page_code: null };
+        }
         const pageRes = await pool.query(
             `SELECT p.page_id, p.page_name, p.page_code, p.page_description, p.page_type, p.status,
                     p.department_id, p.organization_id, p.avatar_url, p.cover_url,
@@ -118,19 +145,10 @@ async function getUserPageDetails(userId) {
             return pageRes.rows[0];
         }
 
-        const fallbackRes = await pool.query(
-            `SELECT page_id, page_name, page_code, page_description, page_type, status,
-                    contact_email, allow_event_registration, notification_settings
-             FROM pages ORDER BY page_id ASC LIMIT 1`
-        );
-        if (fallbackRes.rows.length > 0) {
-            return fallbackRes.rows[0];
-        }
-
-        return { page_id: null, page_name: 'Student Affairs Office', page_code: 'SAO' };
+        return { page_id: null, page_name: null, page_code: null };
     } catch (err) {
         console.error('Error in getUserPageDetails:', err.message);
-        return { page_id: null, page_name: 'Student Affairs Office', page_code: 'SAO' };
+        return { page_id: null, page_name: null, page_code: null };
     }
 }
 
@@ -159,7 +177,7 @@ async function getActiveAcademicYearId(db = pool) {
 // -------- CHECK USER'S PAGE STATUS -------- //
 router.get('/my-page-status', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const pageQuery = await pool.query(
@@ -191,7 +209,7 @@ router.get('/my-page-status', async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching page status:', error);
-        return res.status(500).json({ message: 'Failed to fetch page status: ' + error.message });
+        return res.status(500).json({ message: 'Failed to fetch page status.' });
     }
 });
 
@@ -199,7 +217,7 @@ router.get('/my-page-status', async (req, res) => {
 router.post('/create-page', async (req, res) => {
     const client = await pool.connect();
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const {
@@ -276,7 +294,7 @@ router.post('/create-page', async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         console.error('Error creating page:', error);
-        return res.status(500).json({ message: 'Failed to create page: ' + error.message });
+        return res.status(500).json({ message: 'Failed to create page.' });
     } finally {
         client.release();
     }
@@ -285,14 +303,29 @@ router.post('/create-page', async (req, res) => {
 // -------- UPDATE MYPAGE PROFILE -------- //
 const handleUpdateMyPage = async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
-        const { pageName, description, pageDescription, profileImage } = req.body;
+        const { pageName, description, pageDescription, profileImage, pageId } = req.body;
         const userPage = await getUserPageDetails(user.user_id);
+        const targetPageId = pageId ? Number(pageId) : userPage.page_id;
 
-        if (!userPage.page_id) {
+        if (!targetPageId) {
             return res.status(404).json({ message: 'No managed page found for this account.' });
+        }
+
+        if (!(await canManagePage(pool, user, targetPageId))) {
+            await logAudit(req, {
+                action: 'Unauthorized MyPage Update Attempt',
+                module: 'pages',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                targetType: 'page',
+                targetId: targetPageId,
+                outcome: 'DENIED',
+                isSecurityEvent: true
+            });
+            return res.status(403).json({ message: 'Forbidden: You are not authorized to manage this page.' });
         }
 
         const updRes = await pool.query(
@@ -306,7 +339,7 @@ const handleUpdateMyPage = async (req, res) => {
                 pageName || null,
                 description ?? pageDescription ?? null,
                 profileImage || null,
-                userPage.page_id
+                targetPageId
             ]
         );
 
@@ -332,7 +365,7 @@ const PAGE_TYPE_TO_CATEGORY = {
 router.get('/my-page/settings', async (req, res) => {
     try {
         await ensureNotificationSchema(pool);
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const page = await getUserPageDetails(user.user_id);
@@ -340,13 +373,13 @@ router.get('/my-page/settings', async (req, res) => {
         const category = PAGE_TYPE_TO_CATEGORY[String(page.page_type || '').toLowerCase()] || 'Academic College';
 
         return res.status(200).json({
-            pageName: page.page_name || 'Student Affairs Office',
-            pageCode: page.page_code || 'SAO',
+            pageName: page.page_name || '',
+            pageCode: page.page_code || '',
             description: page.page_description || '',
             contactEmail: page.contact_email || user.email,
             allowEventRegistration: page.allow_event_registration ?? true,
             settings: {
-                name: page.page_name || 'Student Affairs Office',
+                name: page.page_name || '',
                 category,
                 description: page.page_description || '',
                 ...notifPrefs
@@ -360,10 +393,16 @@ router.get('/my-page/settings', async (req, res) => {
 const saveMyPageSettings = async (req, res) => {
     try {
         await ensureNotificationSchema(pool);
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const page = await getUserPageDetails(user.user_id);
+        if (!page.page_id) {
+            return res.status(404).json({ message: 'No managed page found for this account.' });
+        }
+        if (!(await canManagePage(pool, user, page.page_id))) {
+            return res.status(403).json({ message: 'Forbidden: You are not authorized to manage this page.' });
+        }
         if (page.page_id) {
             const payload = req.body?.settings && typeof req.body.settings === 'object'
                 ? req.body.settings
@@ -501,7 +540,7 @@ router.get('/spotlight', async (req, res) => {
                        AND (
                            pg.created_by = $1
                            OR p.creator_user_id = $1
-                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                            OR (
                                TRIM(LOWER(COALESCE(p.audience, 'All Campus'))) IN ('followers', 'followers only', 'only followers')
                                AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
@@ -568,7 +607,7 @@ const handleDashboardFetch = async (req, res) => {
                        $1::int IS NOT NULL AND (
                            pg.created_by = $1
                            OR p.creator_user_id = $1
-                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                            OR (
                                LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
                                AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
@@ -635,7 +674,7 @@ const handleDashboardFetch = async (req, res) => {
                        $1::int IS NOT NULL AND (
                            pg.created_by = $1
                            OR p.creator_user_id = $1
-                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1)
+                           OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
                            OR (
                                LOWER(COALESCE(p.audience, 'All Campus')) IN ('followers', 'followers only', 'only followers')
                                AND EXISTS(SELECT 1 FROM page_follows pf_vis WHERE pf_vis.page_id = p.page_id AND pf_vis.follower_user_id = $1)
@@ -664,18 +703,42 @@ router.post('/dashboard-data', handleDashboardFetch);
 // -------- GET /api/mypage/posts -------- //
 router.get('/mypage/posts', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         await ensureUniversityWideColumn(pool);
         const { pageId } = req.query;
-        const params = [];
-        let pageFilter = '';
+        let targetPageId = null;
 
         if (pageId) {
-            params.push(Number(pageId));
-            pageFilter = `AND p.page_id = $1`;
+            targetPageId = Number(pageId);
+            if (!Number.isSafeInteger(targetPageId) || targetPageId <= 0) {
+                return res.status(400).json({ message: 'Invalid page ID.' });
+            }
+            if (!(await canManagePage(pool, user, targetPageId))) {
+                await logAudit(req, {
+                    action: 'Unauthorized MyPage Posts Access Attempt',
+                    module: 'pages',
+                    actorUserId: user.user_id,
+                    actorRole: user.role_name,
+                    targetType: 'page',
+                    targetId: targetPageId,
+                    outcome: 'DENIED',
+                    isSecurityEvent: true
+                });
+                return res.status(403).json({ message: 'Forbidden: You are not authorized to view management posts for this page.' });
+            }
+        } else {
+            const userPage = await getUserPageDetails(user.user_id);
+            targetPageId = userPage.page_id;
         }
+
+        if (!targetPageId) {
+            return res.status(200).json({ announcements: [], events: [], posts: [] });
+        }
+
+        const params = [targetPageId];
+        const pageFilter = `AND p.page_id = $1`;
 
         const annRes = await pool.query(
             `SELECT p.post_id AS id,
@@ -792,7 +855,7 @@ function requiresPublicAdminApproval(audience, user) {
 // -------- CREATE ANNOUNCEMENT (UNIFIED POSTS TABLE) -------- //
 router.post('/announcements', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const { title, content, description, pageId, image_data, image_url, category_id, is_pinned, audience } = req.body;
@@ -821,6 +884,20 @@ router.post('/announcements', async (req, res) => {
 
         if (!targetPageId) {
             return res.status(400).json({ message: 'No valid page found. Please create or join an organization page first.' });
+        }
+
+        if (!(await canManagePage(pool, user, targetPageId))) {
+            await logAudit(req, {
+                action: 'Unauthorized Announcement Creation Attempt',
+                module: 'posts',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                targetType: 'page',
+                targetId: targetPageId,
+                outcome: 'DENIED',
+                isSecurityEvent: true
+            });
+            return res.status(403).json({ message: 'Forbidden: You are not authorized to publish announcements for this page.' });
         }
 
         const finalCategoryId = category_id ? Number(category_id) : await getDefaultCategoryId();
@@ -917,7 +994,7 @@ router.post('/announcements', async (req, res) => {
         });
     } catch (err) {
         console.error('Error publishing announcement:', err);
-        return res.status(500).json({ message: 'Database Insert Error: ' + err.message });
+        return res.status(500).json({ message: 'Failed to publish announcement.' });
     }
 });
 
@@ -925,7 +1002,7 @@ router.post('/announcements', async (req, res) => {
 router.post('/events', async (req, res) => {
     const client = await pool.connect();
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         const {
@@ -977,6 +1054,20 @@ router.post('/events', async (req, res) => {
 
         if (!targetPageId) {
             return res.status(400).json({ message: 'No valid page found. Please create or join an organization page first.' });
+        }
+
+        if (!(await canManagePage(pool, user, targetPageId))) {
+            await logAudit(req, {
+                action: 'Unauthorized Event Creation Attempt',
+                module: 'events',
+                actorUserId: user.user_id,
+                actorRole: user.role_name,
+                targetType: 'page',
+                targetId: targetPageId,
+                outcome: 'DENIED',
+                isSecurityEvent: true
+            });
+            return res.status(403).json({ message: 'Forbidden: You are not authorized to publish events for this page.' });
         }
 
         const finalCategoryId = category_id ? Number(category_id) : await getDefaultCategoryId();
@@ -1114,7 +1205,7 @@ router.post('/events', async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
         console.error('Error publishing event:', err);
-        return res.status(500).json({ message: 'Database Insert Error: ' + err.message });
+        return res.status(500).json({ message: 'Failed to publish event.' });
     } finally {
         client.release();
     }
@@ -1131,7 +1222,7 @@ async function assertCanModifyPost(db, postId, postType, user) {
                 pg.created_by AS page_created_by,
                 EXISTS(
                     SELECT 1 FROM page_members pm
-                    WHERE pm.page_id = p.page_id AND pm.user_id = $3
+                    WHERE pm.page_id = p.page_id AND pm.user_id = $3 AND LOWER(pm.status) = 'active'
                 ) AS is_page_member
          FROM posts p
          LEFT JOIN pages pg ON p.page_id = pg.page_id
@@ -1157,13 +1248,25 @@ async function assertCanModifyPost(db, postId, postType, user) {
 // -------- EDIT ANNOUNCEMENT -------- //
 router.put('/announcements/:id', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         await ensureUniversityWideColumn(pool);
         const postId = Number(req.params.id);
         const authCheck = await assertCanModifyPost(pool, postId, 'announcement', user);
         if (!authCheck.ok) {
+            if (authCheck.status === 403) {
+                await logAudit(req, {
+                    action: 'Unauthorized Announcement Edit Attempt',
+                    module: 'posts',
+                    actorUserId: user.user_id,
+                    actorRole: user.role_name,
+                    targetType: 'post',
+                    targetId: postId,
+                    outcome: 'DENIED',
+                    isSecurityEvent: true
+                });
+            }
             return res.status(authCheck.status).json({ message: authCheck.message });
         }
         const { title, content, description, category_id, image_data, image_url, is_pinned, audience, remove_image } = req.body;
@@ -1250,7 +1353,7 @@ router.put('/announcements/:id', async (req, res) => {
         return res.status(200).json({ announcement: formattedRow });
     } catch (err) {
         console.error('Error updating announcement:', err.message);
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to update announcement.' });
     }
 });
 
@@ -1258,13 +1361,25 @@ router.put('/announcements/:id', async (req, res) => {
 router.put('/events/:id', async (req, res) => {
     const client = await pool.connect();
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
 
         await ensureUniversityWideColumn(pool);
         const postId = Number(req.params.id);
         const authCheck = await assertCanModifyPost(client, postId, 'event', user);
         if (!authCheck.ok) {
+            if (authCheck.status === 403) {
+                await logAudit(req, {
+                    action: 'Unauthorized Event Edit Attempt',
+                    module: 'events',
+                    actorUserId: user.user_id,
+                    actorRole: user.role_name,
+                    targetType: 'event',
+                    targetId: postId,
+                    outcome: 'DENIED',
+                    isSecurityEvent: true
+                });
+            }
             return res.status(authCheck.status).json({ message: authCheck.message });
         }
         const {
@@ -1410,7 +1525,7 @@ router.put('/events/:id', async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
         console.error('Error updating event:', err.message);
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to update event.' });
     } finally {
         client.release();
     }
@@ -1419,33 +1534,57 @@ router.put('/events/:id', async (req, res) => {
 // -------- DELETE ANNOUNCEMENT / EVENT -------- //
 router.delete('/announcements/:id', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
         const postId = Number(req.params.id);
         const authCheck = await assertCanModifyPost(pool, postId, 'announcement', user);
         if (!authCheck.ok) {
+            if (authCheck.status === 403) {
+                await logAudit(req, {
+                    action: 'Unauthorized Announcement Delete Attempt',
+                    module: 'posts',
+                    actorUserId: user.user_id,
+                    actorRole: user.role_name,
+                    targetType: 'post',
+                    targetId: postId,
+                    outcome: 'DENIED',
+                    isSecurityEvent: true
+                });
+            }
             return res.status(authCheck.status).json({ message: authCheck.message });
         }
         await pool.query(`DELETE FROM posts WHERE post_id = $1 AND post_type = 'announcement'`, [postId]);
         return res.status(200).json({ message: 'Announcement deleted successfully' });
     } catch (err) {
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to delete announcement.' });
     }
 });
 
 router.delete('/events/:id', async (req, res) => {
     try {
-        const user = await authenticateUser(req, res);
+        const user = await assertStaffOrAdmin(req, res);
         if (!user) return;
         const postId = Number(req.params.id);
         const authCheck = await assertCanModifyPost(pool, postId, 'event', user);
         if (!authCheck.ok) {
+            if (authCheck.status === 403) {
+                await logAudit(req, {
+                    action: 'Unauthorized Event Delete Attempt',
+                    module: 'events',
+                    actorUserId: user.user_id,
+                    actorRole: user.role_name,
+                    targetType: 'event',
+                    targetId: postId,
+                    outcome: 'DENIED',
+                    isSecurityEvent: true
+                });
+            }
             return res.status(authCheck.status).json({ message: authCheck.message });
         }
         await pool.query(`DELETE FROM posts WHERE post_id = $1 AND post_type = 'event'`, [postId]);
         return res.status(200).json({ message: 'Event deleted successfully' });
     } catch (err) {
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to delete event.' });
     }
 });
 
@@ -1466,7 +1605,7 @@ router.get('/approved-pages', async (req, res) => {
         return res.status(200).json({ pages: result.rows });
     } catch (err) {
         console.error('Error fetching approved pages:', err.message);
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to fetch approved pages.' });
     }
 });
 
@@ -1478,21 +1617,8 @@ router.get('/search', async (req, res) => {
             return res.status(200).json({ results: [] });
         }
 
-        let tokenUserId = null;
-        const authHeader = req.headers.authorization || req.headers.Authorization;
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            try {
-                const decoded = jwt.verify(authHeader.slice(7).trim(), process.env.JWT_SECRET || 'fallback_secret');
-                if (!decoded.purpose) {
-                    const parsedId = Number(decoded.userId ?? decoded.id ?? decoded.user_id);
-                    if (Number.isSafeInteger(parsedId) && parsedId > 0) {
-                        tokenUserId = parsedId;
-                    }
-                }
-            } catch (_) {
-                tokenUserId = null;
-            }
-        }
+        const authUser = await optionalAuthenticateUser(req);
+        const tokenUserId = authUser ? Number(authUser.user_id) : null;
 
         const results = await searchPortalContent(pool, {
             query: q,
@@ -1537,7 +1663,7 @@ async function handleGetPageDetails(req, res) {
                     ) THEN TRUE ELSE FALSE END AS is_followed,
                     CASE WHEN $2::int IS NOT NULL AND (
                         p.created_by = $2
-                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $2)
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $2 AND LOWER(pm.status) = 'active')
                     ) THEN TRUE ELSE FALSE END AS is_owner
              FROM pages p
              LEFT JOIN departments d ON p.department_id = d.department_id
@@ -1554,7 +1680,7 @@ async function handleGetPageDetails(req, res) {
         return res.status(200).json({ page: pageRes.rows[0] });
     } catch (err) {
         console.error('Error fetching page details:', err);
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to fetch page details.' });
     }
 }
 
@@ -1616,7 +1742,7 @@ async function handleGetPagePosts(req, res) {
                     CASE WHEN $2::int IS NOT NULL AND (
                         pg.created_by = $2
                         OR p.creator_user_id = $2
-                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $2)
+                        OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $2 AND LOWER(pm.status) = 'active')
                     ) THEN TRUE ELSE FALSE END AS is_owner
              FROM posts p
              LEFT JOIN pages pg ON p.page_id = pg.page_id
@@ -1642,7 +1768,7 @@ async function handleGetPagePosts(req, res) {
         return res.status(200).json({ posts: postsRes.rows });
     } catch (err) {
         console.error('Error fetching page posts:', err);
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to fetch page posts.' });
     }
 }
 
@@ -1656,6 +1782,7 @@ async function handleFollowPage(req, res) {
 
         const user = await authenticateUser(req, res);
         if (!user) return;
+        if (!(await assertNoIdorOnPageUserScope(req, res, user))) return;
         const userId = user.user_id;
 
         // Verify page exists
@@ -1684,7 +1811,7 @@ async function handleFollowPage(req, res) {
         });
     } catch (err) {
         console.error('Error following page:', err);
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to follow page.' });
     }
 }
 
@@ -1698,6 +1825,7 @@ async function handleUnfollowPage(req, res) {
 
         const user = await authenticateUser(req, res);
         if (!user) return;
+        if (!(await assertNoIdorOnPageUserScope(req, res, user))) return;
         const userId = user.user_id;
 
         await pool.query(
@@ -1718,24 +1846,24 @@ async function handleUnfollowPage(req, res) {
         });
     } catch (err) {
         console.error('Error unfollowing page:', err);
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to unfollow page.' });
     }
 }
 
 // Helper: List followed page IDs for the user
 async function handleGetFollowedPages(req, res) {
     try {
-        const userId = await resolveUserId(req);
-        if (!userId) {
-            return res.status(200).json({ followed_page_ids: [] });
-        }
+        const user = await authenticateUser(req, res);
+        if (!user) return;
+        if (!(await assertNoIdorOnPageUserScope(req, res, user))) return;
+        const userId = user.user_id;
         const r = await pool.query(
             `SELECT page_id FROM page_follows WHERE follower_user_id = $1`,
             [userId]
         );
         return res.status(200).json({ followed_page_ids: r.rows.map(x => x.page_id) });
     } catch (err) {
-        return res.status(500).json({ message: err.message });
+        return res.status(500).json({ message: 'Failed to fetch followed pages.' });
     }
 }
 

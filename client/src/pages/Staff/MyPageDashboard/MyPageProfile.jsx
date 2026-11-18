@@ -7,6 +7,7 @@ import EventRegistrationsManagerModal from '../../../assets/components/EventRegi
 import PostComposerModal from '../../../assets/components/PostComposerModal';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
 import { usePortalSearch } from '../../../utils/usePortalSearch';
+import { performSecureLogout } from '../../../assets/components/ProtectedRoute';
 
 export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashboard = false }) {
   const navigate = useNavigate();
@@ -400,8 +401,8 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
     if (notif.link) navigate(notif.link);
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
+  const handleLogout = async () => {
+    await performSecureLogout();
     navigate('/auth');
   };
 

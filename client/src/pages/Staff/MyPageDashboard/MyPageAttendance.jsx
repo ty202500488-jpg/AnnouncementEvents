@@ -184,10 +184,29 @@ export default function MyPageAttendance() {
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (!selectedEventId) return;
     const token = localStorage.getItem('token');
-    window.open(`http://localhost:5000/api/mypage/attendance/events/${selectedEventId}/export?token=${token}`, '_blank');
+    try {
+      const response = await fetch(`http://localhost:5000/api/mypage/attendance/events/${selectedEventId}/export`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        alert('Failed to export attendance CSV.');
+        return;
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance_event_${selectedEventId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export CSV error:', err);
+    }
   };
 
   const filteredRecords = records.filter((r) => {

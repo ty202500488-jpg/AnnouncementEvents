@@ -41,20 +41,43 @@ export default function StaffProfile() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    setUser(formData);
-    setIsEditing(false);
-    
+    const token = localStorage.getItem('token');
     try {
+      if (token) {
+        const res = await fetch('/api/users/me/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            firstName: formData.firstName,
+            lastName: formData.lastName
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.message || 'Failed to update profile.');
+          return;
+        }
+      }
+
+      const nextUser = {
+        ...user,
+        firstName: formData.firstName,
+        lastName: formData.lastName
+      };
+      setUser(nextUser);
+      setFormData(nextUser);
+      setIsEditing(false);
+
       const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
       const updatedUser = {
         ...storedUser,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        program_name: formData.program,
-        email: formData.email,
-        student_id: formData.studentId,
+        first_name: nextUser.firstName,
+        last_name: nextUser.lastName,
       };
 
       // Save updated data to localStorage
@@ -166,36 +189,36 @@ export default function StaffProfile() {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Email Address</label>
+                  <label>Email Address (Verified Read-Only)</label>
                   <input 
                     type="email" 
                     name="email" 
-                    value={formData.email} 
-                    onChange={handleChange} 
+                    value={user.email} 
                     className="form-input" 
-                    required 
+                    disabled 
+                    readOnly
                   />
                 </div>
                 <div className="form-group">
-                  <label>Student ID</label>
+                  <label>Student / Staff ID (Verified Read-Only)</label>
                   <input 
                     type="text" 
                     name="studentId" 
-                    value={formData.studentId} 
-                    onChange={handleChange} 
+                    value={user.studentId} 
                     className="form-input" 
-                    required 
+                    disabled 
+                    readOnly
                   />
                 </div>
                 <div className="form-group full-span">
-                  <label>Program / Department</label>
+                  <label>Program / Department (Verified Read-Only)</label>
                   <input 
                     type="text" 
                     name="program" 
-                    value={formData.program} 
-                    onChange={handleChange} 
+                    value={user.program} 
                     className="form-input" 
-                    required 
+                    disabled 
+                    readOnly
                   />
                 </div>
               </div>

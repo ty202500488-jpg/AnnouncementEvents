@@ -7,6 +7,7 @@ import EventRegistrationModal from '../../assets/components/EventRegistrationMod
 import EventRegistrationsManagerModal from '../../assets/components/EventRegistrationsManagerModal';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import { usePortalSearch } from '../../utils/usePortalSearch';
+import { performSecureLogout } from '../../assets/components/ProtectedRoute';
 
 export default function PageView({ role = 'guest' }) {
   const { pageId } = useParams();
@@ -32,10 +33,6 @@ export default function PageView({ role = 'guest' }) {
   const [deletingPost, setDeletingPost] = useState(null);
 
   const token = localStorage.getItem('token');
-  const userRole = localStorage.getItem('role') || role;
-  const isStaff = userRole === 'staff';
-  const homeHref = token ? (isStaff ? '/staff/dashboard' : '/student/dashboard') : '/';
-
   let parsedUser = null;
   try {
     const rawUser = localStorage.getItem('user');
@@ -43,6 +40,9 @@ export default function PageView({ role = 'guest' }) {
   } catch {
     parsedUser = null;
   }
+  const userRole = String(parsedUser?.role_name || parsedUser?.role || role || 'guest').toLowerCase();
+  const isStaff = userRole === 'staff';
+  const homeHref = token ? (userRole === 'admin' ? '/admin/dashboard' : isStaff ? '/staff/dashboard' : '/student/dashboard') : '/';
   const profileTitle = parsedUser
     ? `${parsedUser.first_name || ''} ${parsedUser.last_name || ''}`.trim() || 'Campus Member'
     : 'Guest Viewer';
@@ -165,8 +165,8 @@ export default function PageView({ role = 'guest' }) {
     if (notif.link) navigate(notif.link);
   };
 
-  const handleLogout = () => {
-    localStorage.clear();
+  const handleLogout = async () => {
+    await performSecureLogout();
     navigate('/auth');
   };
 
