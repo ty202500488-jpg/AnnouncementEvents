@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/PageView.css';
 import '../../styles/StudentDashboard.css';
-import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials } from '../../../assets/components/PortalShellElements';
+import { PortalNavbar, PortalToast, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials } from '../../../assets/components/PortalShellElements';
 import EventRegistrationsManagerModal from '../../../assets/components/EventRegistrationsManagerModal';
 import PostComposerModal from '../../../assets/components/PostComposerModal';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
@@ -13,6 +13,13 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
 
   const [loading, setLoading] = useState(true);
   const [pageData, setPageData] = useState(null);
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
+  const showToast = (title, message, type = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ title, message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 4500);
+  };
   const [posts, setPosts] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
 
@@ -231,7 +238,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      alert('Selected image exceeds 10MB limit.');
+      showToast('File Too Large', 'Selected image exceeds 10MB limit.', 'warning');
       return;
     }
     const reader = new FileReader();
@@ -320,11 +327,11 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
           })
         );
       } else {
-        alert('Failed to update post.');
+        showToast('Update Failed', 'Failed to update post.', 'error');
       }
     } catch (err) {
       console.error('Error editing post:', err);
-      alert('Network error while updating post.');
+      showToast('Network Error', 'Network error while updating post.', 'error');
     } finally {
       setSubmittingPost(false);
       setEditingPost(null);
@@ -353,11 +360,11 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
         setPosts((prev) => prev.filter((p) => p !== deletingPost));
       } else {
         const errData = await res.json().catch(() => ({}));
-        alert(errData.message || 'Failed to delete post.');
+        showToast('Delete Failed', errData.message || 'Failed to delete post.', 'error');
       }
     } catch (err) {
       console.error('Error deleting post:', err);
-      alert('Network error while deleting post.');
+      showToast('Network Error', 'Network error while deleting post.', 'error');
     } finally {
       setDeletingPost(null);
       setActiveMenuId(null);
@@ -509,6 +516,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
 
   return (
     <div className="pageview-wrapper">
+      <PortalToast toast={toast} onClose={() => setToast(null)} />
       {/* 1. TOP NAVIGATION BAR (Same as MyPage Navbar) */}
       {navbarBlock}
 
@@ -1139,7 +1147,9 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
               fetchPagePosts(pageData.pageId, authToken);
             }
             if (String(modStatus || '').toLowerCase() === 'pending') {
-              alert('Your post has been submitted for Admin approval.');
+              showToast('Submitted for Approval', 'Your post has been submitted for Admin approval.', 'info');
+            } else {
+              showToast('Post Published', 'Your post is now live.', 'success');
             }
           }}
         />

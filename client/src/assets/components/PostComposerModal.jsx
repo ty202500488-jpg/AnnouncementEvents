@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { EventRequirementsPicker, PostPageAvatar } from './PortalShellElements';
+import { EventRequirementsPicker, PostPageAvatar, PortalToast } from './PortalShellElements';
 
 function getLocalDateTimeValue(hoursAhead = 0) {
   const d = new Date(Date.now() + hoursAhead * 60 * 60 * 1000);
@@ -35,6 +35,7 @@ export default function PostComposerModal({
   const [spotlightExpiresAt, setSpotlightExpiresAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalPickerView, setModalPickerView] = useState(null);
+  const [toast, setToast] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export default function PostComposerModal({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      alert('Selected image exceeds 10MB limit.');
+      setToast({ title: 'File Too Large', message: 'Selected image exceeds 10MB limit.', type: 'warning' });
       return;
     }
     const reader = new FileReader();
@@ -118,7 +119,7 @@ export default function PostComposerModal({
     if (isUniversityWide) {
       const expMs = spotlightExpiresAt ? new Date(spotlightExpiresAt).getTime() : NaN;
       if (!spotlightExpiresAt || Number.isNaN(expMs) || expMs <= Date.now()) {
-        alert('Please choose a valid future "Active Until" date and time for University-Wide Spotlight.');
+        setToast({ title: 'Invalid Schedule', message: 'Please choose a valid future "Active Until" date and time for University-Wide Spotlight.', type: 'warning' });
         return;
       }
     }
@@ -175,7 +176,7 @@ export default function PostComposerModal({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.message || 'Failed to publish post.');
+        setToast({ title: 'Publish Failed', message: data.message || 'Failed to publish post.', type: 'error' });
         return;
       }
 
@@ -184,14 +185,16 @@ export default function PostComposerModal({
       onCreated?.(data, modStatus);
       resetAndClose();
     } catch {
-      alert('Network error while publishing post.');
+      setToast({ title: 'Network Error', message: 'Network error while publishing post.', type: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
 
   return createPortal(
-    <div
+    <>
+      <PortalToast toast={toast} onClose={() => setToast(null)} />
+      <div
       style={{
         position: 'fixed',
         inset: 0,
@@ -480,7 +483,8 @@ export default function PostComposerModal({
         </form>
         )}
       </div>
-    </div>,
+    </div>
+    </>,
     document.body
   );
 }

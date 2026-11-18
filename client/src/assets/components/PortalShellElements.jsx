@@ -1846,3 +1846,121 @@ export function PostEditDeleteModals({
     </>
   );
 }
+
+/**
+ * Floating UI toast notification replacing native browser alert() dialogs.
+ */
+export function PortalToast({ toast, onClose }) {
+  if (!toast || !toast.message) return null;
+
+  const toneMap = {
+    success: {
+      bg: '#f0fdf4',
+      border: '#bbf7d0',
+      iconBg: '#dcfce7',
+      iconColor: '#15803d',
+      titleColor: '#14532d',
+      textColor: '#166534',
+      icon: 'fa-solid fa-circle-check',
+    },
+    info: {
+      bg: '#eff6ff',
+      border: '#bfdbfe',
+      iconBg: '#dbeafe',
+      iconColor: '#1d4ed8',
+      titleColor: '#1e3a8a',
+      textColor: '#1e40af',
+      icon: 'fa-solid fa-circle-info',
+    },
+    warning: {
+      bg: '#fffbeb',
+      border: '#fde68a',
+      iconBg: '#fef3c7',
+      iconColor: '#b45309',
+      titleColor: '#78350f',
+      textColor: '#92400e',
+      icon: 'fa-solid fa-triangle-exclamation',
+    },
+    error: {
+      bg: '#fef2f2',
+      border: '#fecaca',
+      iconBg: '#fee2e2',
+      iconColor: '#dc2626',
+      titleColor: '#7f1d1d',
+      textColor: '#991b1b',
+      icon: 'fa-solid fa-circle-exclamation',
+    },
+  };
+
+  const theme = toneMap[toast.type] || toneMap.success;
+
+  return createPortal(
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        position: 'fixed',
+        top: '1.25rem',
+        right: '1.25rem',
+        zIndex: 10050,
+        maxWidth: '400px',
+        width: 'calc(100vw - 2rem)',
+        backgroundColor: theme.bg,
+        border: `1px solid ${theme.border}`,
+        borderRadius: '0.875rem',
+        padding: '0.875rem 1rem',
+        boxShadow: '0 14px 30px -6px rgba(15, 23, 42, 0.18)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '0.75rem',
+      }}
+    >
+      <span
+        style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '50%',
+          backgroundColor: theme.iconBg,
+          color: theme.iconColor,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          fontSize: '0.95rem',
+        }}
+      >
+        <i className={theme.icon} aria-hidden="true"></i>
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {toast.title && (
+          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.titleColor, marginBottom: '0.15rem' }}>
+            {toast.title}
+          </div>
+        )}
+        <div style={{ fontSize: '0.8125rem', fontWeight: 500, color: theme.textColor, lineHeight: 1.4 }}>
+          {toast.message}
+        </div>
+      </div>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Dismiss notification"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: theme.textColor,
+            opacity: 0.7,
+            cursor: 'pointer',
+            padding: '0.15rem',
+            lineHeight: 1,
+            flexShrink: 0,
+          }}
+        >
+          <i className="fa-solid fa-xmark"></i>
+        </button>
+      )}
+    </div>,
+    document.body
+  );
+}

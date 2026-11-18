@@ -712,7 +712,12 @@ const UserManagement = () => {
                       <tr key={item.id}>
                         <td><span className="um-id-tag">#{item.id}</span></td>
                         <td className="font-semibold text-slate-800">{item.first_name} {item.last_name}</td>
-                        <td className="text-slate-600">{item.email}</td>
+                        <td className="text-slate-600">
+                          <span className="um-email-cell">
+                            <i className="fa-regular fa-envelope" aria-hidden="true"></i>
+                            <span>{item.email}</span>
+                          </span>
+                        </td>
                         <td><span className="font-mono">{item.student_id || 'N/A'}</span></td>
                         <td>{item.program || item.college || 'WMSU Student'}</td>
                         <td className="text-slate-500">{new Date(item.created_at).toLocaleDateString()}</td>
@@ -795,7 +800,12 @@ const UserManagement = () => {
                       <tr key={s.id}>
                         <td><span className="um-id-tag">#{s.user_id || s.id}</span></td>
                         <td className="font-semibold text-slate-800">{s.first_name} {s.last_name}</td>
-                        <td className="text-slate-600">{s.email}</td>
+                        <td className="text-slate-600">
+                          <span className="um-email-cell">
+                            <i className="fa-regular fa-envelope" aria-hidden="true"></i>
+                            <span>{s.email}</span>
+                          </span>
+                        </td>
                         <td>
                           <span className="page-assigned-pill">
                             <i className="fa-solid fa-layer-group margin-right-4"></i>

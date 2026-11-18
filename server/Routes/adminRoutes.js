@@ -975,7 +975,7 @@ router.get('/content-feed', async (req, res) => {
         if (normTab === 'archived') {
             clauses.push(`(p.is_archived = TRUE OR LOWER(p.status) = 'archived')`);
         } else if (normTab === 'takedown') {
-            clauses.push(`p.is_archived = FALSE AND (LOWER(p.status) = 'rejected' OR LOWER(p.moderation_status) = 'rejected')`);
+            clauses.push(`(LOWER(p.status) = 'rejected' OR LOWER(p.moderation_status) = 'rejected')`);
         } else if (normTab === 'scheduled') {
             clauses.push(`p.is_archived = FALSE AND (LOWER(p.status) = 'scheduled' OR (p.published_at IS NOT NULL AND p.published_at > NOW()))`);
         } else {
@@ -1415,7 +1415,7 @@ const handleContentStatus = async (req, res) => {
                  SET previous_status = CASE WHEN status != 'Archived' THEN status ELSE previous_status END,
                      is_archived = TRUE,
                      status = 'Archived',
-                     moderation_status = 'rejected',
+                     moderation_status = 'Rejected',
                      archived_at = NOW(),
                      archived_by = $1,
                      archive_reason = COALESCE($2, archive_reason, 'Rule violation takedown'),

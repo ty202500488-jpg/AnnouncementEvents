@@ -11,6 +11,7 @@ import {
   normalizeEventRequirements,
   toggleEventRegistrationRequest,
   applyEventRegistrationUpdate,
+  PortalToast,
 } from '../../../assets/components/PortalShellElements';
 import EventRegistrationModal from '../../../assets/components/EventRegistrationModal';
 import EventRegistrationsManagerModal from '../../../assets/components/EventRegistrationsManagerModal';
@@ -59,13 +60,22 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       if (result.ok) {
         setFeed((prev) => applyEventRegistrationUpdate(prev, eventId, null));
       } else {
-        alert(result.message || 'Failed to update event registration.');
+        showToast('Registration Error', result.message || 'Failed to update event registration.', 'error');
       }
     } catch {
-      alert('Network error while updating event registration.');
+      showToast('Network Error', 'Network error while updating event registration.', 'error');
     } finally {
       setRegisteringEventId(null);
     }
+  };
+
+  // Toast Notification State
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
+  const showToast = (title, message, type = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ title, message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 4500);
   };
 
   // Modal & Form State
@@ -264,11 +274,11 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         );
       } else {
         const errData = await res.json().catch(() => ({}));
-        alert(errData.message || 'Failed to delete post.');
+        showToast('Delete Failed', errData.message || 'Failed to delete post.', 'error');
       }
     } catch (err) {
       console.error('Error deleting post:', err);
-      alert('Network error while deleting post.');
+      showToast('Network Error', 'Network error while deleting post.', 'error');
     } finally {
       setDeletingPost(null);
     }
@@ -313,7 +323,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      alert('Selected image exceeds 10MB limit.');
+      showToast('File Too Large', 'Selected image exceeds 10MB limit.', 'warning');
       return;
     }
     try {
@@ -323,7 +333,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       setRemoveExistingImage(false);
     } catch (err) {
       console.error('Failed to read image:', err);
-      alert('Could not load the selected image.');
+      showToast('Image Error', 'Could not load the selected image.', 'error');
     }
   };
 
@@ -397,7 +407,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
     if (isUniversityWide) {
       const expMs = spotlightExpiresAt ? new Date(spotlightExpiresAt).getTime() : NaN;
       if (!spotlightExpiresAt || Number.isNaN(expMs) || expMs <= Date.now()) {
-        alert('Please choose a valid future "Active Until" date and time for University-Wide Spotlight.');
+        showToast('Invalid Schedule', 'Please choose a valid future "Active Until" date and time for University-Wide Spotlight.', 'warning');
         return;
       }
     }
@@ -453,14 +463,16 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          alert(data.message || 'Failed to save changes.');
+          showToast('Update Failed', data.message || 'Failed to save changes.', 'error');
           return;
         }
         fetchPageAndFeedData();
         window.dispatchEvent(new Event('spotlight:refresh'));
         const updatedMod = data.announcement?.moderation_status || data.event?.moderation_status;
         if (String(updatedMod || '').toLowerCase() === 'pending') {
-          alert('Changes saved and submitted for Admin approval before appearing publicly.');
+          showToast('Submitted for Approval', 'Changes saved and submitted for Admin approval before appearing publicly.', 'info');
+        } else {
+          showToast('Changes Saved', 'Your post has been updated.', 'success');
         }
       } else {
         if (postType === 'announcement') {
@@ -479,13 +491,15 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           });
           const data = await response.json();
           if (!response.ok) {
-            alert(data.message || 'Failed to publish announcement.');
+            showToast('Publish Failed', data.message || 'Failed to publish announcement.', 'error');
             return;
           }
           fetchPageAndFeedData();
           window.dispatchEvent(new Event('spotlight:refresh'));
           if (String(data.announcement?.moderation_status || '').toLowerCase() === 'pending') {
-            alert('Your public post has been submitted for Admin approval.');
+            showToast('Submitted for Approval', 'Your public post has been submitted for Admin approval.', 'info');
+          } else {
+            showToast('Announcement Published', 'Your announcement is now live.', 'success');
           }
         } else {
           const response = await fetch('http://localhost:5000/api/events', {
@@ -508,13 +522,15 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
           });
           const data = await response.json();
           if (!response.ok) {
-            alert(data.message || 'Failed to publish event.');
+            showToast('Publish Failed', data.message || 'Failed to publish event.', 'error');
             return;
           }
           fetchPageAndFeedData();
           window.dispatchEvent(new Event('spotlight:refresh'));
           if (String(data.event?.moderation_status || '').toLowerCase() === 'pending') {
-            alert('Your public event has been submitted for Admin approval.');
+            showToast('Submitted for Approval', 'Your public event has been submitted for Admin approval.', 'info');
+          } else {
+            showToast('Event Published', 'Your event is now live.', 'success');
           }
         }
       }
@@ -522,7 +538,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       resetForm();
     } catch (err) {
       console.error('Failed to publish post:', err);
-      alert('Network error while publishing post.');
+      showToast('Network Error', 'Network error while publishing post.', 'error');
     }
   };
 
@@ -539,6 +555,7 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
       }} 
       onSwitchToStaffDashboard={onSwitchToStaffDashboard}
     >
+      <PortalToast toast={toast} onClose={() => setToast(null)} />
       {/* Scrollbar-Hiding Global CSS Injection */}
       <style>{`
         .no-scrollbar::-webkit-scrollbar {

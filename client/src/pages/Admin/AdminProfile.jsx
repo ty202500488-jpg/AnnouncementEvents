@@ -181,10 +181,15 @@ export default function AdminProfile() {
           reason: reasonText,
         }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setPosts((prev) => prev.filter((p) => !(p.id === confirmAction.item.id && p.type === confirmAction.item.type)));
         setSaveMessage(confirmAction.action === 'takedown' ? 'Post taken down and archived.' : 'Post archived.');
         setTimeout(() => setSaveMessage(''), 3000);
+        setConfirmAction(null);
+      } else {
+        setSaveMessage(data.message || 'Failed to update post status.');
+        setTimeout(() => setSaveMessage(''), 4000);
         setConfirmAction(null);
       }
     } catch (err) {
@@ -540,7 +545,7 @@ export default function AdminProfile() {
 
         <ConfirmationModal
           isOpen={Boolean(confirmAction)}
-          onClose={() => setConfirmAction(null)}
+          onCancel={() => setConfirmAction(null)}
           onConfirm={handleExecutePostWorkflow}
           title={confirmAction?.action === 'takedown' ? 'Take Down & Archive Post' : 'Archive Post'}
           message={

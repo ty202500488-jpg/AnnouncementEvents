@@ -1388,16 +1388,23 @@ Scoped strictly under .content-feed-container & .feed-*
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background-color: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  color: #881337;
+  background: linear-gradient(135deg, #9f1239 0%, #881337 100%);
+  border: 1px solid rgba(136, 19, 55, 0.18);
+  color: #ffffff;
   font-size: 0.72rem;
   font-weight: 700;
+  letter-spacing: 0.02em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.content-feed-container .dept-item:hover .dept-badge {
+  background: linear-gradient(135deg, #be123c 0%, #9f1239 100%);
+  color: #ffffff;
+  border-color: #9f1239;
 }
 
 .content-feed-container .dept-info {
@@ -1646,7 +1653,7 @@ Scoped strictly under .content-feed-container & .feed-*
 
 .content-feed-container .csf-author-wrap.is-clickable:hover .csf-page-name {
   color: #8c1030;
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .content-feed-container .csf-avatar {

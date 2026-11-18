@@ -136,11 +136,12 @@ Scoped strictly under .user-management-container & .um-*
   flex-shrink: 0;
 }
 
-.user-management-container .um-reset-btn {
+.user-management-container .btn-um-secondary.um-reset-btn {
   height: 38px;
   width: 38px;
   padding: 0;
   justify-content: center;
+  border-radius: 8px;
 }
 
 /* Table Card Header & Reference Cells */

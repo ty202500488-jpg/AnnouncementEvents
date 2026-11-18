@@ -954,6 +954,11 @@ const Reports = () => {
                             <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
                               #{row[col.key]}
                             </span>
+                          ) : col.key === 'email' && row[col.key] ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <i className="fa-regular fa-envelope" style={{ color: '#64748b' }} aria-hidden="true"></i>
+                              <span>{formatCellValue(row[col.key])}</span>
+                            </span>
                           ) : (
                             formatCellValue(row[col.key], col.isDate)
                           )}

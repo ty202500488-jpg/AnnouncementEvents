@@ -255,11 +255,11 @@ router.post('/', registerLimiter, async (req, res) => {
             [normalizedEmail, student_id.trim()]
         );
 
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const otpCode = String(crypto.randomInt(100000, 1000000));
+        const tokenHash = crypto.createHash('sha256').update(`${normalizedEmail}:${otpCode}`).digest('hex');
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-        // Stage registration in pending_registrations (do NOT insert into users until Gmail confirmation)
+        // Stage registration in pending_registrations (do NOT insert into users until OTP verification)
         const pendingIns = await client.query(
             `INSERT INTO pending_registrations (
                 first_name, middle_initial, last_name, email, password_hash,
@@ -288,21 +288,19 @@ router.post('/', registerLimiter, async (req, res) => {
         );
         const pendingId = pendingIns.rows[0].pending_id;
 
-        const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
-
         try {
-            await sendVerificationEmail(normalizedEmail, first_name.trim(), confirmUrl);
+            await sendVerificationEmail(normalizedEmail, first_name.trim(), otpCode);
         } catch (emailErr) {
             await client.query('ROLLBACK');
             tx = false;
-            return res.status(502).json({ message: 'Failed to send verification email.' });
+            return res.status(502).json({ message: 'Failed to send verification OTP email.' });
         }
 
         await client.query('COMMIT');
         tx = false;
 
         await logAudit(req, {
-            action: 'Student Registration Staged',
+            action: 'Student Registration Staged (OTP Sent)',
             module: 'auth',
             targetType: 'pending_registration',
             targetId: pendingId,
@@ -311,9 +309,10 @@ router.post('/', registerLimiter, async (req, res) => {
         });
 
         return res.status(201).json({
-            message: 'Registration submitted! Please check your Gmail to confirm your email address.',
+            message: 'Registration submitted! Please enter the 6-digit OTP sent to your email.',
             email: normalizedEmail,
-            requiresEmailConfirmation: true
+            requiresEmailConfirmation: true,
+            requiresOtpVerification: true
         });
     } catch (error) {
         if (client && tx) {
@@ -324,6 +323,155 @@ router.post('/', registerLimiter, async (req, res) => {
             return res.status(409).json({ message: 'An account with this Student ID or email already exists.' });
         }
         return res.status(500).json({ message: 'Server error during registration.' });
+    } finally {
+        client?.release();
+    }
+});
+
+// -------- VERIFY OTP -------- //
+router.post('/verify-otp', async (req, res) => {
+    let client;
+    let tx = false;
+    try {
+        const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
+        const otp = String(req.body?.otp || '').trim();
+        if (!normalizedEmail || !/^\d{6}$/.test(otp)) {
+            return res.status(400).json({ message: 'Please enter a valid 6-digit OTP code.' });
+        }
+
+        const tokenHash = crypto.createHash('sha256').update(`${normalizedEmail}:${otp}`).digest('hex');
+        client = await pool.connect();
+        await client.query('BEGIN');
+        tx = true;
+
+        const pendingRes = await client.query(
+            `SELECT *
+             FROM pending_registrations
+             WHERE LOWER(email) = $1 AND token_hash = $2
+             FOR UPDATE`,
+            [normalizedEmail, tokenHash]
+        );
+
+        if (pendingRes.rowCount === 0) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(400).json({ message: 'Invalid verification code. Please check your email and try again.' });
+        }
+
+        const pending = pendingRes.rows[0];
+        if (new Date() > new Date(pending.expires_at)) {
+            await client.query('ROLLBACK');
+            tx = false;
+            return res.status(400).json({
+                code: 'OTP_EXPIRED',
+                message: 'Your OTP code has expired. Click Resend Code to get a new one.'
+            });
+        }
+
+        const conflictRes = await client.query(
+            `SELECT u.user_id
+             FROM users u
+             LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+             WHERE LOWER(u.email) = LOWER($1) OR sp.student_number = $2
+             LIMIT 1`,
+            [pending.email, pending.student_number]
+        );
+        if (conflictRes.rowCount > 0) {
+            await client.query(`DELETE FROM pending_registrations WHERE pending_id = $1`, [pending.pending_id]);
+            await client.query('COMMIT');
+            tx = false;
+            return res.status(409).json({
+                message: 'An account with this email or Student ID has already been verified.'
+            });
+        }
+
+        const roleRes = await client.query(`SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1`);
+        const studentRoleId = roleRes.rows[0]?.role_id || 3;
+        const requireAdminVerification = await getRequireStudentVerification(client);
+        const initialAccountStatus = requireAdminVerification ? 'Pending' : 'Active';
+        const initialVerifStatus = requireAdminVerification ? 'Pending' : 'Verified';
+
+        const userIns = await client.query(
+            `INSERT INTO users (
+                role_id, first_name, middle_initial, last_name, email, password_hash,
+                is_email_verified, account_status
+             ) VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7)
+             RETURNING user_id, first_name, last_name, email, account_status AS status`,
+            [
+                studentRoleId,
+                pending.first_name,
+                pending.middle_initial,
+                pending.last_name,
+                pending.email,
+                pending.password_hash,
+                initialAccountStatus
+            ]
+        );
+        const newUserId = userIns.rows[0].user_id;
+
+        await client.query(
+            `INSERT INTO student_profiles (
+                user_id, student_number, department_id, program_id, year_level,
+                cor_image, cor_mime_type, student_id_image, student_id_mime_type,
+                verification_status
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+                newUserId,
+                pending.student_number,
+                pending.department_id,
+                pending.program_id,
+                pending.year_level,
+                pending.cor_image,
+                pending.cor_mime_type,
+                pending.student_id_image,
+                pending.student_id_mime_type,
+                initialVerifStatus
+            ]
+        );
+
+        await client.query(
+            `DELETE FROM pending_registrations
+             WHERE pending_id = $1 OR LOWER(email) = LOWER($2) OR student_number = $3`,
+            [pending.pending_id, pending.email, pending.student_number]
+        );
+
+        await client.query('COMMIT');
+        tx = false;
+
+        if (requireAdminVerification && userIns.rows[0]) {
+            const uRow = userIns.rows[0];
+            await notifyAdminsStudentVerification(pool, {
+                studentUserId: newUserId,
+                studentName: `${uRow.first_name || ''} ${uRow.last_name || ''}`.trim() || uRow.email,
+                studentNumber: pending.student_number || '',
+                isResubmission: false
+            });
+        }
+
+        await logAudit(req, {
+            action: 'Student Email Verified via OTP & Account Created',
+            module: 'auth',
+            targetType: 'user',
+            targetId: newUserId,
+            actorUserId: newUserId,
+            actorRole: 'student',
+            details: { email: pending.email, student_id: pending.student_number }
+        });
+
+        return res.status(200).json({
+            verified: true,
+            requiresAdminVerification: requireAdminVerification,
+            message: requireAdminVerification
+                ? 'Email verified! Your account is now awaiting Administrator verification of your COR and Student ID before you can sign in.'
+                : 'Email verified successfully! You can now sign in.',
+            user: userIns.rows[0]
+        });
+    } catch (error) {
+        if (client && tx) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
+        }
+        console.error('Verify OTP error:', error);
+        return res.status(500).json({ message: 'Server error while verifying OTP code.' });
     } finally {
         client?.release();
     }
@@ -715,9 +863,9 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
         }
 
         const pending = pendingRes.rows[0];
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const otpCode = String(crypto.randomInt(100000, 1000000));
+        const tokenHash = crypto.createHash('sha256').update(`${String(pending.email).trim().toLowerCase()}:${otpCode}`).digest('hex');
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
         await client.query(
             `UPDATE pending_registrations
@@ -726,21 +874,19 @@ router.post('/resend-confirmation', registerLimiter, async (req, res) => {
             [tokenHash, expiresAt, pending.pending_id]
         );
 
-        const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
-
         try {
-            await sendVerificationEmail(pending.email, pending.first_name, confirmUrl);
+            await sendVerificationEmail(pending.email, pending.first_name, otpCode);
         } catch (emailErr) {
             await client.query('ROLLBACK');
             tx = false;
-            return res.status(502).json({ message: 'Failed to resend verification email.' });
+            return res.status(502).json({ message: 'Failed to resend OTP verification email.' });
         }
 
         await client.query('COMMIT');
         tx = false;
 
         return res.status(200).json({
-            message: 'Confirmation email resent! Please check your Gmail inbox.'
+            message: 'A new 6-digit OTP code has been sent to your email.'
         });
     } catch (error) {
         if (client && tx) {

@@ -138,14 +138,20 @@ export default function Auth() {
     onConfirm: null
   });
 
+  const [inlineNotice, setInlineNotice] = useState(null);
+
   const showAlert = (title, message, type = 'error', onConfirm = null) => {
-    setModalConfig({
-      isOpen: true,
-      title,
-      message,
-      type,
-      onConfirm
-    });
+    if (onConfirm) {
+      setModalConfig({
+        isOpen: true,
+        title,
+        message,
+        type,
+        onConfirm
+      });
+    } else {
+      setInlineNotice({ title, message, type });
+    }
   };
 
   const closeModal = () => {
@@ -164,6 +170,18 @@ export default function Auth() {
   const [cameraLoading, setCameraLoading] = useState(false);
   const [submittingReg, setSubmittingReg] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState(600);
+  const otpInputRefs = useRef([]);
+
+  useEffect(() => {
+    if (regStep !== 'awaiting_confirmation' || otpSecondsLeft <= 0) return;
+    const timer = setInterval(() => {
+      setOtpSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [regStep, otpSecondsLeft]);
   const [resubmitModal, setResubmitModal] = useState({
     isOpen: false,
     token: '',
@@ -288,6 +306,7 @@ export default function Auth() {
   };
 
   const handleTabSwitch = (tab) => {
+    setInlineNotice(null);
     if (tab !== 'register') {
       stopCameraStream();
     }
@@ -403,7 +422,9 @@ export default function Auth() {
           setActiveTab('login');
           showAlert('Already Confirmed', data.message, 'success');
         } else {
-          showAlert('Email Sent', data.message || 'Confirmation email resent to your Gmail.', 'success');
+          setOtpCode('');
+          setOtpSecondsLeft(600);
+          showAlert('OTP Sent', data.message || 'A new 6-digit OTP code has been sent to your email.', 'success');
         }
       } else {
         showAlert('Resend Failed', data.message || 'Could not resend confirmation email.', 'error');
@@ -430,6 +451,7 @@ export default function Auth() {
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
+    setInlineNotice(null);
     try {
       const response = await fetch('http://localhost:5000/api/users/login', {
         method: 'POST',
@@ -723,9 +745,44 @@ export default function Auth() {
     setSubmittingReg(false);
     if (response.ok) {
       stopCameraStream();
+      setOtpCode('');
+      setOtpSecondsLeft(600);
       setRegStep('awaiting_confirmation');
     } else {
       showAlert('Registration Failed', data.message || 'Registration could not be completed.', 'error');
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const cleanOtp = otpCode.replace(/\D/g, '').trim();
+    if (cleanOtp.length !== 6) {
+      showAlert('Invalid Code', 'Please enter the 6-digit OTP code sent to your email.', 'warning');
+      return;
+    }
+
+    setInlineNotice(null);
+    setVerifyingOtp(true);
+    try {
+      const targetEmail = regData.email.trim().toLowerCase();
+      const response = await fetch('http://localhost:5000/api/users/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail, otp: cleanOtp })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setOtpCode('');
+        setLoginData((prev) => ({ ...prev, email: targetEmail }));
+        resetRegistrationFlow();
+        setActiveTab('login');
+        showAlert('Email Verified', data.message || 'Your email has been verified. You can now sign in.', 'success');
+      } else {
+        showAlert('Verification Failed', data.message || 'Invalid or expired OTP code.', 'error');
+      }
+    } catch {
+      showAlert('Network Error', 'Could not reach the server to verify your OTP code.', 'error');
+    } finally {
+      setVerifyingOtp(false);
     }
   };
 
@@ -748,7 +805,7 @@ export default function Auth() {
           <div className="card-glow-bg"></div>
 
           <div className="login-card">
-            <div className="login-header">
+            <div className={`login-header ${activeTab === 'register' && regStep === 'awaiting_confirmation' ? 'is-otp-step' : ''}`}>
               <h2 className="shimmer-glow-text">
                 {activeTab === 'login' ? 'Welcome Back' : 'Create Account'}
               </h2>
@@ -806,6 +863,33 @@ export default function Auth() {
                 );
               })()}
             </div>
+
+            {inlineNotice && (
+              <div className={`auth-inline-notice is-${inlineNotice.type || 'error'}`} role="alert">
+                <i
+                  className={`fa-solid ${
+                    inlineNotice.type === 'success'
+                      ? 'fa-circle-check'
+                      : inlineNotice.type === 'warning'
+                        ? 'fa-triangle-exclamation'
+                        : 'fa-circle-exclamation'
+                  }`}
+                  aria-hidden="true"
+                ></i>
+                <div className="auth-inline-notice-copy">
+                  {inlineNotice.title && <strong>{inlineNotice.title}</strong>}
+                  <span>{inlineNotice.message}</span>
+                </div>
+                <button
+                  type="button"
+                  className="auth-inline-notice-close"
+                  onClick={() => setInlineNotice(null)}
+                  aria-label="Dismiss message"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            )}
 
             {/* Login Form */}
             <form onSubmit={handleLoginSubmit} className={`auth-form ${activeTab === 'login' ? 'active' : ''}`}>
@@ -1084,43 +1168,97 @@ export default function Auth() {
                 </div>
               )}
 
-              {/* STEP 5: WAITING FOR GMAIL CONFIRMATION */}
+              {/* STEP 5: EMAIL OTP VERIFICATION */}
               {regStep === 'awaiting_confirmation' && (
-                <div className="awaiting-gmail-panel">
-                  <div className="awaiting-pulse-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                      <polyline points="22,6 12,13 2,6"></polyline>
-                    </svg>
+                <div className="otp-verify-panel">
+                  <div className="otp-divider-line" aria-hidden="true" />
+                  <div className="otp-header-badge">
+                    <i className="fa-solid fa-envelope-circle-check" aria-hidden="true"></i>
+                    <span>OTP Verification</span>
                   </div>
-                  <h3>Confirm Your Gmail Address</h3>
-                  <p>
-                    We sent a verification link to <strong>{regData.email.trim().toLowerCase()}</strong>.
-                    Please open your Gmail inbox and click the confirmation link to activate your account.
+                  <p className="otp-subtitle">
+                    Enter the 6-digit verification code sent to{' '}
+                    <strong>{regData.email.trim().toLowerCase()}</strong>
                   </p>
-                  <div className="awaiting-status-pill">
-                    <span className="status-dot"></span>
-                    Waiting for Gmail confirmation...
+
+                  <div
+                    className="otp-boxes-row"
+                    role="group"
+                    aria-label="6-digit OTP verification code"
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                      if (pasted) {
+                        e.preventDefault();
+                        setOtpCode(pasted);
+                        const focusIdx = Math.min(pasted.length, 5);
+                        otpInputRefs.current[focusIdx]?.focus();
+                      }
+                    }}
+                  >
+                    {Array.from({ length: 6 }).map((_, idx) => {
+                      const digit = otpCode[idx] || '';
+                      return (
+                        <input
+                          key={idx}
+                          ref={(el) => { otpInputRefs.current[idx] = el; }}
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={1}
+                          aria-label={`OTP digit ${idx + 1}`}
+                          className={`otp-digit-box ${digit ? 'is-filled' : ''}`}
+                          value={digit}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, '').slice(-1);
+                            const chars = otpCode.padEnd(6, ' ').split('');
+                            chars[idx] = val || ' ';
+                            const nextOtp = chars.join('').replace(/\s+/g, '');
+                            setOtpCode(nextOtp);
+                            if (val && idx < 5) {
+                              otpInputRefs.current[idx + 1]?.focus();
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Backspace' && !digit && idx > 0) {
+                              e.preventDefault();
+                              const chars = otpCode.padEnd(6, ' ').split('');
+                              chars[idx - 1] = ' ';
+                              setOtpCode(chars.join('').replace(/\s+/g, ''));
+                              otpInputRefs.current[idx - 1]?.focus();
+                            } else if (e.key === 'ArrowLeft' && idx > 0) {
+                              otpInputRefs.current[idx - 1]?.focus();
+                            } else if (e.key === 'ArrowRight' && idx < 5) {
+                              otpInputRefs.current[idx + 1]?.focus();
+                            }
+                          }}
+                        />
+                      );
+                    })}
                   </div>
+
+                  <div className="otp-divider-line otp-divider-line-sm" aria-hidden="true" />
+                  <p className="otp-expiry-note">
+                    {otpSecondsLeft > 0
+                      ? `Code Expires: ${Math.floor(otpSecondsLeft / 60)}m ${String(otpSecondsLeft % 60).padStart(2, '0')}s`
+                      : 'Code Expired — Click Resend Code'}
+                  </p>
+                  <div className="otp-divider-line" aria-hidden="true" />
+
                   <div className="step-actions-row">
                     <button
                       type="button"
                       className="btn-auth-secondary"
                       onClick={handleResendConfirmation}
-                      disabled={resendingEmail}
+                      disabled={resendingEmail || verifyingOtp}
                     >
-                      {resendingEmail ? 'Resending...' : 'Resend Email'}
+                      {resendingEmail ? 'Sending...' : 'Resend Code'}
                     </button>
                     <button
                       type="button"
                       className="btn-auth-submit"
-                      onClick={() => {
-                        setLoginData((prev) => ({ ...prev, email: regData.email.trim().toLowerCase() }));
-                        resetRegistrationFlow();
-                        setActiveTab('login');
-                      }}
+                      onClick={handleVerifyOtp}
+                      disabled={verifyingOtp || otpCode.length !== 6}
                     >
-                      Back to Sign In
+                      {verifyingOtp ? 'Verifying...' : 'Verify OTP'}
                     </button>
                   </div>
                 </div>
