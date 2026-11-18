@@ -527,7 +527,7 @@ const Reports = () => {
             </h1>
           </div>
 
-          {activeReportView ? (
+          {activeReportView && (
             <div className="header-meta-group" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
@@ -547,15 +547,6 @@ const Reports = () => {
                 <i className={`fa-solid ${exporting ? 'fa-spinner fa-spin' : 'fa-file-csv'}`} aria-hidden="true"></i>
                 <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
               </button>
-            </div>
-          ) : (
-            <div className="header-meta-group" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              {lastGeneratedAt && (
-                <span className="admin-header-amber-pill">
-                  <i className="fa-solid fa-calendar" aria-hidden="true"></i>
-                  <span>{lastGeneratedAt}</span>
-                </span>
-              )}
             </div>
           )}
         </header>

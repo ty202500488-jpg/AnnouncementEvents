@@ -172,11 +172,6 @@ const PostApproval = () => {
           </div>
 
           <div className="pa-header-actions">
-            <span className="admin-header-amber-pill">
-              <i className="fa-solid fa-bell" aria-hidden="true"></i>
-              <span>Pending Reviews: {loading ? '...' : summaryCounts.totalPending}</span>
-            </span>
-
             <button
               type="button"
               className="btn-pa-primary"
@@ -565,7 +560,7 @@ const PostApproval = () => {
           )}
 
           {/* ================= PAGINATION BAR ================= */}
-          {!loading && items.length > 0 && (
+          {!loading && (
             <Pagination
               currentPage={pagination.page}
               totalPages={pagination.totalPages}

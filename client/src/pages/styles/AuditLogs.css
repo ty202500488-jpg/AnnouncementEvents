@@ -151,7 +151,7 @@
   background-color: #7B0D1E;
   color: #ffffff;
   border: none;
-  border-radius: 0.5rem;
+  border-radius: 9999px;
   padding: 0.6rem 1.1rem;
   font-size: 0.875rem;
   font-weight: 600;
@@ -170,7 +170,7 @@
   background-color: #ffffff;
   color: #334155;
   border: 1px solid #cbd5e1;
-  border-radius: 0.5rem;
+  border-radius: 9999px;
   padding: 0.6rem 1rem;
   font-size: 0.875rem;
   font-weight: 600;

@@ -450,7 +450,7 @@ TABLE & CONTAINER
 .archives-page .archives-table-card {
   background-color: var(--wmsu-card-bg);
   border: 1px solid var(--wmsu-border);
-  border-radius: 0 0 16px 16px;
+  border-radius: 16px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
   overflow: hidden;
   display: flex;

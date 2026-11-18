@@ -283,7 +283,7 @@ export default function AdminProfile() {
                   onClick={() => navigate('/admin/content-feed')}
                   className="btn-fb btn-fb-secondary"
                 >
-                  <i className="fa-solid fa-arrow-left"></i>
+                  <i className="fa-solid fa-newspaper"></i>
                   <span>Campus Feed</span>
                 </button>
               </div>

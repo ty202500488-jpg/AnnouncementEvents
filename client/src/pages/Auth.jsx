@@ -752,11 +752,9 @@ export default function Auth() {
               <h2 className="shimmer-glow-text">
                 {activeTab === 'login' ? 'Welcome Back' : 'Create Account'}
               </h2>
-              <p>
-                {activeTab === 'login' 
-                  ? 'Access your campus portal and stay connected' 
-                  : 'Register to unlock campus resources and tools'}
-              </p>
+              {activeTab === 'login' && (
+                <p><span>Sign in to your account to continue</span></p>
+              )}
 
               {activeTab === 'register' && regStep !== 'awaiting_confirmation' && (() => {
                 const steps = [
@@ -802,7 +800,7 @@ export default function Auth() {
                       })}
                     </div>
                     <div className="reg-stepper-caption">
-                      Step {currentStepNum} of {steps.length} &middot; <strong>{currentLabel}</strong>
+                      <span>Step {currentStepNum} of {steps.length} &middot; <strong>{currentLabel}</strong></span>
                     </div>
                   </div>
                 );
@@ -825,10 +823,7 @@ export default function Auth() {
               </div>
 
               <div className="form-group">
-                <div className="label-row">
-                  <label className="form-label">Password</label>
-                  <a href="#forgot" className="forgot-link">Forgot password?</a>
-                </div>
+                <label className="form-label">Password</label>
                 <div className="input-container password-container">
                   <input 
                     type={showLoginPassword ? 'text' : 'password'} 
@@ -859,7 +854,7 @@ export default function Auth() {
               {regStep === 1 && (
                 <div className="reg-step-panel">
                   <div className="form-group">
-                    <label className="form-label">Student ID</label>
+                    <label className="form-label">Student ID <span className="required-star">*</span></label>
                     <div className="input-container">
                       <input
                         type="text"
@@ -873,7 +868,7 @@ export default function Auth() {
 
                   <div className="form-row three-cols-name">
                     <div className="form-group">
-                      <label className="form-label">First Name</label>
+                      <label className="form-label">First Name <span className="required-star">*</span></label>
                       <div className="input-container">
                         <input
                           type="text"
@@ -887,7 +882,7 @@ export default function Auth() {
 
                     <div className="form-group">
                       <label className="form-label">
-                        M.I. <span className="optional-tag">(Optional)</span>
+                        Middle Initial <span className="optional-tag">(Optional)</span>
                       </label>
                       <div className="input-container">
                         <input
@@ -901,7 +896,7 @@ export default function Auth() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Last Name</label>
+                      <label className="form-label">Last Name <span className="required-star">*</span></label>
                       <div className="input-container">
                         <input
                           type="text"
@@ -924,7 +919,7 @@ export default function Auth() {
               {regStep === 2 && (
                 <div className="reg-step-panel">
                   <div className="form-group">
-                    <label className="form-label">College / Department</label>
+                    <label className="form-label">College / Department <span className="required-star">*</span></label>
                     <div className="input-container select-container">
                       <select value={selectedCollege} onChange={handleCollegeChange} required>
                         <option value="" disabled>Select Department</option>
@@ -937,7 +932,7 @@ export default function Auth() {
 
                   <div className="form-row two-cols">
                     <div className="form-group">
-                      <label className="form-label">Program / Course</label>
+                      <label className="form-label">Program / Course <span className="required-star">*</span></label>
                       <div className="input-container select-container">
                         <select
                           value={regData.programId}
@@ -954,7 +949,7 @@ export default function Auth() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Year Level</label>
+                      <label className="form-label">Year Level <span className="required-star">*</span></label>
                       <div className="input-container select-container">
                         <select
                           value={regData.yearLevel}
@@ -1009,7 +1004,7 @@ export default function Auth() {
               {regStep === 4 && (
                 <div className="reg-step-panel">
                   <div className="form-group">
-                    <label className="form-label">WMSU Email</label>
+                    <label className="form-label">WMSU Email <span className="required-star">*</span></label>
                     <div className="input-container">
                       <input
                         type="email"
@@ -1023,7 +1018,7 @@ export default function Auth() {
 
                   <div className="form-row two-cols">
                     <div className="form-group">
-                      <label className="form-label">Password</label>
+                      <label className="form-label">Password <span className="required-star">*</span></label>
                       <div className="input-container password-container">
                         <input
                           type={showRegPassword ? 'text' : 'password'}
@@ -1044,7 +1039,7 @@ export default function Auth() {
                     </div>
 
                     <div className="form-group">
-                      <label className="form-label">Confirm Password</label>
+                      <label className="form-label">Confirm Password <span className="required-star">*</span></label>
                       <div className="input-container password-container">
                         <input
                           type={showRegConfirmPassword ? 'text' : 'password'}
@@ -1134,27 +1129,32 @@ export default function Auth() {
 
             <div className="login-footer">
               {activeTab === 'login' ? (
-                <p className="auth-switch-prompt">
-                  Don&apos;t have an account?{' '}
-                  <button
-                    type="button"
-                    className="auth-switch-link"
-                    onClick={() => handleTabSwitch('register')}
-                  >
-                    Register
-                  </button>
-                </p>
+                <>
+                  <div className="auth-switch-divider">
+                    <button
+                      type="button"
+                      className="auth-switch-inline-btn"
+                      onClick={() => handleTabSwitch('register')}
+                    >
+                      <span>DON&apos;T HAVE AN ACCOUNT?</span>
+                      <strong>REGISTER</strong>
+                    </button>
+                  </div>
+                  <div className="auth-footer-links">
+                    <a href="#forgot" className="auth-footer-link">Forgot Password?</a>
+                  </div>
+                </>
               ) : regStep !== 'awaiting_confirmation' ? (
-                <p className="auth-switch-prompt">
-                  Already have an account?{' '}
+                <div className="auth-switch-divider">
                   <button
                     type="button"
-                    className="auth-switch-link"
+                    className="auth-switch-inline-btn"
                     onClick={() => handleTabSwitch('login')}
                   >
-                    Sign In
+                    <span>ALREADY HAVE AN ACCOUNT?</span>
+                    <strong>SIGN IN</strong>
                   </button>
-                </p>
+                </div>
               ) : null}
             </div>
           </div>

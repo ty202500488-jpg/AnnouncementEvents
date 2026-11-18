@@ -456,9 +456,9 @@ Scoped strictly under .user-management-container & .um-*
   text-transform: uppercase;
 }
 
-.user-management-container .role-student { background-color: #eff6ff; color: #1d4ed8; }
-.user-management-container .role-staff { background-color: #fef3c7; color: #b45309; }
-.user-management-container .role-admin { background-color: #fcf2f2; color: #7B0D1E; }
+.user-management-container .role-student { background-color: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.user-management-container .role-staff { background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+.user-management-container .role-admin { background-color: #fde8ec; color: #7B0D1E; border: 1px solid #f5c2cb; }
 
 .user-management-container .status-pill {
   font-size: 0.7rem;
