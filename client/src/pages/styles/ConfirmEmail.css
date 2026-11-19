@@ -1,5 +1,5 @@
 /* ConfirmEmail.css */
-:root {
+.confirm-email-wrapper {
   --bg-deep: #1e070b;
   --color-primary: #561C24;
   --color-accent: #6D2932;
@@ -7,9 +7,6 @@
   --color-light-cream: #E8D8C4;
   --border-subtle: rgba(199, 183, 163, 0.2);
   --border-glow: rgba(232, 216, 196, 0.35);
-}
-
-.confirm-email-wrapper {
   position: relative;
   width: 100%;
   min-height: 100vh;

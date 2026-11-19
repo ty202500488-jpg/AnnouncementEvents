@@ -113,13 +113,18 @@ HEADER BAR
 }
 
 .admin-dashboard-container .admin-brand-wordmark {
-  font-size: 1.25rem;
+  font-size: 1.35rem;
   line-height: 1;
-  color: #0f172a;
+  color: #881337;
   user-select: none;
 }
 
 .admin-dashboard-container .admin-brand-accent {
+  background: linear-gradient(110deg, #881337 0%, #be123c 45%, #e11d48 75%, #881337 100%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: #881337;
 }
 

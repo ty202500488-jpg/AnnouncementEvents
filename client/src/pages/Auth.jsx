@@ -907,18 +907,6 @@ export default function Auth() {
 
   return (
     <div className="auth-page-root">
-      <div className="interactive-bg">
-        <div className="bg-blob blob-1 float-anim-1"></div>
-        <div className="bg-blob blob-left-deep float-anim-2"></div>
-        <div className="bg-blob blob-2 float-anim-2"></div>
-        <div className="bg-blob blob-right-deep float-anim-1"></div>
-        <div className="bg-blob blob-3 float-anim-3"></div>
-        <div className="bg-blob blob-scatter-4 float-anim-4"></div>
-        {[...Array(28)].map((_, i) => (
-          <div key={i} className={`star-blob star-${i + 1}`}></div>
-        ))}
-      </div>
-
       <main className="login-wrapper">
         <div className={`login-card-wrapper ${activeTab === 'register' ? 'wide-mode' : ''}`}>
           <div className="card-glow-bg"></div>
@@ -929,7 +917,7 @@ export default function Auth() {
                 {activeTab === 'login' ? 'Welcome Back' : 'Create Account'}
               </h2>
               {activeTab === 'login' && (
-                <p><span>Sign in to your account to continue</span></p>
+                <p><span>WMSU Campus Portal &middot; Sign in to continue</span></p>
               )}
 
               {activeTab === 'register' && regStep !== 'awaiting_confirmation' && (() => {
@@ -1271,8 +1259,9 @@ export default function Auth() {
                         onChange={(e) => setRegData({ ...regData, termsAccepted: e.target.checked })}
                         required
                       />
-                      <span className="custom-checkbox"></span>
-                      I agree to the <a href="#" className="inline-link">Terms &amp; Conditions</a>
+                      <span>
+                        I agree to the <a href="#" className="inline-link">Terms &amp; Conditions</a>
+                      </span>
                     </label>
                   </div>
 
