@@ -4,6 +4,12 @@ import AdminLayout from '../../assets/components/AdminLayout';
 import AdminPostCard, { resolveAdminMediaUrl } from '../../assets/components/AdminPostCard';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import UniversityWideSpotlight from '../../assets/components/UniversityWideSpotlight';
+import SpotlightExpirationPicker from '../../assets/components/SpotlightExpirationPicker';
+import {
+  formatSpotlightDateTime,
+  hasSpotlightExpirationChanged,
+  validateSpotlightExpirationAdjustment,
+} from '../../utils/spotlightExpirationUtils';
 import { DepartmentPagesSidebarList, PostPageAvatar, getInitials } from '../../assets/components/PortalShellElements';
 import '../styles/ContentFeed.css';
 
@@ -53,6 +59,8 @@ const ContentFeed = () => {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [failedImages, setFailedImages] = useState({});
+  const [expiresAtReason, setExpiresAtReason] = useState('');
+  const [expiresAtError, setExpiresAtError] = useState('');
 
   const markImageFailed = useCallback((key) => {
     setFailedImages(prev => (prev[key] ? prev : { ...prev, [key]: true }));
@@ -293,13 +301,15 @@ const ContentFeed = () => {
   // Open Edit Modal with Prepopulated Data
   const handleOpenEdit = (item) => {
     setSelectedItem(item);
+    setExpiresAtReason('');
+    setExpiresAtError('');
     setFormData({
       title: item.title || '',
       description: item.description || item.body || '',
       category: item.category || 'General',
       audience: item.audience || 'All Campus',
       scheduled_at: toLocalDateTimeInput(item.scheduled_at),
-      expires_at: toLocalDateTimeInput(item.expires_at),
+      expires_at: item.is_university_wide ? (item.expires_at || '') : toLocalDateTimeInput(item.expires_at),
       event_start: toLocalDateTimeInput(item.event_start),
       event_end: toLocalDateTimeInput(item.event_end),
       venue: item.venue || '',
@@ -315,6 +325,8 @@ const ContentFeed = () => {
     setActiveModal(null);
     setSelectedItem(null);
     setModalPickerView(null);
+    setExpiresAtReason('');
+    setExpiresAtError('');
     setFormData({
       title: '',
       description: '',
@@ -334,6 +346,24 @@ const ContentFeed = () => {
   // Handle Submission for Create / Edit
   const handleSubmitForm = async (e) => {
     e.preventDefault();
+
+    const isEditingSpotlight = Boolean(activeModal === 'edit' && selectedItem?.is_university_wide);
+    const spotlightExpiryChanged = isEditingSpotlight && hasSpotlightExpirationChanged(selectedItem.expires_at, formData.expires_at);
+
+    if (isEditingSpotlight) {
+      const check = validateSpotlightExpirationAdjustment({
+        originalExpiresAt: selectedItem.expires_at,
+        nextExpiresAt: formData.expires_at,
+        reason: expiresAtReason,
+        isPendingApproval: false,
+      });
+      if (!check.valid) {
+        setExpiresAtError(check.error);
+        return;
+      }
+      setExpiresAtError('');
+    }
+
     setSubmitting(true);
     const token = localStorage.getItem('token');
 
@@ -351,6 +381,7 @@ const ContentFeed = () => {
       event_start: toIsoOrNull(formData.event_start),
       event_end: toIsoOrNull(formData.event_end),
       reg_deadline: toIsoOrNull(formData.reg_deadline),
+      ...(spotlightExpiryChanged ? { expires_at_reason: expiresAtReason.trim() } : {}),
     };
 
     if (activeModal === 'create_announcement') {
@@ -1201,6 +1232,25 @@ const ContentFeed = () => {
                       </div>
                     )}
 
+                    {isEditMode && selectedItem?.is_university_wide && (
+                      <SpotlightExpirationPicker
+                        idPrefix="cf-edit-exp"
+                        originalExpiresAt={selectedItem.expires_at}
+                        value={formData.expires_at}
+                        onChange={(nextIso) => {
+                          setFormData(prev => ({ ...prev, expires_at: nextIso }));
+                          if (expiresAtError) setExpiresAtError('');
+                        }}
+                        reason={expiresAtReason}
+                        onReasonChange={(val) => {
+                          setExpiresAtReason(val);
+                          if (expiresAtError) setExpiresAtError('');
+                        }}
+                        disabled={submitting}
+                        error={expiresAtError}
+                      />
+                    )}
+
                     <button
                       type="submit"
                       disabled={submitting}
@@ -1255,6 +1305,9 @@ const ContentFeed = () => {
                   <div><strong>Status:</strong> <span className={`workflow-status-badge status-${String(selectedItem.status).toLowerCase()}`}>{selectedItem.status}</span></div>
                   <div><strong>Author:</strong> {selectedItem.submitted_by || selectedItem.author_name || 'Administrator'}</div>
                   <div><strong>Date Created:</strong> {new Date(selectedItem.created_at).toLocaleString()}</div>
+                  {selectedItem.is_university_wide && (
+                    <div><strong>Spotlight Active Until:</strong> {formatSpotlightDateTime(selectedItem.expires_at)}</div>
+                  )}
                 </div>
 
                 {selectedItem.type === 'event' && (

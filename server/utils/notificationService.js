@@ -861,6 +861,158 @@ async function notifyModerationOrPageDecision(db, {
 }
 
 /**
+ * Format a timestamp into a concise, human-readable date & time label for notifications.
+ */
+function formatReadableScheduleDate(value) {
+    if (!value) return 'No expiration';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return 'Unspecified';
+    return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+/**
+ * Notify the post creator and active page owners/managers when an administrator
+ * adjusts the University-Wide Spotlight expiration date (during approval or later edit),
+ * including the previous date, new date, and the admin's explanation message.
+ */
+async function notifySpotlightExpirationChanged(db, {
+    creatorUserId = null,
+    actorUserId = null,
+    pageId = null,
+    postId = null,
+    postType = 'announcement',
+    title = 'Untitled Post',
+    previousExpiresAt = null,
+    newExpiresAt = null,
+    reason = '',
+    duringApproval = false
+}) {
+    try {
+        await ensureNotificationSchema(db);
+        const globalSettings = await getGlobalNotificationSettings(db);
+
+        const recipientIds = new Set();
+        if (creatorUserId && Number.isFinite(Number(creatorUserId))) {
+            recipientIds.add(Number(creatorUserId));
+        }
+
+        if (pageId) {
+            const { rows: managers } = await db.query(
+                `SELECT pg.created_by AS user_id
+                 FROM pages pg
+                 WHERE pg.page_id = $1 AND pg.created_by IS NOT NULL
+                 UNION
+                 SELECT pm.user_id
+                 FROM page_members pm
+                 WHERE pm.page_id = $1 AND LOWER(pm.status) = 'active'`,
+                [pageId]
+            );
+            for (const m of managers) {
+                if (m.user_id && Number.isFinite(Number(m.user_id))) {
+                    recipientIds.add(Number(m.user_id));
+                }
+            }
+        }
+
+        if (actorUserId && Number.isFinite(Number(actorUserId))) {
+            recipientIds.delete(Number(actorUserId));
+        }
+
+        if (recipientIds.size === 0) return 0;
+
+        const [usersRes, pageRes] = await Promise.all([
+            db.query(
+                `SELECT u.user_id, u.email, u.first_name, u.notification_preferences, r.role_name
+                 FROM users u
+                 JOIN roles r ON u.role_id = r.role_id
+                 WHERE u.user_id = ANY($1::int[])
+                   AND LOWER(u.account_status) = 'active'`,
+                [Array.from(recipientIds)]
+            ),
+            pageId
+                ? db.query(`SELECT page_name, notification_settings FROM pages WHERE page_id = $1 LIMIT 1`, [pageId])
+                : Promise.resolve({ rows: [] })
+        ]);
+
+        const users = usersRes.rows || [];
+        if (users.length === 0) return 0;
+
+        const pageRow = pageRes.rows[0] || null;
+        const pagePrefs = normalizePagePrefs(pageRow?.notification_settings);
+        const cleanType = String(postType || 'announcement').toLowerCase() === 'event' ? 'event' : 'announcement';
+        const cleanTitle = String(title || 'Untitled Post').trim() || 'Untitled Post';
+        const cleanReason = String(reason || '').trim();
+        const prevLabel = formatReadableScheduleDate(previousExpiresAt);
+        const nextLabel = formatReadableScheduleDate(newExpiresAt);
+
+        const notifTitle = duringApproval
+            ? `Post Approved (Expiration Adjusted): ${cleanTitle}`
+            : `Spotlight Expiration Updated: ${cleanTitle}`;
+        const notifMsg = duringApproval
+            ? `Your University-Wide Spotlight ${cleanType} "${cleanTitle}" was approved and published. Its spotlight expiration was adjusted from ${prevLabel} to ${nextLabel}.${cleanReason ? ` Reason: ${cleanReason}` : ''}`
+            : `An administrator adjusted the spotlight expiration for your ${cleanType} "${cleanTitle}" from ${prevLabel} to ${nextLabel}.${cleanReason ? ` Reason: ${cleanReason}` : ''}`;
+
+        let inserted = 0;
+        if (globalSettings.enable_in_app_notifications && pagePrefs.publicationStatusUpdates) {
+            const toInsert = [];
+            for (const u of users) {
+                const role = String(u.role_name || 'staff').toLowerCase();
+                const userPrefs = normalizeUserPrefs(u.notification_preferences, role);
+                const wantsAlert = cleanType === 'event'
+                    ? (userPrefs.eventApprovalAlerts || userPrefs.moderationAlerts)
+                    : userPrefs.moderationAlerts;
+                if (!wantsAlert) continue;
+
+                toInsert.push({
+                    recipientUserId: u.user_id,
+                    actorUserId: actorUserId || null,
+                    pageId: pageId || null,
+                    postId: postId || null,
+                    scope: role === 'student' ? 'student' : 'mypage',
+                    type: 'moderation',
+                    title: notifTitle,
+                    message: notifMsg
+                });
+            }
+            if (toInsert.length > 0) {
+                inserted = await insertBatchNotifications(db, toInsert);
+            }
+        }
+
+        if (
+            globalSettings.enable_email_notifications &&
+            pagePrefs.emailNotifications &&
+            isEmailConfigured()
+        ) {
+            const actionUrl = cleanType === 'event' ? '/staff/mypage/events' : '/staff/mypage/announcements';
+            for (const u of users) {
+                if (!u.email) continue;
+                await sendNotificationEmail({
+                    toEmail: u.email,
+                    firstName: u.first_name,
+                    subject: `CRIMSON - ${notifTitle}`,
+                    heading: notifTitle,
+                    message: notifMsg,
+                    actionUrl,
+                    actionLabel: 'Open My Page'
+                });
+            }
+        }
+
+        return inserted;
+    } catch (err) {
+        console.warn('Warning: notifySpotlightExpirationChanged failed:', err.message);
+        return 0;
+    }
+}
+
+/**
  * Notify the post creator and active page owners/managers when an administrator
  * archives (removes from feed) or permanently deletes an archived post, including the reason.
  */
@@ -1088,6 +1240,7 @@ module.exports = {
     notifyEventRegistrationChange,
     notifyEventUpdated,
     notifyModerationOrPageDecision,
+    notifySpotlightExpirationChanged,
     notifyPostArchivedOrDeleted,
     notifyAttendanceWindowChange,
     ensureUpcomingEventReminders

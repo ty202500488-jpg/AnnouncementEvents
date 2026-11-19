@@ -55,6 +55,100 @@ function parseSpotlightOptions(body = {}, now = new Date()) {
 }
 
 /**
+ * Validate and compare an admin-initiated spotlight expiration date change.
+ * Compares timestamps at minute precision so UI pickers without seconds do not trigger false changes.
+ */
+function evaluateSpotlightExpirationChange({
+  isUniversityWide = false,
+  currentExpiresAt = null,
+  incomingExpiresAt = undefined,
+  reason = '',
+  now = new Date(),
+} = {}) {
+  const prevDate = currentExpiresAt ? new Date(currentExpiresAt) : null;
+  const previousExpiresAt = prevDate && !Number.isNaN(prevDate.getTime()) ? prevDate.toISOString() : null;
+
+  if (!isUniversityWide || incomingExpiresAt === undefined) {
+    return {
+      valid: true,
+      changed: false,
+      previousExpiresAt,
+      nextExpiresAt: previousExpiresAt,
+      reason: '',
+    };
+  }
+
+  const hasIncoming = incomingExpiresAt !== null && String(incomingExpiresAt).trim() !== '';
+  if (!hasIncoming) {
+    return {
+      valid: false,
+      changed: false,
+      error: 'University-Wide Spotlight posts must have a valid future expiration date.',
+      previousExpiresAt,
+      nextExpiresAt: null,
+      reason: '',
+    };
+  }
+
+  const parsedNext = new Date(incomingExpiresAt);
+  if (Number.isNaN(parsedNext.getTime())) {
+    return {
+      valid: false,
+      changed: false,
+      error: 'Invalid expiration date provided for University-Wide Spotlight.',
+      previousExpiresAt,
+      nextExpiresAt: null,
+      reason: '',
+    };
+  }
+
+  const prevMinute = prevDate && !Number.isNaN(prevDate.getTime()) ? Math.floor(prevDate.getTime() / 60000) : null;
+  const nextMinute = Math.floor(parsedNext.getTime() / 60000);
+  const changed = prevMinute === null || prevMinute !== nextMinute;
+
+  if (!changed) {
+    return {
+      valid: true,
+      changed: false,
+      previousExpiresAt,
+      nextExpiresAt: previousExpiresAt,
+      reason: '',
+    };
+  }
+
+  if (parsedNext.getTime() <= now.getTime()) {
+    return {
+      valid: false,
+      changed: true,
+      error: 'Adjusted University-Wide Spotlight expiration date must be in the future.',
+      previousExpiresAt,
+      nextExpiresAt: parsedNext.toISOString(),
+      reason: '',
+    };
+  }
+
+  const trimmedReason = String(reason || '').trim();
+  if (!trimmedReason) {
+    return {
+      valid: false,
+      changed: true,
+      error: 'Please provide a message explaining why the spotlight expiration date was changed.',
+      previousExpiresAt,
+      nextExpiresAt: parsedNext.toISOString(),
+      reason: '',
+    };
+  }
+
+  return {
+    valid: true,
+    changed: true,
+    previousExpiresAt,
+    nextExpiresAt: parsedNext.toISOString(),
+    reason: trimmedReason,
+  };
+}
+
+/**
  * Determine whether a database post row should currently appear in the Spotlight carousel.
  */
 function isSpotlightItemActive(row, now = new Date()) {
@@ -107,6 +201,7 @@ async function notifyAdminsOfSpotlightRequest(db, { actorUserId, pageId, postId,
 
 module.exports = {
   parseSpotlightOptions,
+  evaluateSpotlightExpirationChange,
   isSpotlightItemActive,
   ensureUniversityWideColumn,
   notifyAdminsOfSpotlightRequest,

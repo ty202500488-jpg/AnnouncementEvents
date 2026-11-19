@@ -3,8 +3,28 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
 import Pagination from '../../assets/components/Pagination';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
-import { PostAudienceBadge } from '../../assets/components/PortalShellElements';
+import { PostAudienceBadge, PostPageAvatar } from '../../assets/components/PortalShellElements';
+import { resolveAdminMediaUrl } from '../../assets/components/AdminPostCard';
+import SpotlightExpirationPicker from '../../assets/components/SpotlightExpirationPicker';
+import {
+  formatSpotlightDateTime,
+  hasSpotlightExpirationChanged,
+  validateSpotlightExpirationAdjustment,
+} from '../../utils/spotlightExpirationUtils';
 import '../styles/PostApproval.css';
+
+function formatCleanDateTime(value) {
+  if (!value) return 'N/A';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'N/A';
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 const PostApproval = () => {
   const navigate = useNavigate();
@@ -40,6 +60,28 @@ const PostApproval = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [decisionType, setDecisionType] = useState(''); // 'approve', 'reject', 'correction'
   const [decisionReason, setDecisionReason] = useState('');
+  const [adjustedExpiresAt, setAdjustedExpiresAt] = useState('');
+  const [expirationReason, setExpirationReason] = useState('');
+  const [expirationError, setExpirationError] = useState('');
+  const [zoomedImageUrl, setZoomedImageUrl] = useState(null);
+
+  const openReviewModal = (item) => {
+    setSelectedItem(item);
+    setAdjustedExpiresAt(item?.expires_at || '');
+    setExpirationReason('');
+    setExpirationError('');
+    setZoomedImageUrl(null);
+    setActiveModal('review');
+  };
+
+  useEffect(() => {
+    if (!zoomedImageUrl) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setZoomedImageUrl(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [zoomedImageUrl]);
 
   // Handle Tab Switch
   const handleTabChange = (tabId) => {
@@ -118,21 +160,44 @@ const PostApproval = () => {
       return;
     }
 
+    const isSpotlightApprove = decisionType === 'approve' && Boolean(selectedItem.is_university_wide);
+    const expiryAdjusted = isSpotlightApprove && hasSpotlightExpirationChanged(selectedItem.expires_at, adjustedExpiresAt);
+
+    if (isSpotlightApprove) {
+      const check = validateSpotlightExpirationAdjustment({
+        originalExpiresAt: selectedItem.expires_at,
+        nextExpiresAt: adjustedExpiresAt,
+        reason: expirationReason,
+        isPendingApproval: true,
+      });
+      if (!check.valid) {
+        setExpirationError(check.error);
+        setActiveModal('review');
+        return;
+      }
+    }
+
     setSubmitting(true);
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
 
     try {
+      const payload = {
+        type: selectedItem.type,
+        decision: decisionType,
+        reason: finalReason,
+      };
+      if (expiryAdjusted) {
+        payload.expires_at = adjustedExpiresAt;
+        payload.expires_at_reason = expirationReason.trim();
+      }
+
       const response = await fetch(`/api/admin/post-approval/${selectedItem.id}/decision`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           ...(token && { Authorization: `Bearer ${token}` })
         },
-        body: JSON.stringify({
-          type: selectedItem.type,
-          decision: decisionType,
-          reason: finalReason
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await response.json();
@@ -143,8 +208,12 @@ const PostApproval = () => {
         setSelectedItem(null);
         setDecisionType('');
         setDecisionReason('');
+        setAdjustedExpiresAt('');
+        setExpirationReason('');
+        setExpirationError('');
         fetchApprovalData();
         window.dispatchEvent(new CustomEvent('admin-counts-updated'));
+        window.dispatchEvent(new Event('spotlight:refresh'));
       } else {
         throw new Error(data.message || 'Failed to process decision.');
       }
@@ -514,10 +583,7 @@ const PostApproval = () => {
                             className="admin-action-icon is-view"
                             title="View submission details"
                             aria-label="View submission details"
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setActiveModal('review');
-                            }}
+                            onClick={() => openReviewModal(item)}
                           >
                             <i className="fa-solid fa-eye"></i>
                           </button>
@@ -529,7 +595,20 @@ const PostApproval = () => {
                                 title="Approve submission"
                                 aria-label="Approve submission"
                                 onClick={() => {
+                                  const isExpiredSpotlight = Boolean(
+                                    item.is_university_wide &&
+                                    item.expires_at &&
+                                    new Date(item.expires_at).getTime() <= Date.now()
+                                  );
+                                  if (isExpiredSpotlight) {
+                                    openReviewModal(item);
+                                    setExpirationError('This spotlight submission has already expired. Pick a future expiration date and explain the adjustment before approving.');
+                                    return;
+                                  }
                                   setSelectedItem(item);
+                                  setAdjustedExpiresAt(item.expires_at || '');
+                                  setExpirationReason('');
+                                  setExpirationError('');
                                   setDecisionType('approve');
                                   setActiveModal('decision');
                                 }}
@@ -543,6 +622,9 @@ const PostApproval = () => {
                                 aria-label="Reject submission"
                                 onClick={() => {
                                   setSelectedItem(item);
+                                  setAdjustedExpiresAt(item.expires_at || '');
+                                  setExpirationReason('');
+                                  setExpirationError('');
                                   setDecisionType('reject');
                                   setActiveModal('decision');
                                 }}
@@ -577,169 +659,358 @@ const PostApproval = () => {
 
         {/* ================= MODALS & DRAWERS ================= */}
 
-        {/* 1. DETAILED REVIEW MODAL */}
-        {activeModal === 'review' && selectedItem && (
-          <div className="pa-modal-backdrop">
-            <div className="pa-modal-card pa-modal-large">
-              <div className="pa-modal-header">
-                <div>
-                  <span className={`pa-type-tag pa-type-${selectedItem.type}`}>
-                    {selectedItem.type}
-                  </span>
-                  <h2 className="pa-modal-title-text">{selectedItem.title}</h2>
-                </div>
-                <button type="button" className="pa-close-btn" onClick={() => setActiveModal(null)}>
-                  <i className="fa-solid fa-xmark"></i>
-                </button>
-              </div>
+        {/* 1. DETAILED REVIEW MODAL (OPTION A: TWO-COLUMN WORKSPACE) */}
+        {activeModal === 'review' && selectedItem && (() => {
+          const isPending = String(selectedItem.status || '').toLowerCase() === 'pending';
+          const previewImageUrl = resolveAdminMediaUrl(selectedItem.image_url);
+          const pageAvatarUrl = resolveAdminMediaUrl(selectedItem.page_avatar_url);
+          const pageName = selectedItem.page_name || 'University Office';
+          const pageCode = selectedItem.page_code || pageName.split(' ').map((w) => w[0]).join('').slice(0, 3).toUpperCase();
+          const hasEndDate = Boolean(selectedItem.event_end);
 
-              <div className="pa-modal-body pa-split-view">
-                
-                {/* Left: Metadata Details */}
-                <div className="pa-details-col">
-                  <h3 className="pa-sub-heading">Submission Metadata</h3>
-                  <div className="pa-info-grid">
-                    <div><strong>Submitted By:</strong> {selectedItem.submitted_by || selectedItem.author_name || 'Staff Member'}</div>
-                    <div><strong>Organization / Page:</strong> {selectedItem.page_name || 'University Office'}</div>
-                    <div><strong>Category:</strong> {selectedItem.category || 'General'}</div>
-                    <div><strong>Audience / Scope:</strong> <PostAudienceBadge audience={selectedItem.audience} showLabel /></div>
+          return (
+            <div className="pa-modal-backdrop" onClick={() => setActiveModal(null)}>
+              <div
+                className="pa-modal-card pa-modal-workspace"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="pa-review-modal-title"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Clean Topbar */}
+                <div className="pa-review-topbar">
+                  <div className="pa-review-topbar-meta">
+                    <span className={`pa-type-tag pa-type-${selectedItem.type}`}>
+                      <i className={`fa-solid ${selectedItem.type === 'event' ? 'fa-calendar-days' : 'fa-bullhorn'} pa-mr-4`} aria-hidden="true"></i>
+                      {selectedItem.type}
+                    </span>
                     {selectedItem.is_university_wide && (
-                      <>
-                        <div>
-                          <strong>Spotlight Request:</strong>{' '}
-                          <span className="pa-spotlight-badge">University-Wide Spotlight</span>
-                        </div>
-                        <div>
-                          <strong>Active Until:</strong>{' '}
-                          {selectedItem.expires_at
-                            ? new Date(selectedItem.expires_at).toLocaleString()
-                            : 'No expiry specified'}
-                        </div>
-                      </>
+                      <span className="pa-spotlight-badge-solid">
+                        <span className="pa-spotlight-dot" aria-hidden="true"></span>
+                        University-Wide Spotlight
+                      </span>
                     )}
-                    <div><strong>Submitted Date:</strong> {new Date(selectedItem.created_at).toLocaleString()}</div>
-                    {selectedItem.scheduled_at && (
-                      <div><strong>Scheduled Publication:</strong> {new Date(selectedItem.scheduled_at).toLocaleString()}</div>
-                    )}
+                    <span className="pa-review-id-meta">
+                      Post #{selectedItem.id} · Submitted {formatCleanDateTime(selectedItem.created_at)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="pa-close-btn"
+                    onClick={() => setActiveModal(null)}
+                    aria-label="Close review modal"
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+
+                {/* Two-Column Workspace Body */}
+                <div className="pa-review-split">
+                  {/* Left: Live Post Preview */}
+                  <div className="pa-review-preview-col">
+                    <h3 className="pa-col-heading">Post Preview</h3>
+                    <article className="pa-preview-post-card">
+                      <div className="pa-preview-author-row">
+                        <PostPageAvatar
+                          avatarUrl={pageAvatarUrl}
+                          label={pageName}
+                          fallbackCode={pageCode}
+                        />
+                        <div className="pa-preview-author-info">
+                          <div className="pa-preview-page-name">{pageName}</div>
+                          <div className="pa-preview-submeta">
+                            <span>{selectedItem.category || 'General'}</span>
+                            <span aria-hidden="true">·</span>
+                            <PostAudienceBadge audience={selectedItem.audience} showLabel />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pa-preview-copy">
+                        <h2 id="pa-review-modal-title" className="pa-preview-post-title">
+                          {selectedItem.title}
+                        </h2>
+                        <p className="pa-preview-post-body">
+                          {selectedItem.description || selectedItem.body || 'No text content submitted.'}
+                        </p>
+                      </div>
+
+                      {previewImageUrl ? (
+                        <div className="pa-preview-media-frame">
+                          <img
+                            src={previewImageUrl}
+                            alt={selectedItem.title}
+                            className="pa-preview-media-img"
+                            onClick={() => setZoomedImageUrl(previewImageUrl)}
+                          />
+                          <button
+                            type="button"
+                            className="pa-preview-zoom-btn"
+                            onClick={() => setZoomedImageUrl(previewImageUrl)}
+                          >
+                            <i className="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"></i>
+                            <span>Expand</span>
+                          </button>
+                        </div>
+                      ) : selectedItem.is_university_wide ? (
+                        <div className="pa-spotlight-logo-note pa-mx-14">
+                          <i className="fa-solid fa-image" aria-hidden="true"></i>
+                          <span>No image attached — WMSU logo will display in the Spotlight.</span>
+                        </div>
+                      ) : null}
+
+                      {selectedItem.type === 'event' && (
+                        <div className="pa-preview-event-strip">
+                          <div className="pa-event-chip">
+                            <i className="fa-solid fa-calendar-day" aria-hidden="true"></i>
+                            <div>
+                              <span className="pa-event-chip-k">Starts</span>
+                              <span className="pa-event-chip-v">
+                                {selectedItem.event_start ? formatCleanDateTime(selectedItem.event_start) : 'TBD'}
+                              </span>
+                            </div>
+                          </div>
+                          {hasEndDate && (
+                            <div className="pa-event-chip">
+                              <i className="fa-solid fa-clock" aria-hidden="true"></i>
+                              <div>
+                                <span className="pa-event-chip-k">Ends</span>
+                                <span className="pa-event-chip-v">{formatCleanDateTime(selectedItem.event_end)}</span>
+                              </div>
+                            </div>
+                          )}
+                          <div className="pa-event-chip">
+                            <i className="fa-solid fa-location-dot" aria-hidden="true"></i>
+                            <div>
+                              <span className="pa-event-chip-k">Venue</span>
+                              <span className="pa-event-chip-v">{selectedItem.venue || 'Main Campus'}</span>
+                            </div>
+                          </div>
+                          {selectedItem.capacity && (
+                            <div className="pa-event-chip">
+                              <i className="fa-solid fa-users" aria-hidden="true"></i>
+                              <div>
+                                <span className="pa-event-chip-k">Capacity</span>
+                                <span className="pa-event-chip-v">{selectedItem.capacity}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </article>
                   </div>
 
-                  {/* Event Specific Metadata */}
-                  {selectedItem.type === 'event' && (
-                    <div className="pa-mt-12 pa-event-meta-card">
-                      <h4 className="pa-sub-heading">Event Schedule & Venue</h4>
-                      <div><strong>Start Time:</strong> {selectedItem.event_start ? new Date(selectedItem.event_start).toLocaleString() : 'TBD'}</div>
-                      <div><strong>End Time:</strong> {selectedItem.event_end ? new Date(selectedItem.event_end).toLocaleString() : 'TBD'}</div>
-                      <div><strong>Venue:</strong> {selectedItem.venue || 'Main Campus'}</div>
-                      <div><strong>Organizer:</strong> {selectedItem.organizer || 'WMSU Staff'}</div>
+                  {/* Right: Submission Details + Spotlight Schedule Controls */}
+                  <aside className="pa-review-inspector-col">
+                    <div className="pa-inspector-block">
+                      <h3 className="pa-col-heading">Submission Details</h3>
+                      <dl className="pa-meta-dl">
+                        <div className="pa-meta-pair">
+                          <dt>Submitted By</dt>
+                          <dd>{selectedItem.submitted_by || selectedItem.author_name || 'Staff Member'}</dd>
+                        </div>
+                        <div className="pa-meta-pair">
+                          <dt>Page / Office</dt>
+                          <dd>{pageName}</dd>
+                        </div>
+                        <div className="pa-meta-pair">
+                          <dt>Category</dt>
+                          <dd>{selectedItem.category || 'General'}</dd>
+                        </div>
+                        <div className="pa-meta-pair">
+                          <dt>Status</dt>
+                          <dd>
+                            <span className={`pa-status-badge pa-status-${String(selectedItem.status).toLowerCase().replace(/\s+/g, '_')}`}>
+                              {selectedItem.status}
+                            </span>
+                          </dd>
+                        </div>
+                        {selectedItem.scheduled_at && (
+                          <div className="pa-meta-pair pa-meta-pair-full">
+                            <dt>Scheduled Publication</dt>
+                            <dd>{formatCleanDateTime(selectedItem.scheduled_at)}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
+
+                    {selectedItem.is_university_wide && (
+                      <div className="pa-inspector-block">
+                        <SpotlightExpirationPicker
+                          idPrefix="pa-review-exp"
+                          originalExpiresAt={selectedItem.expires_at}
+                          value={adjustedExpiresAt}
+                          onChange={(nextIso) => {
+                            setAdjustedExpiresAt(nextIso);
+                            if (expirationError) setExpirationError('');
+                          }}
+                          reason={expirationReason}
+                          onReasonChange={(val) => {
+                            setExpirationReason(val);
+                            if (expirationError) setExpirationError('');
+                          }}
+                          readOnly={!isPending}
+                          disabled={submitting}
+                          error={expirationError}
+                        />
+                      </div>
+                    )}
+                  </aside>
+                </div>
+
+                {/* Unified Action Footer */}
+                <div className="pa-modal-footer pa-flex-between">
+                  <button type="button" className="btn-pa-ghost" onClick={() => setActiveModal(null)}>
+                    Close
+                  </button>
+
+                  {isPending && (
+                    <div className="pa-action-button-group">
+                      <button
+                        type="button"
+                        className="btn-pa-amber"
+                        onClick={() => {
+                          setDecisionType('correction');
+                          setActiveModal('decision');
+                        }}
+                      >
+                        <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                        <span>Request Corrections</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-pa-rose"
+                        onClick={() => {
+                          setDecisionType('reject');
+                          setActiveModal('decision');
+                        }}
+                      >
+                        <i className="fa-solid fa-xmark" aria-hidden="true"></i>
+                        <span>Reject</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-pa-emerald"
+                        onClick={() => {
+                          if (selectedItem.is_university_wide) {
+                            const check = validateSpotlightExpirationAdjustment({
+                              originalExpiresAt: selectedItem.expires_at,
+                              nextExpiresAt: adjustedExpiresAt,
+                              reason: expirationReason,
+                              isPendingApproval: true,
+                            });
+                            if (!check.valid) {
+                              setExpirationError(check.error);
+                              return;
+                            }
+                          }
+                          setExpirationError('');
+                          setDecisionType('approve');
+                          setActiveModal('decision');
+                        }}
+                      >
+                        <i className="fa-solid fa-check" aria-hidden="true"></i>
+                        <span>Approve &amp; Publish</span>
+                      </button>
                     </div>
                   )}
                 </div>
-
-                {/* Right: Content Preview Box */}
-                <div className="pa-content-col">
-                  <h3 className="pa-sub-heading">Submitted Body Content</h3>
-                  {selectedItem.image_url ? (
-                    <div className="pa-spotlight-image-preview">
-                      <img src={selectedItem.image_url} alt={selectedItem.title} />
-                    </div>
-                  ) : selectedItem.is_university_wide ? (
-                    <div className="pa-spotlight-logo-note">
-                      <i className="fa-solid fa-image"></i>
-                      <span>No image attached — WMSU logo will display in the Spotlight.</span>
-                    </div>
-                  ) : null}
-                  <div className="pa-body-preview-card">
-                    <p>{selectedItem.description || selectedItem.body || 'No text content submitted.'}</p>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pa-modal-footer pa-flex-between">
-                <button type="button" className="btn-pa-secondary" onClick={() => setActiveModal(null)}>
-                  Close
-                </button>
-
-                {String(selectedItem.status || '').toLowerCase() === 'pending' && (
-                  <div className="pa-action-button-group">
-                    <button 
-                      type="button" 
-                      className="btn-pa-amber" 
-                      onClick={() => {
-                        setDecisionType('correction');
-                        setActiveModal('decision');
-                      }}
-                    >
-                      <i className="fa-solid fa-rotate-left" aria-hidden="true"></i>
-                      <span>Request Corrections</span>
-                    </button>
-                    <button 
-                      type="button" 
-                      className="btn-pa-rose" 
-                      onClick={() => {
-                        setDecisionType('reject');
-                        setActiveModal('decision');
-                      }}
-                    >
-                      <i className="fa-solid fa-xmark" aria-hidden="true"></i>
-                      <span>Reject</span>
-                    </button>
-                    <button 
-                      type="button" 
-                      className="btn-pa-emerald" 
-                      onClick={() => {
-                        setDecisionType('approve');
-                        setActiveModal('decision');
-                      }}
-                    >
-                      <i className="fa-solid fa-check" aria-hidden="true"></i>
-                      <span>Approve &amp; Publish</span>
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
+          );
+        })()}
+
+        {/* FULL-SIZE POSTER LIGHTBOX */}
+        {zoomedImageUrl && (
+          <div
+            className="pa-lightbox-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Full size post image"
+            onClick={() => setZoomedImageUrl(null)}
+          >
+            <button
+              type="button"
+              className="pa-lightbox-close"
+              onClick={() => setZoomedImageUrl(null)}
+              aria-label="Close full image preview"
+            >
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+            <img
+              src={zoomedImageUrl}
+              alt={selectedItem?.title || 'Post attachment'}
+              className="pa-lightbox-img"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         )}
 
         {/* 2. DECISION REASON CONFIRMATION MODAL */}
-        <ConfirmationModal
-          isOpen={activeModal === 'decision' && Boolean(selectedItem)}
-          title={
-            decisionType === 'approve'
-              ? 'Approve & Publish Submission?'
-              : decisionType === 'reject'
-              ? 'Reject Submission?'
-              : 'Request Submission Corrections?'
-          }
-          message={
-            selectedItem
-              ? `Are you sure you want to ${
-                  decisionType === 'approve'
-                    ? 'approve and publish'
-                    : decisionType === 'reject'
-                    ? 'reject'
-                    : 'request corrections for'
-                } "${selectedItem.title}" submitted by ${selectedItem.submitted_by || selectedItem.author_name || 'Staff'}?`
-              : ''
-          }
-          variant={decisionType === 'reject' ? 'danger' : decisionType === 'approve' ? 'success' : 'warning'}
-          confirmText={
-            decisionType === 'approve'
-              ? 'Confirm & Publish'
-              : decisionType === 'reject'
-              ? 'Confirm Rejection'
-              : 'Send Correction Request'
-          }
-          cancelText="Back to Review"
-          requireReason={decisionType === 'reject' || decisionType === 'correction'}
-          reasonLabel="Administrative Note / Instructions *"
-          reasonPlaceholder={`State why this submission is being ${decisionType === 'reject' ? 'rejected' : 'returned for corrections'}...`}
-          loading={submitting}
-          onCancel={() => setActiveModal('review')}
-          onConfirm={(reasonText) => handleExecuteDecision(reasonText)}
-        />
+        {(() => {
+          const approvalAdjusted = Boolean(
+            decisionType === 'approve' &&
+            selectedItem?.is_university_wide &&
+            hasSpotlightExpirationChanged(selectedItem.expires_at, adjustedExpiresAt)
+          );
+          return (
+            <ConfirmationModal
+              isOpen={activeModal === 'decision' && Boolean(selectedItem)}
+              title={
+                decisionType === 'approve'
+                  ? approvalAdjusted
+                    ? 'Approve with Adjusted Expiration?'
+                    : 'Approve & Publish Submission?'
+                  : decisionType === 'reject'
+                  ? 'Reject Submission?'
+                  : 'Request Submission Corrections?'
+              }
+              message={
+                selectedItem
+                  ? `Are you sure you want to ${
+                      decisionType === 'approve'
+                        ? 'approve and publish'
+                        : decisionType === 'reject'
+                        ? 'reject'
+                        : 'request corrections for'
+                    } "${selectedItem.title}" submitted by ${selectedItem.submitted_by || selectedItem.author_name || 'Staff'}?`
+                  : ''
+              }
+              variant={decisionType === 'reject' ? 'danger' : decisionType === 'approve' ? 'success' : 'warning'}
+              confirmText={
+                decisionType === 'approve'
+                  ? approvalAdjusted
+                    ? 'Approve & Notify Staff'
+                    : 'Confirm & Publish'
+                  : decisionType === 'reject'
+                  ? 'Confirm Rejection'
+                  : 'Send Correction Request'
+              }
+              cancelText="Back to Review"
+              requireReason={decisionType === 'reject' || decisionType === 'correction'}
+              reasonLabel="Administrative Note / Instructions"
+              reasonPlaceholder={`State why this submission is being ${decisionType === 'reject' ? 'rejected' : 'returned for corrections'}...`}
+              loading={submitting}
+              onCancel={() => setActiveModal('review')}
+              onConfirm={(reasonText) => handleExecuteDecision(reasonText)}
+            >
+              {approvalAdjusted && (
+                <div className="pa-confirm-expiry-summary">
+                  <div className="pa-confirm-expiry-row">
+                    <i className="fa-solid fa-clock" aria-hidden="true"></i>
+                    <span>
+                      <strong>Expiration updated:</strong> {formatSpotlightDateTime(selectedItem.expires_at)} to{' '}
+                      <strong>{formatSpotlightDateTime(adjustedExpiresAt)}</strong>
+                    </span>
+                  </div>
+                  <div className="pa-confirm-expiry-note">
+                    <strong>Message sent to staff:</strong> “{expirationReason.trim()}”
+                  </div>
+                </div>
+              )}
+            </ConfirmationModal>
+          );
+        })()}
 
       </div>
     </AdminLayout>

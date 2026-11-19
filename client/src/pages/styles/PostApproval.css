@@ -641,16 +641,30 @@
 }
 
 .pa-close-btn {
-  background: none;
-  border: none;
-  color: #94a3b8;
-  font-size: 1.2rem;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  transition: color 0.15s ease;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .pa-close-btn:hover {
+  background: #f1f5f9;
   color: #0f172a;
+  border-color: #cbd5e1;
+}
+
+.pa-close-btn:focus-visible {
+  outline: 2px solid #881337;
+  outline-offset: 2px;
 }
 
 .pa-modal-body {
@@ -839,4 +853,389 @@
   display: flex;
   align-items: center;
   gap: 0.45rem;
+}
+
+/* ==================== OPTION A: TWO-COLUMN REVIEW WORKSPACE ==================== */
+.pa-modal-card.pa-modal-workspace {
+  max-width: 920px;
+  border-radius: 16px;
+}
+
+.pa-review-topbar {
+  padding: 0.95rem 1.35rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #ffffff;
+}
+
+.pa-review-topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.pa-spotlight-badge-solid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #ffffff;
+  background-color: #881337;
+  padding: 0.22rem 0.65rem;
+  border-radius: 9999px;
+}
+
+.pa-spotlight-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #fda4af;
+}
+
+.pa-review-id-meta {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.pa-review-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.pa-review-preview-col {
+  padding: 1.25rem 1.35rem;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pa-review-inspector-col {
+  padding: 1.25rem 1.35rem;
+  background: #f8fafc;
+  border-left: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+@media (max-width: 860px) {
+  .pa-review-split {
+    grid-template-columns: 1fr;
+  }
+  .pa-review-inspector-col {
+    border-left: none;
+    border-top: 1px solid #e2e8f0;
+  }
+}
+
+.pa-col-heading {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #475569;
+  margin: 0;
+}
+
+/* Live Post Preview Surface */
+.pa-preview-post-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.pa-preview-author-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem 0.65rem;
+}
+
+.pa-preview-author-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.pa-preview-page-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.pa-preview-submeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+  flex-wrap: wrap;
+}
+
+.pa-preview-copy {
+  padding: 0 1rem 0.9rem;
+}
+
+.pa-preview-post-title {
+  margin: 0 0 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.pa-preview-post-body {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pa-preview-media-frame {
+  position: relative;
+  background: #f1f5f9;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 360px;
+  overflow: hidden;
+}
+
+.pa-preview-media-img {
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  display: block;
+  cursor: zoom-in;
+}
+
+.pa-preview-zoom-btn {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(15, 23, 42, 0.76);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pa-preview-zoom-btn:hover {
+  background: rgba(15, 23, 42, 0.92);
+}
+
+.pa-mx-14 {
+  margin: 0 1rem 0.9rem;
+}
+
+.pa-preview-event-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem 0.9rem;
+  padding: 0.8rem 1rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.pa-event-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.pa-event-chip i {
+  color: #881337;
+  font-size: 0.8rem;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.pa-event-chip-k {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pa-event-chip-v {
+  display: block;
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
+/* Inspector Metadata Grid */
+.pa-inspector-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pa-meta-dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.9rem;
+  margin: 0;
+  padding: 0.85rem 0.95rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.pa-meta-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.pa-meta-pair-full {
+  grid-column: 1 / -1;
+}
+
+.pa-meta-pair dt {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.pa-meta-pair dd {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Unified Footer Ghost Button (matches 8px radius of action buttons) */
+.btn-pa-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  height: 38px;
+  padding: 0 1rem;
+  border-radius: 9px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #475569;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-pa-ghost:hover:not(:disabled) {
+  background-color: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* Confirmation Modal Adjusted Expiration Summary */
+.pa-confirm-expiry-summary {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: #78350f;
+}
+
+.pa-confirm-expiry-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  line-height: 1.45;
+}
+
+.pa-confirm-expiry-row i {
+  color: #b45309;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.pa-confirm-expiry-note {
+  color: #92400e;
+  line-height: 1.45;
+  padding-top: 0.35rem;
+  border-top: 1px dashed #fcd34d;
+}
+
+/* Full-Size Poster Lightbox */
+.pa-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.86);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.pa-lightbox-img {
+  max-width: min(92vw, 1100px);
+  max-height: 88vh;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  background: #0f172a;
+}
+
+.pa-lightbox-close {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(15, 23, 42, 0.75);
+  color: #ffffff;
+  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.pa-lightbox-close:hover {
+  background: rgba(15, 23, 42, 0.95);
 }
