@@ -282,6 +282,14 @@ const ContentFeed = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const toLocalDateTimeInput = (value) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   // Open Edit Modal with Prepopulated Data
   const handleOpenEdit = (item) => {
     setSelectedItem(item);
@@ -290,13 +298,13 @@ const ContentFeed = () => {
       description: item.description || item.body || '',
       category: item.category || 'General',
       audience: item.audience || 'All Campus',
-      scheduled_at: item.scheduled_at ? new Date(item.scheduled_at).toISOString().slice(0, 16) : '',
-      expires_at: item.expires_at ? new Date(item.expires_at).toISOString().slice(0, 16) : '',
-      event_start: item.event_start ? new Date(item.event_start).toISOString().slice(0, 16) : '',
-      event_end: item.event_end ? new Date(item.event_end).toISOString().slice(0, 16) : '',
+      scheduled_at: toLocalDateTimeInput(item.scheduled_at),
+      expires_at: toLocalDateTimeInput(item.expires_at),
+      event_start: toLocalDateTimeInput(item.event_start),
+      event_end: toLocalDateTimeInput(item.event_end),
       venue: item.venue || '',
       organizer: item.organizer || '',
-      reg_deadline: item.reg_deadline ? new Date(item.reg_deadline).toISOString().slice(0, 16) : '',
+      reg_deadline: toLocalDateTimeInput(item.reg_deadline),
       capacity: item.capacity || ''
     });
     setActiveModal('edit');
@@ -331,7 +339,19 @@ const ContentFeed = () => {
 
     let endpoint = '/api/admin/content-feed';
     let method = 'POST';
-    const payload = { ...formData };
+    const toIsoOrNull = (val) => {
+      if (!val) return null;
+      const d = new Date(val);
+      return Number.isNaN(d.getTime()) ? null : d.toISOString();
+    };
+    const payload = {
+      ...formData,
+      scheduled_at: toIsoOrNull(formData.scheduled_at),
+      expires_at: toIsoOrNull(formData.expires_at),
+      event_start: toIsoOrNull(formData.event_start),
+      event_end: toIsoOrNull(formData.event_end),
+      reg_deadline: toIsoOrNull(formData.reg_deadline),
+    };
 
     if (activeModal === 'create_announcement') {
       payload.type = 'announcement';
@@ -360,6 +380,7 @@ const ContentFeed = () => {
         setFeedback({ type: 'success', message: data.message || 'Action executed successfully.' });
         handleCloseModal();
         fetchFeedData();
+        window.dispatchEvent(new Event('spotlight:refresh'));
       } else {
         throw new Error(data.message || 'Operation failed.');
       }

@@ -1310,17 +1310,20 @@ router.put('/content-feed/:id', async (req, res) => {
             categoryId = catRes.rows[0]?.category_id || null;
         }
 
+        const hasExpiresAt = Object.prototype.hasOwnProperty.call(req.body, 'expires_at');
+        const normalizedExpiresAt = hasExpiresAt ? (expires_at || null) : null;
+
         const postUpd = await client.query(
             `UPDATE posts
              SET title = COALESCE($1, title),
                  content = COALESCE($2, content),
                  category_id = COALESCE($3, category_id),
                  audience = COALESCE($4, audience),
-                 expires_at = COALESCE($5, expires_at),
+                 expires_at = CASE WHEN $5::boolean THEN $6::timestamptz ELSE expires_at END,
                  updated_at = NOW()
-             WHERE post_id = $6
+             WHERE post_id = $7
              RETURNING *`,
-            [title || null, description || body || null, categoryId, audience || null, expires_at || null, postId]
+            [title || null, description || body || null, categoryId, audience || null, hasExpiresAt, normalizedExpiresAt, postId]
         );
 
         if (postUpd.rows[0]?.post_type === 'event') {
@@ -1693,6 +1696,7 @@ router.get('/users', async (req, res) => {
                         CASE WHEN sp.student_id_image IS NOT NULL
                              THEN 'data:' || COALESCE(sp.student_id_mime_type, 'image/jpeg') || ';base64,' || encode(sp.student_id_image, 'base64')
                              ELSE NULL END AS student_id_image_data,
+                        sp.verification_status,
                         sp.verification_status AS status,
                         sp.verification_remarks,
                         sp.verified_at,
@@ -2032,6 +2036,15 @@ const handleUserAccountStatus = async (req, res) => {
         else if (norm.includes('archive')) nextAccountStatus = 'Archived';
         else if (norm.includes('pend')) nextAccountStatus = 'Pending';
 
+        const prevUserRes = await pool.query(
+            `SELECT u.email, u.first_name, u.account_status, r.role_name
+             FROM users u
+             LEFT JOIN roles r ON u.role_id = r.role_id
+             WHERE u.user_id = $1 LIMIT 1`,
+            [targetUserId]
+        );
+        const prevUser = prevUserRes.rows[0] || null;
+
         await pool.query(
             `UPDATE users
              SET account_status = $1,
@@ -2049,6 +2062,34 @@ const handleUserAccountStatus = async (req, res) => {
                  WHERE user_id = $2`,
                 [String(role).toLowerCase(), targetUserId]
             );
+        }
+
+        if (
+            nextAccountStatus === 'Active' &&
+            prevUser &&
+            String(prevUser.account_status || '').toLowerCase() === 'pending' &&
+            String(prevUser.role_name || '').toLowerCase() === 'student'
+        ) {
+            try {
+                const notifySettingRes = await pool.query(
+                    `SELECT setting_value FROM system_settings WHERE setting_key = 'notify_student_verification' LIMIT 1`
+                );
+                const notifyEnabled =
+                    notifySettingRes.rows.length === 0
+                        ? true
+                        : parseRequireStudentVerification(notifySettingRes.rows[0].setting_value);
+                if (notifyEnabled && prevUser.email) {
+                    await sendStudentVerificationDecisionEmail({
+                        toEmail: prevUser.email,
+                        firstName: prevUser.first_name,
+                        decisionStatus: 'Verified',
+                        remarks: reason || null,
+                        portalUrl: process.env.CLIENT_URL || 'http://localhost:5173'
+                    });
+                }
+            } catch (emailNotifyErr) {
+                console.warn('Non-fatal error sending student activation email:', emailNotifyErr.message);
+            }
         }
 
         await logAudit(req, {
@@ -5235,6 +5276,24 @@ router.delete('/notifications/:id', async (req, res) => {
         return res.json({ message: 'Notification deleted.' });
     } catch (error) {
         return res.status(500).json({ message: 'Failed to delete notification.' });
+    }
+});
+
+router.get('/sidebar-counts', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                (SELECT COUNT(*)::int FROM posts WHERE is_archived = FALSE AND LOWER(moderation_status) = 'pending') AS pending_posts,
+                (SELECT COUNT(*)::int FROM pages WHERE LOWER(status) = 'pending') AS pending_pages
+        `);
+        const row = result.rows[0] || {};
+        return res.status(200).json({
+            pendingPosts: row.pending_posts || 0,
+            pendingPages: row.pending_pages || 0
+        });
+    } catch (error) {
+        console.error('Failed to fetch admin sidebar counts:', error);
+        return res.status(500).json({ message: 'Failed to fetch sidebar counts.' });
     }
 });
 

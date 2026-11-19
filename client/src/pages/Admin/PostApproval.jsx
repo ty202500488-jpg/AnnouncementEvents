@@ -144,6 +144,7 @@ const PostApproval = () => {
         setDecisionType('');
         setDecisionReason('');
         fetchApprovalData();
+        window.dispatchEvent(new CustomEvent('admin-counts-updated'));
       } else {
         throw new Error(data.message || 'Failed to process decision.');
       }

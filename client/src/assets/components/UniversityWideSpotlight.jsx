@@ -37,10 +37,10 @@ async function fetchSpotlightItemsShared(force = false) {
 }
 
 function isItemCurrentlyActive(item, nowMs) {
-  if (!item) return false;
+  if (!item || !item.is_university_wide) return false;
   if (!item.expires_at) return true;
   const expiresMs = new Date(item.expires_at).getTime();
-  return Number.isNaN(expiresMs) ? true : expiresMs > nowMs;
+  return Number.isNaN(expiresMs) ? false : expiresMs > nowMs;
 }
 
 function formatReadableDate(dateStr, includeTime = false) {
@@ -214,6 +214,26 @@ export default function UniversityWideSpotlight({ role = 'student', variant = 'd
     () => items.filter((item) => isItemCurrentlyActive(item, nowMs)),
     [items, nowMs]
   );
+
+  // Exact expiration timer: immediately expire items at their expires_at timestamp
+  useEffect(() => {
+    const nextExpiryMs = activeItems.reduce((earliest, item) => {
+      if (!item?.expires_at) return earliest;
+      const ms = new Date(item.expires_at).getTime();
+      if (Number.isNaN(ms) || ms <= nowMs) return earliest;
+      return earliest === null ? ms : Math.min(earliest, ms);
+    }, null);
+
+    if (nextExpiryMs === null) return undefined;
+    const delay = Math.min(Math.max(nextExpiryMs - nowMs + 50, 50), 2147483647);
+    const expiryTimer = setTimeout(() => {
+      setNowMs(Date.now());
+      fetchSpotlightItemsShared(true).then((fetched) => {
+        applySpotlightItems(fetched);
+      });
+    }, delay);
+    return () => clearTimeout(expiryTimer);
+  }, [activeItems, nowMs, applySpotlightItems]);
 
   // 5-second auto rotation & expiration tick
   useEffect(() => {

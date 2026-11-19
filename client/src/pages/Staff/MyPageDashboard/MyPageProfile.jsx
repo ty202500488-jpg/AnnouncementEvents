@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/PageView.css';
 import '../../styles/StudentDashboard.css';
-import { PortalNavbar, PortalToast, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials } from '../../../assets/components/PortalShellElements';
+import { PortalNavbar, PortalToast, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials, ExpandablePostText } from '../../../assets/components/PortalShellElements';
 import EventRegistrationsManagerModal from '../../../assets/components/EventRegistrationsManagerModal';
 import PostComposerModal from '../../../assets/components/PostComposerModal';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
@@ -881,9 +881,10 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                               {titleText}
                             </h3>
                           )}
-                          <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: titleText ? '0.4rem 0 0 0' : 0 }}>
-                            {bodyText}
-                          </p>
+                          <ExpandablePostText
+                            text={bodyText}
+                            style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: titleText ? '0.4rem 0 0 0' : 0 }}
+                          />
                         </div>
                       </>
                     ) : (
@@ -893,9 +894,10 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                             {titleText}
                           </h3>
                         )}
-                        <p style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: titleText ? '0.75rem 0 0 0' : 0 }}>
-                          {bodyText}
-                        </p>
+                        <ExpandablePostText
+                          text={bodyText}
+                          style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: titleText ? '0.75rem 0 0 0' : 0 }}
+                        />
                       </div>
                     )}
 

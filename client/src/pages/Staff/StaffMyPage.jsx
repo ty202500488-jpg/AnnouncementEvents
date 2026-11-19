@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
 import MyPageProfile from './MyPageDashboard/MyPageProfile';
 import { formatPostTimestamp } from '../../utils/dateUtils';
-import { EventPostMeta, EventPostActionBar, PostAudienceBadge } from '../../assets/components/PortalShellElements';
+import { EventPostMeta, EventPostActionBar, PostAudienceBadge, ExpandablePostText } from '../../assets/components/PortalShellElements';
 import EventRegistrationsManagerModal from '../../assets/components/EventRegistrationsManagerModal';
 import '../styles/StaffDashboard.css';
 import '../styles/MyPage.css';
@@ -620,9 +620,10 @@ export default function StaffMyPage() {
                         <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
                           {post.title}
                         </h3>
-                        <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '0.75rem', lineHeight: 1.6, margin: '0.75rem 0 0 0', whiteSpace: 'pre-line' }}>
-                          {post.description || post.content || 'No preview available.'}
-                        </p>
+                        <ExpandablePostText
+                          text={post.description || post.content || 'No preview available.'}
+                          style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: '0.75rem 0 0 0', whiteSpace: 'pre-line' }}
+                        />
                       </div>
                     )}
 
@@ -631,9 +632,10 @@ export default function StaffMyPage() {
                         <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
                           {post.title}
                         </h3>
-                        <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: 1.5, margin: '0.4rem 0 0 0', whiteSpace: 'pre-line' }}>
-                          {post.description || post.content || 'No preview available.'}
-                        </p>
+                        <ExpandablePostText
+                          text={post.description || post.content || 'No preview available.'}
+                          style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: '0.4rem 0 0 0', whiteSpace: 'pre-line' }}
+                        />
                       </div>
                     )}
 

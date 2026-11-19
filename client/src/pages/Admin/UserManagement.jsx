@@ -708,7 +708,9 @@ const UserManagement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {verificationQueue.map(item => (
+                    {verificationQueue.map(item => {
+                      const verificationStatus = item.verification_status || item.status || 'Pending';
+                      return (
                       <tr key={item.id}>
                         <td><span className="um-id-tag">#{item.id}</span></td>
                         <td className="font-semibold text-slate-800">{item.first_name} {item.last_name}</td>
@@ -722,8 +724,8 @@ const UserManagement = () => {
                         <td>{item.program || item.college || 'WMSU Student'}</td>
                         <td className="text-slate-500">{new Date(item.created_at).toLocaleDateString()}</td>
                         <td>
-                          <span className={`status-pill status-${item.verification_status || 'pending'}`}>
-                            {item.verification_status || 'Pending'}
+                          <span className={`status-pill status-${String(verificationStatus).toLowerCase()}`}>
+                            {verificationStatus}
                           </span>
                         </td>
                         <td className="text-right">
@@ -743,7 +745,8 @@ const UserManagement = () => {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

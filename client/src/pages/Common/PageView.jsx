@@ -2,7 +2,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import '../styles/PageView.css';
 import '../styles/StudentDashboard.css';
-import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials, applyEventRegistrationUpdate } from '../../assets/components/PortalShellElements';
+import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials, applyEventRegistrationUpdate, ExpandablePostText } from '../../assets/components/PortalShellElements';
 import EventRegistrationModal from '../../assets/components/EventRegistrationModal';
 import EventRegistrationsManagerModal from '../../assets/components/EventRegistrationsManagerModal';
 import { formatPostTimestamp } from '../../utils/dateUtils';
@@ -583,11 +583,13 @@ export default function PageView({ role = 'guest' }) {
                         {isOfficialAdminPage ? 'Official Page' : pageCategoryBadge}
                       </span>
                       <span>•</span>
-                      {isOfficialAdminPage ? (
-                        <span>Campus-Wide</span>
-                      ) : (
-                        <span><strong>{page.followers_count || 0}</strong> followers</span>
+                      {isOfficialAdminPage && (
+                        <>
+                          <span>Campus-Wide</span>
+                          <span>•</span>
+                        </>
                       )}
+                      <span><strong>{page.followers_count || 0}</strong> followers</span>
                       <span>•</span>
                       <span><strong>{posts.length}</strong> posts</span>
                     </div>
@@ -597,30 +599,25 @@ export default function PageView({ role = 'guest' }) {
             </div>
 
             {/* Action Buttons on Right */}
-            {!(
-              ['WMSU', 'ADMIN'].includes(String(page.page_code || '').toUpperCase()) ||
-              String(page.page_name || '').trim().toLowerCase() === 'western mindanao state university'
-            ) && (
-              <div className="fb-actions-group">
-                <button
-                  type="button"
-                  onClick={handleToggleFollow}
-                  disabled={isSubmittingFollow}
-                  className={`btn-fb ${page.is_followed ? 'btn-fb-following' : 'btn-fb-primary'}`}
-                >
-                  {isSubmittingFollow ? (
-                    <i className="fa-solid fa-spinner fa-spin"></i>
-                  ) : page.is_followed ? (
-                    <span>Following</span>
-                  ) : (
-                    <>
-                      <i className="fa-solid fa-plus"></i>
-                      <span>Follow</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
+            <div className="fb-actions-group">
+              <button
+                type="button"
+                onClick={handleToggleFollow}
+                disabled={isSubmittingFollow}
+                className={`btn-fb ${page.is_followed ? 'btn-fb-following' : 'btn-fb-primary'}`}
+              >
+                {isSubmittingFollow ? (
+                  <i className="fa-solid fa-spinner fa-spin"></i>
+                ) : page.is_followed ? (
+                  <span>Following</span>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-plus"></i>
+                    <span>Follow</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* Divider */}
@@ -922,9 +919,10 @@ export default function PageView({ role = 'guest' }) {
                               {item.title}
                             </h3>
                           )}
-                          <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: item.title ? '0.4rem 0 0 0' : 0 }}>
-                            {item.content || item.description || ''}
-                          </p>
+                          <ExpandablePostText
+                            text={item.content || item.description || ''}
+                            style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: item.title ? '0.4rem 0 0 0' : 0 }}
+                          />
                         </div>
                       </>
                     ) : (
@@ -934,9 +932,10 @@ export default function PageView({ role = 'guest' }) {
                             {item.title}
                           </h3>
                         )}
-                        <p style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: item.title ? '0.75rem 0 0 0' : 0 }}>
-                          {item.content || item.description || ''}
-                        </p>
+                        <ExpandablePostText
+                          text={item.content || item.description || ''}
+                          style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: item.title ? '0.75rem 0 0 0' : 0 }}
+                        />
                       </div>
                     )}
 
@@ -1011,43 +1010,33 @@ export default function PageView({ role = 'guest' }) {
                     </div>
                   </li>
                 )}
-                {!(
-                  ['WMSU', 'ADMIN'].includes(String(page.page_code || '').toUpperCase()) ||
-                  String(page.page_name || '').trim().toLowerCase() === 'western mindanao state university'
-                ) && (
-                  <li className="fb-about-item">
-                    <i className="fa-solid fa-users"></i>
-                    <div>
-                      <span className="fb-about-label">Followers</span>
-                      <span>{page.followers_count || 0} students and staff</span>
-                    </div>
-                  </li>
-                )}
+                <li className="fb-about-item">
+                  <i className="fa-solid fa-users"></i>
+                  <div>
+                    <span className="fb-about-label">Followers</span>
+                    <span>{page.followers_count || 0} students and staff</span>
+                  </div>
+                </li>
               </ul>
             </div>
 
-            {/* Page Statistics Card (hidden on Admin Official Page) */}
-            {!(
-              ['WMSU', 'ADMIN'].includes(String(page.page_code || '').toUpperCase()) ||
-              String(page.page_name || '').trim().toLowerCase() === 'western mindanao state university'
-            ) && (
-              <div className="fb-card" style={{ backgroundColor: '#f8fafc' }}>
-                <h3 className="fb-card-title">
-                  <i className="fa-solid fa-chart-simple"></i>
-                  Page Insights
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', textAlign: 'center' }}>
-                  <div style={{ padding: '0.75rem', background: '#fff', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#7B0D1E' }}>{page.followers_count || 0}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Followers</div>
-                  </div>
-                  <div style={{ padding: '0.75rem', background: '#fff', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>{posts.length}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Total Posts</div>
-                  </div>
+            {/* Page Statistics Card */}
+            <div className="fb-card" style={{ backgroundColor: '#f8fafc' }}>
+              <h3 className="fb-card-title">
+                <i className="fa-solid fa-chart-simple"></i>
+                Page Insights
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', textAlign: 'center' }}>
+                <div style={{ padding: '0.75rem', background: '#fff', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#7B0D1E' }}>{page.followers_count || 0}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Followers</div>
+                </div>
+                <div style={{ padding: '0.75rem', background: '#fff', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>{posts.length}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Total Posts</div>
                 </div>
               </div>
-            )}
+            </div>
 
           </aside>
 

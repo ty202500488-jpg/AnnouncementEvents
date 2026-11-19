@@ -31,7 +31,46 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const notifDropdownRef = useRef(null);
 
+  // Sidebar Pending Counts State
+  const [sidebarCounts, setSidebarCounts] = useState({
+    pendingPosts: 0,
+    pendingPages: 0
+  });
+
   const unreadNotifCount = notifications.filter(n => !n.is_read && !n.is_archived).length;
+
+  const fetchAdminSidebarCounts = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    };
+    try {
+      const response = await fetch('/api/admin/sidebar-counts', { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setSidebarCounts({
+          pendingPosts: Number(data.pendingPosts) || 0,
+          pendingPages: Number(data.pendingPages) || 0
+        });
+        return;
+      }
+
+      // Fallback to existing dashboard endpoint if server hasn't restarted for /sidebar-counts
+      const dashRes = await fetch('/api/admin/dashboard', { headers });
+      if (dashRes.ok) {
+        const dashData = await dashRes.json();
+        const pending = dashData?.kpis?.pendingApprovals || {};
+        setSidebarCounts({
+          pendingPosts: Number(pending.pendingPosts) || 0,
+          pendingPages: Number(pending.pendingPages) || 0
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to fetch admin sidebar counts:', err);
+    }
+  };
 
   const fetchAdminNotifications = async () => {
     const token = localStorage.getItem('token');
@@ -96,9 +135,18 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
     window.addEventListener('storage', loadAdminIdentity);
 
     fetchAdminNotifications();
-    const pollId = setInterval(fetchAdminNotifications, 30000);
-    const onNotificationsUpdated = () => fetchAdminNotifications();
+    fetchAdminSidebarCounts();
+    const pollId = setInterval(() => {
+      fetchAdminNotifications();
+      fetchAdminSidebarCounts();
+    }, 30000);
+    const onNotificationsUpdated = () => {
+      fetchAdminNotifications();
+      fetchAdminSidebarCounts();
+    };
+    const onCountsUpdated = () => fetchAdminSidebarCounts();
     window.addEventListener('notifications-updated', onNotificationsUpdated);
+    window.addEventListener('admin-counts-updated', onCountsUpdated);
     window.addEventListener('focus', onNotificationsUpdated);
 
     // Click outside listener for dropdowns
@@ -116,6 +164,7 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
       clearInterval(pollId);
       window.removeEventListener('storage', loadAdminIdentity);
       window.removeEventListener('notifications-updated', onNotificationsUpdated);
+      window.removeEventListener('admin-counts-updated', onCountsUpdated);
       window.removeEventListener('focus', onNotificationsUpdated);
       document.removeEventListener('mousedown', handleClickOutside);
     };
@@ -182,8 +231,8 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
     {
       title: 'Management',
       items: [
-        { label: 'Post Approvals', path: '/admin/post-approval', aliases: ['/admin/post-approval', '/admin/posts', '/admin/moderation'], icon: 'fa-solid fa-file-circle-check' },
-        { label: 'Page Management', path: '/admin/pages', aliases: ['/admin/pages'], icon: 'fa-solid fa-layer-group' },
+        { label: 'Post Approvals', path: '/admin/post-approval', aliases: ['/admin/post-approval', '/admin/posts', '/admin/moderation'], icon: 'fa-solid fa-file-circle-check', badgeCount: sidebarCounts.pendingPosts },
+        { label: 'Page Management', path: '/admin/pages', aliases: ['/admin/pages'], icon: 'fa-solid fa-layer-group', badgeCount: sidebarCounts.pendingPages },
         { label: 'User Management', path: '/admin/users', aliases: ['/admin/users'], icon: 'fa-solid fa-users' },
       ],
     },
@@ -506,6 +555,11 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                             <i className={`${item.icon} nav-icon`}></i>
                             <span className="nav-item-text">{item.label}</span>
                           </div>
+                          {item.badgeCount > 0 && (
+                            <span className="admin-sidebar-badge" aria-label={`${item.badgeCount} pending`}>
+                              {item.badgeCount > 99 ? '99+' : item.badgeCount}
+                            </span>
+                          )}
                         </Link>
                       </li>
                     );

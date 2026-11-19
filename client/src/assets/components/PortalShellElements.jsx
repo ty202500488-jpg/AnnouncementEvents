@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import '../../pages/styles/PortalShell.css';
@@ -1962,5 +1962,164 @@ export function PortalToast({ toast, onClose }) {
       )}
     </div>,
     document.body
+  );
+}
+
+/**
+ * Renders post body text clamped to `maxLines` with a "See more" / "See less" toggle
+ * whenever the rendered text overflows the clamp height.
+ */
+export function ExpandablePostText({
+  text,
+  maxLines = 4,
+  className = '',
+  style = {},
+  buttonStyle = {},
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const [truncatedText, setTruncatedText] = useState(null);
+  const measureRef = useRef(null);
+
+  const normalizedText = typeof text === 'string' ? text : text ? String(text) : '';
+
+  useEffect(() => {
+    setIsExpanded(false);
+    setTruncatedText(null);
+  }, [normalizedText]);
+
+  useLayoutEffect(() => {
+    const el = measureRef.current;
+    if (!el || isExpanded || !normalizedText) return;
+
+    const calculateTruncation = () => {
+      const target = measureRef.current;
+      if (!target) return;
+
+      const computed = window.getComputedStyle(target);
+      const fontSize = parseFloat(computed.fontSize) || 14;
+      const parsedLineHeight = parseFloat(computed.lineHeight);
+      const lineHeight = Number.isFinite(parsedLineHeight) ? parsedLineHeight : fontSize * 1.45;
+      const paddingY = (parseFloat(computed.paddingTop) || 0) + (parseFloat(computed.paddingBottom) || 0);
+      const maxAllowedHeight = lineHeight * maxLines + paddingY + 2;
+
+      target.textContent = normalizedText;
+      if (target.scrollHeight <= maxAllowedHeight) {
+        setHasOverflow(false);
+        setTruncatedText(null);
+        return;
+      }
+
+      target.textContent = '';
+      const textNode = document.createTextNode('');
+      const suffix = document.createElement('span');
+      suffix.style.fontWeight = '600';
+      suffix.style.fontSize = '0.82em';
+      suffix.textContent = '... See more';
+      target.appendChild(textNode);
+      target.appendChild(suffix);
+
+      let low = 0;
+      let high = normalizedText.length;
+      let best = 0;
+
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        textNode.nodeValue = normalizedText.slice(0, mid).trimEnd();
+        if (target.scrollHeight <= maxAllowedHeight) {
+          best = mid;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+
+      setHasOverflow(true);
+      setTruncatedText(normalizedText.slice(0, best).trimEnd());
+    };
+
+    calculateTruncation();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(calculateTruncation);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', calculateTruncation);
+    return () => window.removeEventListener('resize', calculateTruncation);
+  }, [normalizedText, isExpanded, maxLines]);
+
+  if (!normalizedText) return null;
+
+  const mergedStyle = { whiteSpace: 'pre-wrap', ...style };
+
+  const toggleButton = (hasOverflow || isExpanded) ? (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setIsExpanded((prev) => !prev);
+      }}
+      style={{
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        color: '#2563eb',
+        fontFamily: 'inherit',
+        fontSize: '0.82em',
+        fontWeight: 600,
+        letterSpacing: '0.01em',
+        cursor: 'pointer',
+        lineHeight: 'inherit',
+        display: 'inline',
+        verticalAlign: 'baseline',
+        ...buttonStyle,
+      }}
+    >
+      {isExpanded ? 'See less' : 'See more'}
+    </button>
+  ) : null;
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {!isExpanded && (
+        <p
+          ref={measureRef}
+          aria-hidden="true"
+          className={className}
+          style={{
+            ...mergedStyle,
+            position: 'absolute',
+            visibility: 'hidden',
+            pointerEvents: 'none',
+            top: 0,
+            left: 0,
+            right: 0,
+            margin: 0,
+            zIndex: -1,
+          }}
+        />
+      )}
+      <p className={className} style={mergedStyle}>
+        {!isExpanded && hasOverflow && truncatedText !== null ? (
+          <>
+            {truncatedText}
+            {'... '}
+            {toggleButton}
+          </>
+        ) : (
+          <>
+            {normalizedText}
+            {isExpanded && toggleButton ? (
+              <>
+                {' '}
+                {toggleButton}
+              </>
+            ) : null}
+          </>
+        )}
+      </p>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EventPostMeta, PostAudienceBadge } from './PortalShellElements';
+import { EventPostMeta, PostAudienceBadge, ExpandablePostText } from './PortalShellElements';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -246,13 +246,13 @@ export default function AdminPostCard({
           </div>
           <div className="csf-post-body-wrap">
             <h3 className="csf-post-title">{item.title}</h3>
-            <p className="csf-post-text">{descriptionText}</p>
+            <ExpandablePostText text={descriptionText} className="csf-post-text" />
           </div>
         </>
       ) : (
         <div className="csf-post-body-wrap csf-text-only-body">
           <h3 className="csf-post-title is-uppercase">{item.title}</h3>
-          <p className="csf-post-text">{descriptionText}</p>
+          <ExpandablePostText text={descriptionText} className="csf-post-text" />
           {postImage && mediaFailed && (
             <div className="csf-image-fallback">
               <i className="fa-solid fa-image"></i>

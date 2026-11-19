@@ -210,6 +210,7 @@ router.get('/check-availability', availabilityLimiter, async (req, res) => {
                  JOIN users u ON sp.user_id = u.user_id
                  WHERE sp.student_number = $1
                    AND (u.is_email_verified = TRUE OR u.account_status <> 'Pending')
+                   AND LOWER(COALESCE(sp.verification_status, '')) <> 'rejected'
                  LIMIT 1`,
                 [studentId]
             );
@@ -226,8 +227,10 @@ router.get('/check-availability', availabilityLimiter, async (req, res) => {
             const emailRes = await pool.query(
                 `SELECT 1
                  FROM users u
+                 LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
                  WHERE LOWER(u.email) = $1
                    AND (u.is_email_verified = TRUE OR u.account_status <> 'Pending')
+                   AND LOWER(COALESCE(sp.verification_status, '')) <> 'rejected'
                  LIMIT 1`,
                 [email]
             );
@@ -305,13 +308,14 @@ router.post('/', registerLimiter, async (req, res) => {
         await client.query(`DELETE FROM pending_registrations WHERE expires_at < NOW()`);
         await client.query(`DELETE FROM users WHERE is_email_verified = FALSE AND account_status = 'Pending'`);
 
-        // Check duplicate email or student_number against verified/active accounts only
+        // Check duplicate email or student_number against verified/active (non-rejected) accounts only
         const dupRes = await client.query(
             `SELECT u.user_id
              FROM users u
              LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
              WHERE (LOWER(u.email) = $1 OR sp.student_number = $2)
-               AND (u.is_email_verified = TRUE OR u.account_status <> 'Pending')`,
+               AND (u.is_email_verified = TRUE OR u.account_status <> 'Pending')
+               AND LOWER(COALESCE(sp.verification_status, '')) <> 'rejected'`,
             [normalizedEmail, student_id.trim()]
         );
 
@@ -546,7 +550,8 @@ router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
             `SELECT u.user_id
              FROM users u
              LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
-             WHERE LOWER(u.email) = LOWER($1) OR sp.student_number = $2
+             WHERE (LOWER(u.email) = LOWER($1) OR sp.student_number = $2)
+               AND LOWER(COALESCE(sp.verification_status, '')) <> 'rejected'
              LIMIT 1`,
             [pending.email, pending.student_number]
         );
@@ -557,6 +562,22 @@ router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
             return res.status(409).json({
                 message: 'An account with this email or Student ID has already been verified.'
             });
+        }
+
+        // Replace any previously rejected student submission with the new verified submission
+        const rejectedIdsRes = await client.query(
+            `SELECT u.user_id
+             FROM users u
+             JOIN student_profiles sp ON u.user_id = sp.user_id
+             WHERE (LOWER(u.email) = LOWER($1) OR sp.student_number = $2)
+               AND LOWER(COALESCE(sp.verification_status, '')) = 'rejected'`,
+            [pending.email, pending.student_number]
+        );
+        if (rejectedIdsRes.rowCount > 0) {
+            const rejectedIds = rejectedIdsRes.rows.map((r) => r.user_id);
+            await client.query(`DELETE FROM notifications WHERE recipient_user_id = ANY($1::int[])`, [rejectedIds]);
+            await client.query(`DELETE FROM student_profiles WHERE user_id = ANY($1::int[])`, [rejectedIds]);
+            await client.query(`DELETE FROM users WHERE user_id = ANY($1::int[])`, [rejectedIds]);
         }
 
         const roleRes = await client.query(`SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1`);
@@ -687,12 +708,13 @@ router.get('/confirm-email', async (req, res) => {
                 });
             }
 
-            // Ensure no verified account claimed this email or student_number concurrently
+            // Ensure no verified (non-rejected) account claimed this email or student_number concurrently
             const conflictRes = await client.query(
                 `SELECT u.user_id
                  FROM users u
                  LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
-                 WHERE LOWER(u.email) = LOWER($1) OR sp.student_number = $2
+                 WHERE (LOWER(u.email) = LOWER($1) OR sp.student_number = $2)
+                   AND LOWER(COALESCE(sp.verification_status, '')) <> 'rejected'
                  LIMIT 1`,
                 [pending.email, pending.student_number]
             );
@@ -703,6 +725,22 @@ router.get('/confirm-email', async (req, res) => {
                 return res.status(409).json({
                     message: 'An account with this email or Student ID has already been verified.'
                 });
+            }
+
+            // Replace any previously rejected student submission with the new verified submission
+            const rejectedIdsRes = await client.query(
+                `SELECT u.user_id
+                 FROM users u
+                 JOIN student_profiles sp ON u.user_id = sp.user_id
+                 WHERE (LOWER(u.email) = LOWER($1) OR sp.student_number = $2)
+                   AND LOWER(COALESCE(sp.verification_status, '')) = 'rejected'`,
+                [pending.email, pending.student_number]
+            );
+            if (rejectedIdsRes.rowCount > 0) {
+                const rejectedIds = rejectedIdsRes.rows.map((r) => r.user_id);
+                await client.query(`DELETE FROM notifications WHERE recipient_user_id = ANY($1::int[])`, [rejectedIds]);
+                await client.query(`DELETE FROM student_profiles WHERE user_id = ANY($1::int[])`, [rejectedIds]);
+                await client.query(`DELETE FROM users WHERE user_id = ANY($1::int[])`, [rejectedIds]);
             }
 
             const roleRes = await client.query(`SELECT role_id FROM roles WHERE LOWER(role_name) = 'student' LIMIT 1`);
@@ -922,11 +960,25 @@ router.get('/verification-status', availabilityLimiter, async (req, res) => {
             return res.status(400).json({ message: 'Email is required.' });
         }
         const requireAdminVerification = await getRequireStudentVerification(pool);
+        const pendingRes = await pool.query(
+            `SELECT expires_at FROM pending_registrations WHERE LOWER(email) = $1 LIMIT 1`,
+            [email]
+        );
+        if (pendingRes.rowCount > 0) {
+            return res.json({
+                is_email_verified: false,
+                account_status: 'Pending',
+                expired: new Date() > new Date(pendingRes.rows[0].expires_at),
+                require_admin_verification: requireAdminVerification
+            });
+        }
+
         const result = await pool.query(
             `SELECT u.is_email_verified, u.account_status, sp.verification_status
              FROM users u
              LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
              WHERE LOWER(u.email) = $1
+               AND LOWER(COALESCE(sp.verification_status, '')) <> 'rejected'
              LIMIT 1`,
             [email]
         );
@@ -936,18 +988,6 @@ router.get('/verification-status', availabilityLimiter, async (req, res) => {
                 account_status: result.rows[0].account_status,
                 verification_status: result.rows[0].verification_status || null,
                 require_admin_verification: requireAdminVerification
-            });
-        }
-
-        const pendingRes = await pool.query(
-            `SELECT expires_at FROM pending_registrations WHERE LOWER(email) = $1 LIMIT 1`,
-            [email]
-        );
-        if (pendingRes.rowCount > 0) {
-            return res.json({
-                is_email_verified: false,
-                account_status: 'Pending',
-                expired: new Date() > new Date(pendingRes.rows[0].expires_at)
             });
         }
 
@@ -971,83 +1011,97 @@ router.post('/resend-confirmation', otpResendLimiter, async (req, res) => {
         await client.query('BEGIN');
         tx = true;
 
-        const userRes = await client.query(
-            `SELECT user_id, first_name, email, is_email_verified
-             FROM users WHERE LOWER(email) = $1 LIMIT 1`,
+        const pendingFirstRes = await client.query(
+            `SELECT pending_id
+             FROM pending_registrations
+             WHERE LOWER(email) = $1
+             LIMIT 1`,
             [email]
         );
-        if (userRes.rowCount > 0) {
-            const user = userRes.rows[0];
-            if (user.is_email_verified) {
-                await client.query('ROLLBACK');
-                tx = false;
-                return res.status(200).json({
-                    message: 'Email is already confirmed. You can sign in now.',
-                    alreadyVerified: true
-                });
-            }
 
-            const prevTok = await client.query(
-                `SELECT last_sent_at, created_at
-                 FROM auth_tokens
-                 WHERE user_id = $1 AND token_type = 'email_verification'
-                 ORDER BY created_at DESC LIMIT 1`,
-                [user.user_id]
+        if (pendingFirstRes.rowCount === 0) {
+            const userRes = await client.query(
+                `SELECT u.user_id, u.first_name, u.email, u.is_email_verified, sp.verification_status
+                 FROM users u
+                 LEFT JOIN student_profiles sp ON u.user_id = sp.user_id
+                 WHERE LOWER(u.email) = $1
+                   AND LOWER(COALESCE(sp.verification_status, '')) <> 'rejected'
+                 LIMIT 1`,
+                [email]
             );
-            if (prevTok.rowCount > 0) {
-                const lastSent = new Date(prevTok.rows[0].last_sent_at || prevTok.rows[0].created_at).getTime();
-                const elapsed = Date.now() - lastSent;
-                if (elapsed < OTP_RESEND_COOLDOWN_MS) {
-                    const retryAfterSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsed) / 1000);
+            if (userRes.rowCount > 0) {
+                const user = userRes.rows[0];
+                if (user.is_email_verified) {
                     await client.query('ROLLBACK');
                     tx = false;
-                    await logAudit(req, {
-                        action: 'Repeated OTP Request Blocked (Cooldown)',
-                        module: 'auth',
-                        actorUserId: user.user_id,
-                        outcome: 'FAILURE',
-                        isSecurityEvent: true,
-                        details: { email, retryAfterSeconds }
-                    });
-                    return res.status(429).json({
-                        code: 'OTP_COOLDOWN',
-                        message: `Please wait ${retryAfterSeconds} seconds before requesting another confirmation email.`,
-                        retryAfterSeconds
+                    return res.status(200).json({
+                        message: 'Email is already confirmed. You can sign in now.',
+                        alreadyVerified: true
                     });
                 }
-            }
 
-            await client.query(
-                `DELETE FROM auth_tokens WHERE user_id = $1 AND token_type = 'email_verification'`,
-                [user.user_id]
-            );
+                const prevTok = await client.query(
+                    `SELECT last_sent_at, created_at
+                     FROM auth_tokens
+                     WHERE user_id = $1 AND token_type = 'email_verification'
+                     ORDER BY created_at DESC LIMIT 1`,
+                    [user.user_id]
+                );
+                if (prevTok.rowCount > 0) {
+                    const lastSent = new Date(prevTok.rows[0].last_sent_at || prevTok.rows[0].created_at).getTime();
+                    const elapsed = Date.now() - lastSent;
+                    if (elapsed < OTP_RESEND_COOLDOWN_MS) {
+                        const retryAfterSeconds = Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsed) / 1000);
+                        await client.query('ROLLBACK');
+                        tx = false;
+                        await logAudit(req, {
+                            action: 'Repeated OTP Request Blocked (Cooldown)',
+                            module: 'auth',
+                            actorUserId: user.user_id,
+                            outcome: 'FAILURE',
+                            isSecurityEvent: true,
+                            details: { email, retryAfterSeconds }
+                        });
+                        return res.status(429).json({
+                            code: 'OTP_COOLDOWN',
+                            message: `Please wait ${retryAfterSeconds} seconds before requesting another confirmation email.`,
+                            retryAfterSeconds
+                        });
+                    }
+                }
 
-            const rawToken = crypto.randomBytes(32).toString('hex');
-            const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                await client.query(
+                    `DELETE FROM auth_tokens WHERE user_id = $1 AND token_type = 'email_verification'`,
+                    [user.user_id]
+                );
 
-            await client.query(
-                `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at, last_sent_at)
-                 VALUES ($1, 'email_verification', $2, $3, NOW())`,
-                [user.user_id, tokenHash, expiresAt]
-            );
+                const rawToken = crypto.randomBytes(32).toString('hex');
+                const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+                const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-            const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
+                await client.query(
+                    `INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at, last_sent_at)
+                     VALUES ($1, 'email_verification', $2, $3, NOW())`,
+                    [user.user_id, tokenHash, expiresAt]
+                );
 
-            try {
-                await sendVerificationEmail(user.email, user.first_name, confirmUrl);
-            } catch (emailErr) {
-                await client.query('ROLLBACK');
+                const confirmUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/confirm-email?token=${rawToken}`;
+
+                try {
+                    await sendVerificationEmail(user.email, user.first_name, confirmUrl);
+                } catch (emailErr) {
+                    await client.query('ROLLBACK');
+                    tx = false;
+                    return res.status(502).json({ message: 'Failed to resend verification email.' });
+                }
+
+                await client.query('COMMIT');
                 tx = false;
-                return res.status(502).json({ message: 'Failed to resend verification email.' });
+
+                return res.status(200).json({
+                    message: 'Confirmation email resent! Please check your Gmail inbox.'
+                });
             }
-
-            await client.query('COMMIT');
-            tx = false;
-
-            return res.status(200).json({
-                message: 'Confirmation email resent! Please check your Gmail inbox.'
-            });
         }
 
         const pendingRes = await client.query(

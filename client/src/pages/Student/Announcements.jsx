@@ -4,6 +4,7 @@ import {
   PostPageAvatar,
   PostAudienceBadge,
   PostOwnerActionMenu,
+  ExpandablePostText,
   PostEditDeleteModals,
   updatePostRequest,
   deletePostRequest,
@@ -259,9 +260,10 @@ export default function Announcements() {
                       <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
                         {item.title}
                       </h3>
-                      <p style={{ color: '#475569', fontSize: '0.9375rem', marginTop: '0.75rem', lineHeight: 1.6, margin: '0.75rem 0 0 0' }}>
-                        {item.content}
-                      </p>
+                      <ExpandablePostText
+                        text={item.content}
+                        style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: '0.75rem 0 0 0' }}
+                      />
                     </div>
                   )}
 
@@ -270,9 +272,10 @@ export default function Announcements() {
                       <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
                         {item.title}
                       </h3>
-                      <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '0.4rem', lineHeight: 1.5, margin: '0.4rem 0 0 0' }}>
-                        {item.content}
-                      </p>
+                      <ExpandablePostText
+                        text={item.content}
+                        style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: '0.4rem 0 0 0' }}
+                      />
                     </div>
                   )}
                 </article>

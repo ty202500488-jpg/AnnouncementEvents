@@ -210,6 +210,7 @@ const PageManagement = () => {
         setActionReason('');
         setPendingActionType('');
         fetchPagesData();
+        window.dispatchEvent(new CustomEvent('admin-counts-updated'));
       } else {
         throw new Error(data.message || 'Failed to execute page status update.');
       }

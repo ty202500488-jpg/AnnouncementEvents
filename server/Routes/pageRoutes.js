@@ -530,6 +530,7 @@ router.get('/spotlight', async (req, res) => {
              LEFT JOIN post_categories pc ON p.category_id = pc.category_id
              LEFT JOIN event_details ed ON p.post_id = ed.post_id
              WHERE p.is_archived = FALSE
+               AND p.is_university_wide = TRUE
                AND LOWER(p.moderation_status) = 'approved'
                AND (p.expires_at IS NULL OR p.expires_at > NOW())
                AND (

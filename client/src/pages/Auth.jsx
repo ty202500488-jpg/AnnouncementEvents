@@ -447,7 +447,10 @@ export default function Auth() {
         const res = await fetch(`http://localhost:5000/api/users/verification-status?email=${encodeURIComponent(email)}`);
         if (!res.ok) return;
         const data = await res.json();
-        if (data.is_email_verified) {
+        if (
+          data.is_email_verified &&
+          String(data.verification_status || '').toLowerCase() !== 'rejected'
+        ) {
           setLoginData((prev) => ({ ...prev, email }));
           resetRegistrationFlow();
           setActiveTab('login');
