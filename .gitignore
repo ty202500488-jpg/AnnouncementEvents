@@ -28,5 +28,6 @@ dist-ssr
 # Agent and Superpowers directories
 .agent/
 .agents/
+.superpowers/
 
 .env

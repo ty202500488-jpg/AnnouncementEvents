@@ -4,13 +4,14 @@ const pool = require('../db');
 const { requireAdmin, logAudit } = require('../middleware/auth');
 const { isEmailConfigured, sendStudentVerificationDecisionEmail } = require('../utils/emailService');
 const { parseRequireStudentVerification } = require('../utils/verificationPolicy');
-const { ensureUniversityWideColumn } = require('../utils/universityWideHelper');
+const { ensureUniversityWideColumn, evaluateSpotlightExpirationChange } = require('../utils/universityWideHelper');
 const {
     ensureNotificationSchema,
     getGlobalNotificationSettings,
     formatNotificationRow,
     notifyPublishedPost,
     notifyModerationOrPageDecision,
+    notifySpotlightExpirationChanged,
     notifyPostArchivedOrDeleted,
     notifyEventUpdated
 } = require('../utils/notificationService');
@@ -1291,6 +1292,8 @@ router.put('/content-feed/:id', async (req, res) => {
             category,
             audience,
             expires_at,
+            expires_at_reason,
+            reason,
             event_start,
             event_end,
             venue,
@@ -1300,6 +1303,19 @@ router.put('/content-feed/:id', async (req, res) => {
         } = req.body;
 
         await client.query('BEGIN');
+
+        const existingPostRes = await client.query(
+            `SELECT post_id, post_type, title, page_id, creator_user_id, is_university_wide, expires_at, moderation_status
+             FROM posts
+             WHERE post_id = $1
+             LIMIT 1`,
+            [postId]
+        );
+        if (existingPostRes.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+        const existingPost = existingPostRes.rows[0];
 
         let categoryId = null;
         if (category) {
@@ -1311,7 +1327,24 @@ router.put('/content-feed/:id', async (req, res) => {
         }
 
         const hasExpiresAt = Object.prototype.hasOwnProperty.call(req.body, 'expires_at');
-        const normalizedExpiresAt = hasExpiresAt ? (expires_at || null) : null;
+        let shouldUpdateExpiresAt = hasExpiresAt;
+        let normalizedExpiresAt = hasExpiresAt ? (expires_at || null) : null;
+        let spotlightExpiryEval = { valid: true, changed: false, previousExpiresAt: null, nextExpiresAt: null, reason: '' };
+
+        if (existingPost.is_university_wide && hasExpiresAt) {
+            spotlightExpiryEval = evaluateSpotlightExpirationChange({
+                isUniversityWide: true,
+                currentExpiresAt: existingPost.expires_at,
+                incomingExpiresAt: expires_at,
+                reason: expires_at_reason !== undefined ? expires_at_reason : reason
+            });
+            if (!spotlightExpiryEval.valid) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ message: spotlightExpiryEval.error });
+            }
+            shouldUpdateExpiresAt = spotlightExpiryEval.changed;
+            normalizedExpiresAt = spotlightExpiryEval.changed ? spotlightExpiryEval.nextExpiresAt : null;
+        }
 
         const postUpd = await client.query(
             `UPDATE posts
@@ -1323,7 +1356,7 @@ router.put('/content-feed/:id', async (req, res) => {
                  updated_at = NOW()
              WHERE post_id = $7
              RETURNING *`,
-            [title || null, description || body || null, categoryId, audience || null, hasExpiresAt, normalizedExpiresAt, postId]
+            [title || null, description || body || null, categoryId, audience || null, shouldUpdateExpiresAt, normalizedExpiresAt, postId]
         );
 
         if (postUpd.rows[0]?.post_type === 'event') {
@@ -1350,24 +1383,52 @@ router.put('/content-feed/:id', async (req, res) => {
 
         await client.query('COMMIT');
 
-        if (postUpd.rows[0]?.post_type === 'event' && String(postUpd.rows[0]?.moderation_status || '').toLowerCase() === 'approved') {
+        const updatedPost = postUpd.rows[0];
+        if (updatedPost?.post_type === 'event' && String(updatedPost?.moderation_status || '').toLowerCase() === 'approved') {
             await notifyEventUpdated(pool, {
                 postId,
-                title: postUpd.rows[0].title,
-                pageId: postUpd.rows[0].page_id,
+                title: updatedPost.title,
+                pageId: updatedPost.page_id,
                 actorUserId: req.user.user_id
             });
         }
 
+        if (spotlightExpiryEval.changed && updatedPost) {
+            await notifySpotlightExpirationChanged(pool, {
+                creatorUserId: updatedPost.creator_user_id,
+                actorUserId: req.user.user_id,
+                pageId: updatedPost.page_id,
+                postId,
+                postType: updatedPost.post_type,
+                title: updatedPost.title,
+                previousExpiresAt: spotlightExpiryEval.previousExpiresAt,
+                newExpiresAt: spotlightExpiryEval.nextExpiresAt,
+                reason: spotlightExpiryEval.reason,
+                duringApproval: false
+            });
+        }
+
         await logAudit(req, {
-            action: `Admin Edited Post`,
+            action: spotlightExpiryEval.changed ? 'Admin Adjusted Spotlight Expiration' : 'Admin Edited Post',
             module: 'posts',
             targetType: 'post',
             targetId: postId,
-            details: { title: postUpd.rows[0]?.title }
+            details: {
+                title: updatedPost?.title,
+                ...(spotlightExpiryEval.changed ? {
+                    previous_expires_at: spotlightExpiryEval.previousExpiresAt,
+                    new_expires_at: spotlightExpiryEval.nextExpiresAt,
+                    reason: spotlightExpiryEval.reason
+                } : {})
+            }
         });
 
-        return res.json({ message: 'Content updated successfully.', item: postUpd.rows[0] });
+        return res.json({
+            message: spotlightExpiryEval.changed
+                ? 'Content updated and staff notified of the new spotlight expiration.'
+                : 'Content updated successfully.',
+            item: updatedPost
+        });
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         console.error('Admin update content error:', error);
@@ -2710,6 +2771,8 @@ router.get('/post-approval', async (req, res) => {
                     p.created_at,
                     COALESCE(pc.category_name, 'General') AS category,
                     COALESCE(pg.page_name, 'Campus Page') AS page_name,
+                    COALESCE(pg.page_code, d.department_code, 'WMSU') AS page_code,
+                    CASE WHEN pg.avatar_url LIKE 'blob:%' THEN NULL ELSE pg.avatar_url END AS page_avatar_url,
                     COALESCE(d.department_name, pg.page_name, 'University-Wide') AS department_name,
                     COALESCE(u.first_name || ' ' || u.last_name, 'Staff') AS author_name,
                     ed.event_date,
@@ -2754,7 +2817,7 @@ const handlePostDecision = async (req, res) => {
     const client = await pool.connect();
     try {
         const postId = Number(req.params.id);
-        const { decision, reason } = req.body;
+        const { decision, reason, expires_at, expires_at_reason } = req.body;
         const norm = String(decision || 'approve').toLowerCase();
 
         let modStatus = 'Approved';
@@ -2774,50 +2837,101 @@ const handlePostDecision = async (req, res) => {
         await client.query('BEGIN');
 
         const existingRes = await client.query(
-            `SELECT moderation_status FROM posts WHERE post_id = $1 LIMIT 1`,
+            `SELECT post_id, moderation_status, is_university_wide, expires_at, creator_user_id, page_id, post_type, title
+             FROM posts
+             WHERE post_id = $1
+             LIMIT 1`,
             [postId]
         );
-        const prevModStatus = String(existingRes.rows[0]?.moderation_status || '').toLowerCase();
+        if (existingRes.rowCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Post not found.' });
+        }
+
+        const existingPost = existingRes.rows[0];
+        const prevModStatus = String(existingPost.moderation_status || '').toLowerCase();
+
+        let spotlightExpiryEval = { valid: true, changed: false, previousExpiresAt: null, nextExpiresAt: null, reason: '' };
+        if (logDecision === 'approve' && existingPost.is_university_wide) {
+            const hasIncomingExpiresAt = Object.prototype.hasOwnProperty.call(req.body, 'expires_at');
+            spotlightExpiryEval = evaluateSpotlightExpirationChange({
+                isUniversityWide: true,
+                currentExpiresAt: existingPost.expires_at,
+                incomingExpiresAt: hasIncomingExpiresAt ? expires_at : undefined,
+                reason: expires_at_reason !== undefined ? expires_at_reason : reason
+            });
+            if (!spotlightExpiryEval.valid) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ message: spotlightExpiryEval.error });
+            }
+
+            const effectiveExpiresAt = spotlightExpiryEval.changed
+                ? spotlightExpiryEval.nextExpiresAt
+                : existingPost.expires_at;
+            if (effectiveExpiresAt) {
+                const effMs = new Date(effectiveExpiresAt).getTime();
+                if (!Number.isNaN(effMs) && effMs <= Date.now()) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        message: 'This spotlight submission has already expired. Please adjust "Active Until" to a future date and time before approving.'
+                    });
+                }
+            }
+        }
 
         const upd = await client.query(
             `UPDATE posts
              SET moderation_status = $1::text,
                  status = CASE WHEN post_type = 'event' AND $2::text = 'Published' THEN 'Upcoming' ELSE $2::text END,
                  published_at = CASE WHEN $1::text = 'Approved' THEN COALESCE(published_at, NOW()) ELSE published_at END,
+                 expires_at = CASE WHEN $4::boolean THEN $5::timestamptz ELSE expires_at END,
                  updated_at = NOW()
              WHERE post_id = $3
              RETURNING *`,
-            [modStatus, postStatus, postId]
+            [modStatus, postStatus, postId, spotlightExpiryEval.changed, spotlightExpiryEval.nextExpiresAt]
         );
 
-        if (upd.rowCount === 0) {
-            await client.query('ROLLBACK');
-            return res.status(404).json({ message: 'Post not found.' });
-        }
-
         const post = upd.rows[0];
+        const moderationLogReason = spotlightExpiryEval.changed
+            ? `[Spotlight expiration adjusted: ${spotlightExpiryEval.previousExpiresAt || 'None'} -> ${spotlightExpiryEval.nextExpiresAt}] ${spotlightExpiryEval.reason}`
+            : (reason || null);
 
         await client.query(
             `INSERT INTO post_moderation_logs (post_id, reviewer_user_id, decision, reason)
              VALUES ($1, $2, $3, $4)`,
-            [postId, req.user.user_id, logDecision, reason || null]
+            [postId, req.user.user_id, logDecision, moderationLogReason]
         );
 
         const notifLabel = logDecision === 'correction' ? 'Correction Requested' : modStatus;
 
         await client.query('COMMIT');
 
-        await notifyModerationOrPageDecision(pool, {
-            recipientUserId: post.creator_user_id,
-            actorUserId: req.user.user_id,
-            pageId: post.page_id,
-            postId,
-            postType: post.post_type,
-            targetKind: 'post',
-            title: post.title,
-            decisionLabel: notifLabel,
-            reason: reason || null
-        });
+        if (spotlightExpiryEval.changed) {
+            await notifySpotlightExpirationChanged(pool, {
+                creatorUserId: post.creator_user_id,
+                actorUserId: req.user.user_id,
+                pageId: post.page_id,
+                postId,
+                postType: post.post_type,
+                title: post.title,
+                previousExpiresAt: spotlightExpiryEval.previousExpiresAt,
+                newExpiresAt: spotlightExpiryEval.nextExpiresAt,
+                reason: spotlightExpiryEval.reason,
+                duringApproval: true
+            });
+        } else {
+            await notifyModerationOrPageDecision(pool, {
+                recipientUserId: post.creator_user_id,
+                actorUserId: req.user.user_id,
+                pageId: post.page_id,
+                postId,
+                postType: post.post_type,
+                targetKind: 'post',
+                title: post.title,
+                decisionLabel: notifLabel,
+                reason: reason || null
+            });
+        }
 
         if (logDecision === 'approve' && prevModStatus !== 'approved') {
             await notifyPublishedPost(pool, {
@@ -2827,14 +2941,28 @@ const handlePostDecision = async (req, res) => {
         }
 
         await logAudit(req, {
-            action: `Post Moderation Decision (${notifLabel})`,
+            action: spotlightExpiryEval.changed
+                ? `Post Moderation Decision (${notifLabel} + Expiration Adjusted)`
+                : `Post Moderation Decision (${notifLabel})`,
             module: 'posts',
             targetType: 'post',
             targetId: postId,
-            details: { decision: notifLabel, reason }
+            details: {
+                decision: notifLabel,
+                reason: spotlightExpiryEval.changed ? spotlightExpiryEval.reason : reason,
+                ...(spotlightExpiryEval.changed ? {
+                    previous_expires_at: spotlightExpiryEval.previousExpiresAt,
+                    new_expires_at: spotlightExpiryEval.nextExpiresAt
+                } : {})
+            }
         });
 
-        return res.json({ message: `Post marked as ${notifLabel}.`, item: post });
+        return res.json({
+            message: spotlightExpiryEval.changed
+                ? `Post approved with updated spotlight expiration. Staff notified.`
+                : `Post marked as ${notifLabel}.`,
+            item: post
+        });
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         console.error('Post decision error:', error);
