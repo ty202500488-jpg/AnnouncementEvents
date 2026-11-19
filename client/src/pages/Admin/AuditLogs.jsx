@@ -4,6 +4,40 @@ import Pagination from '../../assets/components/Pagination';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import '../styles/AuditLogs.css';
 
+const formatAuditDescription = (log) => {
+  if (!log) return '';
+  const actionKey = String(log.action || '').toUpperCase();
+  const actionLabel = String(log.action || 'Activity')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const rawTarget = String(log.resource_title || '').trim();
+  const isRawIdPlaceholder = /^(user|record|post|page)\s*#\d+$/i.test(rawTarget);
+  const cleanTarget = isRawIdPlaceholder ? '' : rawTarget;
+
+  let summaryText = '';
+  if (actionKey.includes('LOGIN_FAILED') || actionKey.includes('FAILED_LOGIN')) {
+    summaryText = `Failed sign-in attempt${cleanTarget ? ` for ${cleanTarget}` : ''}`;
+  } else if (actionKey.includes('LOGIN')) {
+    summaryText = `${cleanTarget || log.actor_label || 'User'} signed in to the portal`;
+  } else if (actionKey.includes('LOGOUT')) {
+    summaryText = `${cleanTarget || log.actor_label || 'User'} signed out of the portal`;
+  } else if (actionKey.includes('REGISTER')) {
+    summaryText = `Registered new account${cleanTarget ? ` for ${cleanTarget}` : ''}`;
+  } else if (cleanTarget) {
+    const targetPrefix =
+      log.resource_type && !cleanTarget.toLowerCase().startsWith(String(log.resource_type).toLowerCase())
+        ? `${String(log.resource_type).toLowerCase()} `
+        : '';
+    summaryText = `${actionLabel} on ${targetPrefix}${cleanTarget}`;
+  } else {
+    summaryText = `${actionLabel} in ${log.module || 'System'}`;
+  }
+
+  const reasonPart = log.reason ? ` (${log.reason})` : '';
+  return `${summaryText}${reasonPart}`;
+};
+
 const AuditLogs = () => {
   // --- Filters & State ---
   const [logs, setLogs] = useState([]);
@@ -519,15 +553,7 @@ const AuditLogs = () => {
               <tbody>
                 {logs.map((log) => {
                   const modulePrefix = log.module ? `[${log.module}] ` : '';
-                  const resourcePart = log.resource_title
-                    ? `${log.resource_type ? `${log.resource_type}: ` : ''}${log.resource_title}`
-                    : log.resource_id
-                      ? `${log.resource_type || 'Record'} #${log.resource_id}`
-                      : '';
-                  const reasonPart = log.reason ? `Note: ${log.reason}` : '';
-                  const descriptionText =
-                    [resourcePart, reasonPart].filter(Boolean).join(' • ') ||
-                    `${log.action || 'System activity'} recorded in ${log.module || 'System'}`;
+                  const descriptionText = formatAuditDescription(log);
 
                   const isPostArchiveLog =
                     String(log.action || '').toLowerCase().includes('archive') &&
@@ -620,7 +646,7 @@ const AuditLogs = () => {
         {isModalOpen && selectedLog && (
           <div className="audit-logs-modal-backdrop" onClick={() => setIsModalOpen(false)}>
             <div 
-              className="audit-logs-modal" 
+              className="modal-card audit-logs-modal" 
               ref={modalRef} 
               onClick={(e) => e.stopPropagation()}
               role="dialog"
@@ -629,12 +655,12 @@ const AuditLogs = () => {
             >
               <div className="modal-header">
                 <div>
-                  <h3 id="modal-title" className="modal-title">Audit Event Details</h3>
+                  <h2 id="modal-title">Audit Event Details</h2>
                   <span className="modal-id">Event ID: {selectedLog.id}</span>
                 </div>
                 <button 
                   type="button" 
-                  className="modal-close-btn" 
+                  className="close-btn" 
                   onClick={() => setIsModalOpen(false)}
                   aria-label="Close modal"
                 >
@@ -646,7 +672,16 @@ const AuditLogs = () => {
                 <div className="modal-grid">
                   <div className="detail-item">
                     <span className="detail-label">Exact Timestamp</span>
-                    <span className="detail-value">{new Date(selectedLog.created_at).toUTCString()}</span>
+                    <span className="detail-value">
+                      {new Date(selectedLog.created_at).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        second: '2-digit'
+                      })}
+                    </span>
                   </div>
 
                   <div className="detail-item">
@@ -659,7 +694,6 @@ const AuditLogs = () => {
                   <div className="detail-item">
                     <span className="detail-label">Actor</span>
                     <span className="detail-value">{selectedLog.actor_label || 'Unauthenticated'}</span>
-                    <span className="detail-subtext">ID: {selectedLog.actor_user_id || 0} | Role: {selectedLog.actor_role || 0}</span>
                   </div>
 
                   <div className="detail-item">
@@ -667,25 +701,9 @@ const AuditLogs = () => {
                     <span className="detail-value bold">{selectedLog.action}</span>
                   </div>
 
-                  <div className="detail-item">
-                    <span className="detail-label">Module / Subsystem</span>
-                    <span className="detail-value">{selectedLog.module}</span>
-                  </div>
-
-                  <div className="detail-item">
-                    <span className="detail-label">Affected Resource</span>
-                    <span className="detail-value">{selectedLog.resource_type || 0}</span>
-                    <span className="detail-subtext">ID: {selectedLog.resource_id || 0}</span>
-                  </div>
-
-                  <div className="detail-item">
-                    <span className="detail-label">Source IP Address</span>
-                    <span className="detail-value">{selectedLog.ip_address || '0.0.0.0'}</span>
-                  </div>
-
-                  <div className="detail-item">
-                    <span className="detail-label">Request Correlation ID</span>
-                    <span className="detail-value">{selectedLog.request_id || 0}</span>
+                  <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                    <span className="detail-label">Description</span>
+                    <span className="detail-value">{formatAuditDescription(selectedLog)}</span>
                   </div>
                 </div>
 
@@ -720,14 +738,6 @@ const AuditLogs = () => {
                     </table>
                   </div>
                 )}
-
-                {/* Additional Metadata JSON */}
-                <div className="modal-section">
-                  <h4>Structured Metadata</h4>
-                  <pre className="metadata-json">
-                    {JSON.stringify(selectedLog.metadata || {}, null, 2)}
-                  </pre>
-                </div>
               </div>
 
               <div className="modal-footer" style={{ gap: '0.5rem' }}>

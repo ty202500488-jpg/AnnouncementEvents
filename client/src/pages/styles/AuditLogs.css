@@ -596,52 +596,20 @@
 
 .spin { animation: fa-spin 1s infinite linear; }
 
-/* Read-only Modal */
-.audit-logs-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(2px);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-
+/* Read-only Modal (sizing & content layout; base card/header/footer come from Unified Admin Modal Design System) */
 .audit-logs-modal {
-  background-color: #ffffff;
-  border-radius: 0.75rem;
   width: 100%;
-  max-width: 650px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  max-width: 520px;
 }
 
-.modal-header {
-  padding: 1.25rem;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-title { margin: 0; font-size: 1.125rem; font-weight: 700; color: #3d0610; }
-.modal-id { font-size: 0.75rem; color: #64748b; }
-
-.modal-close-btn {
-  background: transparent;
-  border: none;
-  font-size: 1.25rem;
+.modal-id {
+  display: block;
+  font-size: 0.75rem;
   color: #64748b;
-  cursor: pointer;
+  margin-top: 0.15rem;
 }
 
-.modal-body {
-  padding: 1.25rem;
-  overflow-y: auto;
+.audit-logs-modal .modal-body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -650,17 +618,55 @@
 .modal-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 1rem 1.5rem;
+  align-items: start;
 }
 
-.detail-item { display: flex; flex-direction: column; }
-.detail-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; }
-.detail-value { font-size: 0.875rem; color: #1e293b; margin-top: 0.2rem; }
-.detail-value.bold { font-weight: 700; }
-.detail-subtext { font-size: 0.75rem; color: #94a3b8; }
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
 
-.modal-section h4 { font-size: 0.875rem; font-weight: 700; color: #334155; margin: 0 0 0.5rem 0; }
-.reason-text { font-size: 0.875rem; background-color: #f8fafc; padding: 0.75rem; border-radius: 0.375rem; border: 1px solid #e2e8f0; margin: 0; }
+.detail-item .audit-logs-badge {
+  margin-top: 0.3rem;
+}
+
+.detail-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.detail-value {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #0f172a;
+  margin-top: 0.25rem;
+  word-break: break-word;
+}
+
+.detail-value.bold { font-weight: 700; }
+.detail-value.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8125rem;
+  color: #334155;
+}
+.detail-subtext { font-size: 0.75rem; color: #94a3b8; margin-top: 0.15rem; }
+
+.modal-section h4 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #475569;
+  margin: 0 0 0.5rem 0;
+}
+
+.reason-text { font-size: 0.875rem; background-color: #f8fafc; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid #e2e8f0; margin: 0; color: #1e293b; }
 
 .changes-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 .changes-table th, .changes-table td { padding: 0.5rem; border: 1px solid #e2e8f0; text-align: left; }
@@ -670,19 +676,23 @@
 
 .metadata-json {
   background-color: #0f172a;
-  color: #38bdf8;
-  padding: 0.75rem;
-  border-radius: 0.375rem;
+  color: #e2e8f0;
+  padding: 0.875rem 1rem;
+  border-radius: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
+  line-height: 1.5;
   overflow-x: auto;
   margin: 0;
 }
 
-.modal-footer {
-  padding: 1rem 1.25rem;
-  border-top: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: flex-end;
+.metadata-empty {
+  background-color: #f8fafc;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.8125rem;
 }
 
 /* Responsiveness */

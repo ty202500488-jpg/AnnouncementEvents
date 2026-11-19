@@ -129,21 +129,6 @@ export default function AdminPostCard({
 
               {isMenuOpen && (
                 <div className="csf-post-menu-dropdown" role="menu">
-                  {onViewDetails && (
-                    <button
-                      type="button"
-                      className="csf-post-menu-item"
-                      role="menuitem"
-                      onClick={() => {
-                        onCloseMenu?.();
-                        onViewDetails(item);
-                      }}
-                    >
-                      <i className="fa-solid fa-eye"></i>
-                      <span>View Details</span>
-                    </button>
-                  )}
-
                   {onEdit && (
                     <button
                       type="button"
@@ -159,7 +144,7 @@ export default function AdminPostCard({
                     </button>
                   )}
 
-                  {(onArchive || onTakeDown || onRestore || onDelete) && (onViewDetails || onEdit) && (
+                  {(onArchive || onTakeDown || onRestore || onDelete) && onEdit && (
                     <div className="csf-post-menu-divider" />
                   )}
 
@@ -236,6 +221,10 @@ export default function AdminPostCard({
       {/* 2. Staff-Matched Full-Bleed Media + Content */}
       {postImage && !mediaFailed ? (
         <>
+          <div className="csf-post-body-wrap">
+            <h3 className="csf-post-title">{item.title}</h3>
+            <ExpandablePostText text={descriptionText} className="csf-post-text" />
+          </div>
           <div className="csf-post-media">
             <img
               src={postImage}
@@ -243,10 +232,6 @@ export default function AdminPostCard({
               loading="lazy"
               onError={() => onImageError?.(`media-${postKey}`)}
             />
-          </div>
-          <div className="csf-post-body-wrap">
-            <h3 className="csf-post-title">{item.title}</h3>
-            <ExpandablePostText text={descriptionText} className="csf-post-text" />
           </div>
         </>
       ) : (

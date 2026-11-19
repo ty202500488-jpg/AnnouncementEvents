@@ -12,7 +12,7 @@ export default function AdminProfile() {
 
   const [user, setUser] = useState({
     pageName: 'Western Mindanao State University',
-    dept: 'MISTO Administration',
+    dept: 'System Administration',
     email: 'admin@wmsu.edu.ph',
     employeeId: 'ADMIN-001',
     avatarUrl: '',
@@ -43,7 +43,7 @@ export default function AdminProfile() {
         const parsed = JSON.parse(storedUser);
         const initialData = {
           pageName: parsed.page_name || 'Western Mindanao State University',
-          dept: parsed.department || parsed.dept || 'MISTO Administration',
+          dept: parsed.department || parsed.dept || 'System Administration',
           email: parsed.email || 'admin@wmsu.edu.ph',
           employeeId: parsed.employee_id || parsed.student_id || 'ADMIN-001',
           bio: parsed.bio || 'Official university page managing campus-wide announcements, events, and institutional updates.',
@@ -264,7 +264,7 @@ export default function AdminProfile() {
                       Official Page
                     </span>
                     <span>•</span>
-                    <span>Campus-Wide</span>
+                    <span><strong>{officialPageMeta.followersCount || 0}</strong> followers</span>
                     <span>•</span>
                     <span><strong>{posts.length}</strong> posts</span>
                   </div>

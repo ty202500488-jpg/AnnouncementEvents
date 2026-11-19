@@ -421,7 +421,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
     }
   })();
   const staffDisplayName = `${storedUser.firstName || storedUser.first_name || ''} ${storedUser.lastName || storedUser.last_name || ''}`.trim() || 'Staff Dashboard';
-  const staffSubtitle = storedUser.program_name || storedUser.course || storedUser.program || 'BS Computer Science';
+  const staffSubtitle = storedUser.program_name || storedUser.course || storedUser.program || storedUser.department_name || 'Staff';
   const staffInitials = getInitials(staffDisplayName, 'ST');
 
   const profileMenuItems = buildPortalProfileMenuItems({
@@ -855,48 +855,34 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                       </div>
                     </div>
 
-                    {postImage ? (
-                      <>
-                        <div
-                          style={{
-                            backgroundColor: '#0f172a',
-                            width: '100%',
-                            maxHeight: '450px',
-                            overflow: 'hidden',
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            position: 'relative',
-                          }}
-                        >
-                          <img
-                            src={postImage}
-                            alt={titleText || 'Post attachment'}
-                            style={{ width: '100%', height: 'auto', objectFit: 'cover' }}
-                          />
-                        </div>
-                        <div style={{ padding: '0.875rem 1rem 0.875rem 1rem' }}>
-                          {titleText && (
-                            <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
-                              {titleText}
-                            </h3>
-                          )}
-                          <ExpandablePostText
-                            text={bodyText}
-                            style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: titleText ? '0.4rem 0 0 0' : 0 }}
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ padding: '0.5rem 1rem 1rem 1rem' }}>
-                        {titleText && (
-                          <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
-                            {titleText}
-                          </h3>
-                        )}
-                        <ExpandablePostText
-                          text={bodyText}
-                          style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: titleText ? '0.75rem 0 0 0' : 0 }}
+                    <div style={{ padding: postImage ? '0.25rem 1rem 0.75rem 1rem' : '0.5rem 1rem 1rem 1rem' }}>
+                      {titleText && (
+                        <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: postImage ? '1.0625rem' : '1.125rem', lineHeight: 1.35, margin: 0, ...(postImage ? {} : { textTransform: 'uppercase', letterSpacing: '0.01em' }) }}>
+                          {titleText}
+                        </h3>
+                      )}
+                      <ExpandablePostText
+                        text={bodyText}
+                        style={{ color: '#475569', fontSize: postImage ? '0.9rem' : '0.9375rem', lineHeight: postImage ? 1.5 : 1.6, margin: titleText ? (postImage ? '0.4rem 0 0 0' : '0.75rem 0 0 0') : 0 }}
+                      />
+                    </div>
+                    {postImage && (
+                      <div
+                        style={{
+                          backgroundColor: '#0f172a',
+                          width: '100%',
+                          maxHeight: '450px',
+                          overflow: 'hidden',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          position: 'relative',
+                        }}
+                      >
+                        <img
+                          src={postImage}
+                          alt={titleText || 'Post attachment'}
+                          style={{ width: '100%', height: 'auto', objectFit: 'cover' }}
                         />
                       </div>
                     )}
@@ -933,10 +919,24 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                   </div>
                 </li>
                 <li className="fb-about-item">
+                  <i className="fa-solid fa-shield-halved"></i>
+                  <div>
+                    <span className="fb-about-label">Visibility</span>
+                    <span>Public Verified Campus Page</span>
+                  </div>
+                </li>
+                <li className="fb-about-item">
                   <i className="fa-solid fa-circle-check"></i>
                   <div>
                     <span className="fb-about-label">Status</span>
                     <span>{pageData?.approvalStatus || 'Approved'} • {pageData?.pageStatus || 'Active'}</span>
+                  </div>
+                </li>
+                <li className="fb-about-item">
+                  <i className="fa-solid fa-users"></i>
+                  <div>
+                    <span className="fb-about-label">Followers</span>
+                    <span>{pageData?.followersCount || 0} students and staff</span>
                   </div>
                 </li>
               </ul>

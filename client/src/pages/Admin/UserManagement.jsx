@@ -28,6 +28,14 @@ const UserManagement = () => {
   const [staffAssignments, setStaffAssignments] = useState([]);
   const [eligibleUsersList, setEligibleUsersList] = useState([]);
   const [availablePagesList, setAvailablePagesList] = useState([]);
+  const [summaryCounts, setSummaryCounts] = useState({
+    totalUsers: 0,
+    activeUsers: 0,
+    totalStudents: 0,
+    staffCount: 0,
+    pendingVerifications: 0,
+    suspendedUsers: 0
+  });
 
   // Async States
   const [loading, setLoading] = useState(true);
@@ -101,6 +109,23 @@ const UserManagement = () => {
       if (response.ok) {
         if (data.colleges) {
           setCollegesList(data.colleges);
+        }
+        if (data.summary) {
+          setSummaryCounts({
+            totalUsers: data.summary.totalUsers ?? 0,
+            totalStudents: data.summary.totalStudents ?? 0,
+            staffCount: data.summary.staffCount ?? 0,
+            pendingVerifications: data.summary.pendingVerifications ?? 0,
+            suspendedUsers: data.summary.suspendedUsers ?? 0
+          });
+        } else if (activeTab === 'all' && roleFilter === 'all' && statusFilter === 'all' && collegeFilter === 'all' && !debouncedSearch && Array.isArray(data.users)) {
+          setSummaryCounts((prev) => ({
+            ...prev,
+            totalUsers: data.pagination?.total ?? data.users.length,
+            totalStudents: data.users.filter((u) => String(u.role || '').toLowerCase() === 'student').length,
+            staffCount: data.users.filter((u) => String(u.role || '').toLowerCase() === 'staff').length,
+            suspendedUsers: data.users.filter((u) => String(u.status || u.account_status || '').toLowerCase() === 'suspended').length
+          }));
         }
         if (activeTab === 'all') {
           setUsers(data.users || []);
@@ -327,33 +352,6 @@ const UserManagement = () => {
           </div>
 
           <div className="um-header-actions">
-            <button
-              type="button"
-              className={`um-nav-pill-btn ${activeTab === 'all' ? 'is-active' : ''}`}
-              onClick={() => handleTabChange('all')}
-            >
-              <i className="fa-solid fa-users" aria-hidden="true"></i>
-              <span>All Users</span>
-            </button>
-
-            <button
-              type="button"
-              className={`um-nav-pill-btn ${activeTab === 'staff' ? 'is-active' : ''}`}
-              onClick={() => handleTabChange('staff')}
-            >
-              <i className="fa-solid fa-user-shield" aria-hidden="true"></i>
-              <span>Staff Access</span>
-            </button>
-
-            <button
-              type="button"
-              className={`um-nav-pill-btn ${activeTab === 'verification' ? 'is-active' : ''}`}
-              onClick={() => handleTabChange('verification')}
-            >
-              <i className="fa-solid fa-user-check" aria-hidden="true"></i>
-              <span>Verification Requests</span>
-            </button>
-
             {activeTab === 'staff' && (
               <button
                 type="button"
@@ -364,6 +362,15 @@ const UserManagement = () => {
                 <span>Grant Staff Access</span>
               </button>
             )}
+            <button
+              type="button"
+              className="btn-um-primary"
+              onClick={fetchTabData}
+              disabled={loading}
+            >
+              <i className={`fa-solid fa-rotate-right ${loading ? 'fa-spin' : ''}`} aria-hidden="true"></i>
+              <span>Refresh</span>
+            </button>
           </div>
         </div>
 
@@ -379,6 +386,104 @@ const UserManagement = () => {
             </button>
           </div>
         )}
+
+        {/* ================= CLICKABLE KPI STRIP ================= */}
+        <div className="admin-kpi-strip" role="tablist" aria-label="User management filters">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'all' && roleFilter === 'all' && statusFilter === 'all'}
+            className={`admin-kpi-tile ${activeTab === 'all' && roleFilter === 'all' && statusFilter === 'all' ? 'is-active' : ''}`}
+            onClick={() => {
+              handleTabChange('all');
+              setRoleFilter('all');
+              setStatusFilter('all');
+            }}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">All Users</span>
+              <span className="admin-kpi-value">{loading ? '...' : summaryCounts.totalUsers}</span>
+            </div>
+            <span className="admin-kpi-icon" aria-hidden="true">
+              <i className="fa-solid fa-users"></i>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'all' && roleFilter === 'student' && statusFilter === 'all'}
+            className={`admin-kpi-tile ${activeTab === 'all' && roleFilter === 'student' && statusFilter === 'all' ? 'is-active' : ''}`}
+            onClick={() => {
+              handleTabChange('all');
+              setRoleFilter('student');
+              setStatusFilter('all');
+            }}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Students</span>
+              <span className="admin-kpi-value">{loading ? '...' : summaryCounts.totalStudents}</span>
+            </div>
+            <span className="admin-kpi-icon tone-blue" aria-hidden="true">
+              <i className="fa-solid fa-user-graduate"></i>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'staff'}
+            className={`admin-kpi-tile ${activeTab === 'staff' ? 'is-active' : ''}`}
+            onClick={() => handleTabChange('staff')}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Staff Access</span>
+              <span className="admin-kpi-value tone-crimson">{loading ? '...' : summaryCounts.staffCount}</span>
+            </div>
+            <span className="admin-kpi-icon tone-crimson" aria-hidden="true">
+              <i className="fa-solid fa-user-shield"></i>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'verification'}
+            className={`admin-kpi-tile ${activeTab === 'verification' ? 'is-active' : ''}`}
+            onClick={() => {
+              handleTabChange('verification');
+              setStatusFilter('pending');
+            }}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Verification Queue</span>
+              <span className="admin-kpi-value tone-amber">{loading ? '...' : summaryCounts.pendingVerifications}</span>
+            </div>
+            <span className="admin-kpi-icon tone-amber" aria-hidden="true">
+              <i className="fa-solid fa-hourglass-half"></i>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'all' && statusFilter === 'suspended'}
+            className={`admin-kpi-tile ${activeTab === 'all' && statusFilter === 'suspended' ? 'is-active' : ''}`}
+            onClick={() => {
+              handleTabChange('all');
+              setRoleFilter('all');
+              setStatusFilter('suspended');
+            }}
+          >
+            <div className="admin-kpi-meta">
+              <span className="admin-kpi-label">Suspended</span>
+              <span className="admin-kpi-value tone-rose">{loading ? '...' : summaryCounts.suspendedUsers}</span>
+            </div>
+            <span className="admin-kpi-icon tone-rose" aria-hidden="true">
+              <i className="fa-solid fa-user-slash"></i>
+            </span>
+          </button>
+        </div>
 
         {/* ================= SINGLE-ROW LABELED FILTER BAR ================= */}
         <div className="um-controls-card">

@@ -610,32 +610,19 @@ export default function StaffMyPage() {
                       </div>
                     </div>
 
-                    {/* Post Media or Clean Text Body */}
-                    {postImage ? (
+                    {/* Post Content & Media */}
+                    <div style={{ padding: postImage ? '0.25rem 1rem 0.75rem 1rem' : '0.5rem 1rem 1rem 1rem' }}>
+                      <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: postImage ? '1.0625rem' : '1.125rem', lineHeight: 1.35, margin: 0, ...(postImage ? {} : { textTransform: 'uppercase', letterSpacing: '0.01em' }) }}>
+                        {post.title}
+                      </h3>
+                      <ExpandablePostText
+                        text={post.description || post.content || 'No preview available.'}
+                        style={{ color: '#475569', fontSize: postImage ? '0.9rem' : '0.9375rem', lineHeight: postImage ? 1.5 : 1.6, margin: postImage ? '0.4rem 0 0 0' : '0.75rem 0 0 0', whiteSpace: 'pre-line' }}
+                      />
+                    </div>
+                    {postImage && (
                       <div style={{ backgroundColor: '#0f172a', width: '100%', maxHeight: '450px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
                         <img src={postImage} alt={post.title} style={{ width: '100%', height: 'auto', objectFit: 'cover' }} />
-                      </div>
-                    ) : (
-                      <div style={{ padding: '0.5rem 1rem 1rem 1rem' }}>
-                        <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
-                          {post.title}
-                        </h3>
-                        <ExpandablePostText
-                          text={post.description || post.content || 'No preview available.'}
-                          style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: '0.75rem 0 0 0', whiteSpace: 'pre-line' }}
-                        />
-                      </div>
-                    )}
-
-                    {postImage && (
-                      <div style={{ padding: '0.875rem 1rem 0.5rem 1rem' }}>
-                        <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
-                          {post.title}
-                        </h3>
-                        <ExpandablePostText
-                          text={post.description || post.content || 'No preview available.'}
-                          style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: '0.4rem 0 0 0', whiteSpace: 'pre-line' }}
-                        />
                       </div>
                     )}
 

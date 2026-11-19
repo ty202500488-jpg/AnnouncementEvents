@@ -1,5 +1,21 @@
 import React, { useState } from 'react';
 
+function buildTopRoundedBarPath(x, y, w, h, r = 5) {
+  const radius = Math.min(r, w / 2, h);
+  if (radius <= 0) {
+    return `M ${x},${y} H ${x + w} V ${y + h} H ${x} Z`;
+  }
+  return [
+    `M ${x},${y + h}`,
+    `V ${y + radius}`,
+    `Q ${x},${y} ${x + radius},${y}`,
+    `H ${x + w - radius}`,
+    `Q ${x + w},${y} ${x + w},${y + radius}`,
+    `V ${y + h}`,
+    'Z',
+  ].join(' ');
+}
+
 function buildSmoothSplinePath(pts) {
   if (!pts.length) return '';
   if (pts.length === 1) return `M ${pts[0].x},${pts[0].y}`;
@@ -23,13 +39,14 @@ export const ReferenceBarChartCard = ({ number, title, badgeText, badgeTone = 'e
   const rawMax = Math.max(0, ...bars.map((b) => Number(b.value) || 0));
   const maxVal = Math.max(4, Math.ceil(rawMax / 2) * 2);
   const hasData = bars.some((b) => (Number(b.value) || 0) > 0);
+  const totalSum = bars.reduce((acc, b) => acc + (Number(b.value) || 0), 0);
 
   const width = 560;
-  const height = 225;
-  const padL = 38;
+  const height = 232;
+  const padL = 36;
   const padR = 16;
-  const padT = 16;
-  const padB = 34;
+  const padT = 26;
+  const padB = 38;
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
   const yTicks = [0, Math.round(maxVal * 0.25), Math.round(maxVal * 0.5), Math.round(maxVal * 0.75), maxVal];
@@ -37,8 +54,11 @@ export const ReferenceBarChartCard = ({ number, title, badgeText, badgeTone = 'e
   const getY = (val) => padT + plotH - ((Number(val) || 0) / maxVal) * plotH;
 
   const slotW = bars.length ? plotW / bars.length : plotW;
-  const barW = Math.min(180, Math.max(42, slotW * 0.62));
+  const barW = Math.min(64, Math.max(34, slotW * 0.34));
   const hoveredBar = hoveredIdx !== null && bars[hoveredIdx] ? bars[hoveredIdx] : null;
+  const hoveredShare = hoveredBar && totalSum > 0
+    ? Math.round(((Number(hoveredBar.value) || 0) / totalSum) * 100)
+    : 0;
 
   return (
     <section className="ov-card ov-ref-chart-card" aria-label={title}>
@@ -68,20 +88,42 @@ export const ReferenceBarChartCard = ({ number, title, badgeText, badgeTone = 'e
               <div className="ov-chart-tooltip" role="status">
                 <div className="ov-tooltip-title">{hoveredBar.label}</div>
                 <div className="ov-tooltip-row">
-                  <span className="ov-dot" style={{ background: hoveredBar.color }}></span>
-                  <span>Total:</span>
-                  <strong>{hoveredBar.value.toLocaleString()}</strong>
+                  <span>
+                    <span className="ov-dot" style={{ background: hoveredBar.color }}></span>
+                    Total:
+                  </span>
+                  <strong>
+                    {hoveredBar.value.toLocaleString()}
+                    {totalSum > 0 ? ` (${hoveredShare}%)` : ''}
+                  </strong>
                 </div>
               </div>
             )}
 
             <svg viewBox={`0 0 ${width} ${height}`} className="ov-svg-chart" role="img" aria-label={title}>
+              <defs>
+                {bars.map((b, idx) => (
+                  <linearGradient key={`bar-grad-${idx}`} id={`ovBarGrad-${number}-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={b.color} stopOpacity="1" />
+                    <stop offset="100%" stopColor={b.color} stopOpacity="0.78" />
+                  </linearGradient>
+                ))}
+              </defs>
+
               {uniqueYTicks.map((tick) => {
                 const y = getY(tick);
                 return (
                   <g key={tick}>
-                    <line x1={padL} y1={y} x2={width - padR} y2={y} stroke={tick === 0 ? '#cbd5e1' : '#e2e8f0'} />
-                    <text x={padL - 8} y={y + 4} textAnchor="end" fontSize="11" fontWeight="500" fill="#64748b">{tick}</text>
+                    <line
+                      x1={padL}
+                      y1={y}
+                      x2={width - padR}
+                      y2={y}
+                      stroke={tick === 0 ? '#cbd5e1' : '#e2e8f0'}
+                      strokeWidth={tick === 0 ? 1.25 : 1}
+                      strokeDasharray={tick === 0 ? undefined : '4 4'}
+                    />
+                    <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="11" fontWeight="500" fill="#94a3b8">{tick}</text>
                   </g>
                 );
               })}
@@ -90,20 +132,81 @@ export const ReferenceBarChartCard = ({ number, title, badgeText, badgeTone = 'e
                 const cx = padL + slotW * idx + slotW / 2;
                 const val = Number(b.value) || 0;
                 const yTop = getY(val);
-                const h = Math.max(2, padT + plotH - yTop);
+                const h = Math.max(0, padT + plotH - yTop);
+                const isHovered = hoveredIdx === idx;
+                const isDimmed = hoveredIdx !== null && !isHovered;
+
                 return (
-                  <g key={b.label} onMouseEnter={() => setHoveredIdx(idx)} style={{ cursor: 'pointer' }}>
-                    <rect
-                      x={cx - barW / 2}
-                      y={yTop}
-                      width={barW}
-                      height={h}
-                      rx="5"
-                      ry="5"
-                      fill={b.color}
-                      opacity={hoveredIdx === null || hoveredIdx === idx ? 0.92 : 0.65}
+                  <g
+                    key={b.label}
+                    onMouseEnter={() => setHoveredIdx(idx)}
+                    style={{ cursor: 'pointer', transition: 'opacity 0.18s ease' }}
+                    opacity={isDimmed ? 0.5 : 1}
+                  >
+                    {/* Subtle column background track */}
+                    <path
+                      d={buildTopRoundedBarPath(cx - barW / 2, padT, barW, plotH, 8)}
+                      fill={isHovered ? '#f1f5f9' : '#f8fafc'}
                     />
-                    <text x={cx} y={height - 10} textAnchor="middle" fontSize="11.5" fontWeight="600" fill="#475569">
+
+                    {/* Full-slot invisible hit target for easy hovering */}
+                    <rect
+                      x={cx - slotW / 2}
+                      y={padT}
+                      width={slotW}
+                      height={plotH + padB}
+                      fill="transparent"
+                    />
+
+                    {val > 0 ? (
+                      <>
+                        <path
+                          d={buildTopRoundedBarPath(cx - barW / 2, yTop, barW, h, 8)}
+                          fill={`url(#ovBarGrad-${number}-${idx})`}
+                        />
+                        <text
+                          x={cx}
+                          y={yTop - 8}
+                          textAnchor="middle"
+                          fontSize="12"
+                          fontWeight="700"
+                          fill="#0f172a"
+                        >
+                          {val.toLocaleString()}
+                        </text>
+                      </>
+                    ) : (
+                      <>
+                        <rect
+                          x={cx - barW / 2}
+                          y={padT + plotH - 2}
+                          width={barW}
+                          height={2}
+                          rx="1"
+                          fill="#cbd5e1"
+                        />
+                        <text
+                          x={cx}
+                          y={padT + plotH - 9}
+                          textAnchor="middle"
+                          fontSize="11.5"
+                          fontWeight="600"
+                          fill="#94a3b8"
+                        >
+                          0
+                        </text>
+                      </>
+                    )}
+
+                    {/* Category dot + label */}
+                    <text
+                      x={cx}
+                      y={height - 12}
+                      textAnchor="middle"
+                      fontSize="11.5"
+                      fontWeight={isHovered ? '700' : '600'}
+                      fill={isHovered ? '#0f172a' : '#475569'}
+                    >
                       {b.label}
                     </text>
                   </g>
@@ -173,8 +276,10 @@ export const ReferenceAreaLineChartCard = ({ number, title, color, gradId, serie
               <div className="ov-chart-tooltip" role="status">
                 <div className="ov-tooltip-title">{hoveredItem.label}</div>
                 <div className="ov-tooltip-row">
-                  <span className="ov-dot" style={{ background: color }}></span>
-                  <span>{valueLabel}:</span>
+                  <span>
+                    <span className="ov-dot" style={{ background: color }}></span>
+                    {valueLabel}:
+                  </span>
                   <strong>{hoveredItem.value}</strong>
                 </div>
               </div>
@@ -192,8 +297,16 @@ export const ReferenceAreaLineChartCard = ({ number, title, color, gradId, serie
                 const y = getY(tick);
                 return (
                   <g key={tick}>
-                    <line x1={padL} y1={y} x2={width - padR} y2={y} stroke={tick === 0 ? '#cbd5e1' : '#e2e8f0'} />
-                    <text x={padL - 7} y={y + 4} textAnchor="end" fontSize="10.5" fontWeight="500" fill="#64748b">{tick}</text>
+                    <line
+                      x1={padL}
+                      y1={y}
+                      x2={width - padR}
+                      y2={y}
+                      stroke={tick === 0 ? '#cbd5e1' : '#e2e8f0'}
+                      strokeWidth={tick === 0 ? 1.25 : 1}
+                      strokeDasharray={tick === 0 ? undefined : '4 4'}
+                    />
+                    <text x={padL - 8} y={y + 4} textAnchor="end" fontSize="10.5" fontWeight="500" fill="#94a3b8">{tick}</text>
                   </g>
                 );
               })}
@@ -201,19 +314,41 @@ export const ReferenceAreaLineChartCard = ({ number, title, color, gradId, serie
               {areaPath && <path d={areaPath} fill={`url(#${gradId})`} />}
               {linePath && <path d={linePath} fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" />}
 
+              {hoveredItem && (
+                <line
+                  x1={hoveredItem.x}
+                  y1={padT}
+                  x2={hoveredItem.x}
+                  y2={padT + plotH}
+                  stroke={color}
+                  strokeOpacity="0.35"
+                  strokeWidth="1.25"
+                  strokeDasharray="3 3"
+                />
+              )}
+
               {pts.map((pt, idx) => {
                 const showLabel = idx % labelStep === 0 || idx === pts.length - 1;
                 const colW = pts.length > 1 ? plotW / pts.length : plotW;
                 const isHovered = hoveredIdx === idx;
                 return (
                   <g key={`${pt.label}-${idx}`}>
+                    {isHovered && (
+                      <circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={8}
+                        fill={color}
+                        fillOpacity="0.16"
+                      />
+                    )}
                     <circle
                       cx={pt.x}
                       cy={pt.y}
                       r={isHovered ? 4.5 : 3}
                       fill="#ffffff"
                       stroke={color}
-                      strokeWidth="2"
+                      strokeWidth={isHovered ? '2.4' : '2'}
                     />
                     {showLabel && (
                       <text

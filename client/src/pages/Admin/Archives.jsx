@@ -578,20 +578,23 @@ const Archives = () => {
                   </tbody>
                 </table>
               </div>
-
-              {/* Pagination Controls */}
-              <Pagination
-                currentPage={pagination.currentPage}
-                totalPages={pagination.totalPages}
-                totalRecords={pagination.totalRecords}
-                rowsPerPage={pagination.limit}
-                onPageChange={(page) => fetchArchivedRecords(page)}
-                onRowsPerPageChange={(limit) => {
-                  setPagination((prev) => ({ ...prev, limit, currentPage: 1 }));
-                  fetchArchivedRecords(1, limit);
-                }}
-              />
             </>
+          )}
+
+          {/* Pagination Controls */}
+          {!recordsLoading && !error && (
+            <Pagination
+              currentPage={pagination.currentPage}
+              totalPages={pagination.totalPages}
+              totalRecords={pagination.totalRecords}
+              rowsPerPage={pagination.limit}
+              loading={recordsLoading}
+              onPageChange={(page) => fetchArchivedRecords(page)}
+              onRowsPerPageChange={(limit) => {
+                setPagination((prev) => ({ ...prev, limit, currentPage: 1 }));
+                fetchArchivedRecords(1, limit);
+              }}
+            />
           )}
         </section>
 

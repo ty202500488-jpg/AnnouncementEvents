@@ -153,7 +153,7 @@ const SystemSettings = () => {
           setSavedSettings(merged);
           setMetadata({
             updatedAt: data.metadata?.updatedAt || data.updatedAt || new Date().toISOString(),
-            updatedBy: data.metadata?.updatedBy || data.updatedBy || 'MISTO Administrator',
+            updatedBy: data.metadata?.updatedBy || data.updatedBy || 'System Administrator',
             emailConfigured: data.metadata?.emailConfigured ?? false,
           });
         }

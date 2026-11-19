@@ -1634,10 +1634,10 @@ GLOBAL REUSABLE CONFIRMATION MODAL
 
 .admin-global-modal-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.9rem;
-  padding: 1.25rem 1.4rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1.5px solid #cbd5e1;
 }
 
 .admin-global-modal-icon {
@@ -1674,13 +1674,16 @@ GLOBAL REUSABLE CONFIRMATION MODAL
 .admin-global-modal-title-wrap {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 .admin-global-modal-title {
   font-size: 1.05rem;
   font-weight: 800;
   color: #0f172a;
-  margin: 0 0 0.25rem 0;
+  margin: 0;
 }
 
 .admin-global-modal-record-badge {
@@ -1796,7 +1799,10 @@ GLOBAL REUSABLE CONFIRMATION MODAL
   align-items: center;
   justify-content: flex-end;
   gap: 0.65rem;
-  padding-top: 0.5rem;
+  margin: 0.25rem -1.4rem -1.35rem;
+  padding: 0.95rem 1.4rem;
+  background-color: #f8fafc;
+  border-top: 1.5px solid #cbd5e1;
 }
 
 .admin-global-btn {
@@ -2468,6 +2474,12 @@ GLOBAL REUSABLE CONFIRMATION MODAL
   background-color: #f8fafc;
   border-top: 1.5px solid #94a3b8;
   flex-shrink: 0;
+}
+
+.admin-dashboard-container .admin-global-modal-body .admin-global-modal-footer {
+  margin: 0.25rem -1.4rem -1.35rem -1.4rem;
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
 }
 
 .admin-dashboard-container .um-modal-card .modal-footer.flex-between,

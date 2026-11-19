@@ -41,13 +41,14 @@ export default function PageView({ role = 'guest' }) {
     parsedUser = null;
   }
   const userRole = String(parsedUser?.role_name || parsedUser?.role || role || 'guest').toLowerCase();
+  const isAdmin = userRole === 'admin';
   const isStaff = userRole === 'staff';
-  const homeHref = token ? (userRole === 'admin' ? '/admin/dashboard' : isStaff ? '/staff/dashboard' : '/student/dashboard') : '/';
+  const homeHref = token ? (isAdmin ? '/admin/dashboard' : isStaff ? '/staff/dashboard' : '/student/dashboard') : '/';
   const profileTitle = parsedUser
     ? `${parsedUser.first_name || ''} ${parsedUser.last_name || ''}`.trim() || 'Campus Member'
     : 'Guest Viewer';
   const profileSubtitle = parsedUser
-    ? (parsedUser.program_name || parsedUser.course || parsedUser.department_name || (isStaff ? 'Staff' : 'Student'))
+    ? (isAdmin ? 'System Administrator' : (parsedUser.program_name || parsedUser.course || parsedUser.department_name || (isStaff ? 'Staff' : 'Student')))
     : 'WMSU Portal';
   const profileInitials = getInitials(profileTitle, 'WM');
 
@@ -583,12 +584,6 @@ export default function PageView({ role = 'guest' }) {
                         {isOfficialAdminPage ? 'Official Page' : pageCategoryBadge}
                       </span>
                       <span>•</span>
-                      {isOfficialAdminPage && (
-                        <>
-                          <span>Campus-Wide</span>
-                          <span>•</span>
-                        </>
-                      )}
                       <span><strong>{page.followers_count || 0}</strong> followers</span>
                       <span>•</span>
                       <span><strong>{posts.length}</strong> posts</span>
@@ -600,23 +595,53 @@ export default function PageView({ role = 'guest' }) {
 
             {/* Action Buttons on Right */}
             <div className="fb-actions-group">
-              <button
-                type="button"
-                onClick={handleToggleFollow}
-                disabled={isSubmittingFollow}
-                className={`btn-fb ${page.is_followed ? 'btn-fb-following' : 'btn-fb-primary'}`}
-              >
-                {isSubmittingFollow ? (
-                  <i className="fa-solid fa-spinner fa-spin"></i>
-                ) : page.is_followed ? (
-                  <span>Following</span>
-                ) : (
-                  <>
-                    <i className="fa-solid fa-plus"></i>
-                    <span>Follow</span>
-                  </>
-                )}
-              </button>
+              {(() => {
+                const isOfficialAdminPage =
+                  ['WMSU', 'ADMIN'].includes(String(page.page_code || '').toUpperCase()) ||
+                  String(page.page_name || '').trim().toLowerCase() === 'western mindanao state university';
+                const isOwnPage = Boolean(page.is_owner) || (isAdmin && isOfficialAdminPage);
+                if (isOwnPage) {
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => navigate(isAdmin ? '/admin/profile' : '/staff/mypage/dashboard')}
+                        className="btn-fb btn-fb-primary"
+                      >
+                        <i className="fa-solid fa-pen-to-square"></i>
+                        <span>Manage Page</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate(isAdmin ? '/admin/content-feed' : '/staff/mypage/profile')}
+                        className="btn-fb btn-fb-secondary"
+                      >
+                        <i className={`fa-solid ${isAdmin ? 'fa-newspaper' : 'fa-sliders'}`}></i>
+                        <span>{isAdmin ? 'Campus Feed' : 'Edit Profile'}</span>
+                      </button>
+                    </>
+                  );
+                }
+                return (
+                  <button
+                    type="button"
+                    onClick={handleToggleFollow}
+                    disabled={isSubmittingFollow}
+                    className={`btn-fb ${page.is_followed ? 'btn-fb-following' : 'btn-fb-primary'}`}
+                  >
+                    {isSubmittingFollow ? (
+                      <i className="fa-solid fa-spinner fa-spin"></i>
+                    ) : page.is_followed ? (
+                      <span>Following</span>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-plus"></i>
+                        <span>Follow</span>
+                      </>
+                    )}
+                  </button>
+                );
+              })()}
             </div>
           </div>
 
@@ -893,48 +918,34 @@ export default function PageView({ role = 'guest' }) {
                     </div>
 
                     {/* 2. FEED-STYLE MEDIA / CONTENT CONTAINER */}
-                    {postImage ? (
-                      <>
-                        <div
-                          style={{
-                            backgroundColor: '#0f172a',
-                            width: '100%',
-                            maxHeight: '450px',
-                            overflow: 'hidden',
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            position: 'relative',
-                          }}
-                        >
-                          <img
-                            src={postImage}
-                            alt={item.title || 'Post attachment'}
-                            style={{ width: '100%', height: 'auto', objectFit: 'cover' }}
-                          />
-                        </div>
-                        <div style={{ padding: '0.875rem 1rem 0.875rem 1rem' }}>
-                          {item.title && (
-                            <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.0625rem', margin: 0 }}>
-                              {item.title}
-                            </h3>
-                          )}
-                          <ExpandablePostText
-                            text={item.content || item.description || ''}
-                            style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, margin: item.title ? '0.4rem 0 0 0' : 0 }}
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ padding: '0.5rem 1rem 1rem 1rem' }}>
-                        {item.title && (
-                          <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: '1.125rem', lineHeight: 1.35, margin: 0, textTransform: 'uppercase', letterSpacing: '0.01em' }}>
-                            {item.title}
-                          </h3>
-                        )}
-                        <ExpandablePostText
-                          text={item.content || item.description || ''}
-                          style={{ color: '#475569', fontSize: '0.9375rem', lineHeight: 1.6, margin: item.title ? '0.75rem 0 0 0' : 0 }}
+                    <div style={{ padding: postImage ? '0.25rem 1rem 0.75rem 1rem' : '0.5rem 1rem 1rem 1rem' }}>
+                      {item.title && (
+                        <h3 style={{ fontWeight: 800, color: '#16162b', fontSize: postImage ? '1.0625rem' : '1.125rem', lineHeight: 1.35, margin: 0, ...(postImage ? {} : { textTransform: 'uppercase', letterSpacing: '0.01em' }) }}>
+                          {item.title}
+                        </h3>
+                      )}
+                      <ExpandablePostText
+                        text={item.content || item.description || ''}
+                        style={{ color: '#475569', fontSize: postImage ? '0.9rem' : '0.9375rem', lineHeight: postImage ? 1.5 : 1.6, margin: item.title ? (postImage ? '0.4rem 0 0 0' : '0.75rem 0 0 0') : 0 }}
+                      />
+                    </div>
+                    {postImage && (
+                      <div
+                        style={{
+                          backgroundColor: '#0f172a',
+                          width: '100%',
+                          maxHeight: '450px',
+                          overflow: 'hidden',
+                          display: 'flex',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          position: 'relative',
+                        }}
+                      >
+                        <img
+                          src={postImage}
+                          alt={item.title || 'Post attachment'}
+                          style={{ width: '100%', height: 'auto', objectFit: 'cover' }}
                         />
                       </div>
                     )}
@@ -985,12 +996,20 @@ export default function PageView({ role = 'guest' }) {
                 {(
                   ['WMSU', 'ADMIN'].includes(String(page.page_code || '').toUpperCase()) ||
                   String(page.page_name || '').trim().toLowerCase() === 'western mindanao state university'
-                ) && (
+                ) ? (
                   <li className="fb-about-item">
                     <i className="fa-solid fa-certificate"></i>
                     <div>
                       <span className="fb-about-label">Page Type</span>
                       <span>Official Page</span>
+                    </div>
+                  </li>
+                ) : (
+                  <li className="fb-about-item">
+                    <i className="fa-solid fa-building"></i>
+                    <div>
+                      <span className="fb-about-label">Category</span>
+                      <span>{pageCategoryBadge}</span>
                     </div>
                   </li>
                 )}

@@ -1648,6 +1648,40 @@ router.get('/users', async (req, res) => {
              ORDER BY department_name ASC`
         );
 
+        const [summaryRes, pendingVerifRes, staffCountRes] = await Promise.all([
+            pool.query(
+                `SELECT
+                    COUNT(*)::int AS total_users,
+                    COUNT(*) FILTER (WHERE LOWER(u.account_status) = 'active')::int AS active_users,
+                    COUNT(*) FILTER (WHERE LOWER(r.role_name) = 'student')::int AS total_students,
+                    COUNT(*) FILTER (WHERE LOWER(u.account_status) = 'suspended')::int AS suspended_users
+                 FROM users u
+                 JOIN roles r ON u.role_id = r.role_id`
+            ),
+            pool.query(
+                `SELECT COUNT(*)::int AS pending_verifications
+                 FROM student_profiles sp
+                 WHERE LOWER(sp.verification_status) = 'pending'`
+            ),
+            pool.query(
+                `SELECT (
+                    (SELECT COUNT(*)::int FROM page_members pm WHERE LOWER(pm.status) = 'active') +
+                    (SELECT COUNT(*)::int FROM users u JOIN roles r ON u.role_id = r.role_id
+                     WHERE LOWER(r.role_name) = 'staff'
+                       AND NOT EXISTS (SELECT 1 FROM page_members pm WHERE pm.user_id = u.user_id AND LOWER(pm.status) = 'active'))
+                 )::int AS staff_count`
+            )
+        ]);
+
+        const summary = {
+            totalUsers: summaryRes.rows[0]?.total_users || 0,
+            activeUsers: summaryRes.rows[0]?.active_users || 0,
+            totalStudents: summaryRes.rows[0]?.total_students || 0,
+            suspendedUsers: summaryRes.rows[0]?.suspended_users || 0,
+            pendingVerifications: pendingVerifRes.rows[0]?.pending_verifications || 0,
+            staffCount: staffCountRes.rows[0]?.staff_count || 0
+        };
+
         if (tab === 'verification') {
             const params = [];
             const clauses = [];
@@ -1714,6 +1748,7 @@ router.get('/users', async (req, res) => {
             return res.json({
                 verifications: rowsRes.rows,
                 colleges: collegesRes.rows,
+                summary,
                 pagination: {
                     page: pageNum,
                     currentPage: pageNum,
@@ -1814,6 +1849,7 @@ router.get('/users', async (req, res) => {
                 eligibleUsers: eligibleRes.rows,
                 availablePages: pagesRes.rows,
                 colleges: collegesRes.rows,
+                summary,
                 pagination: {
                     page: pageNum,
                     currentPage: pageNum,
@@ -1902,6 +1938,7 @@ router.get('/users', async (req, res) => {
         return res.json({
             users: usersRes.rows,
             colleges: collegesRes.rows,
+            summary,
             pagination: {
                 page: pageNum,
                 currentPage: pageNum,
@@ -4394,7 +4431,16 @@ router.get('/audit-logs', async (req, res) => {
                     l.ip_address,
                     l.details,
                     l.details AS metadata,
-                    COALESCE(l.details->>'title', p.title, l.details->>'name', l.details->>'email', l.details->>'page_name', CASE WHEN l.target_type IS NOT NULL THEN l.target_type || ' #' || COALESCE(l.target_id::text, '') ELSE l.module END) AS resource_title,
+                    COALESCE(
+                        l.details->>'title',
+                        p.title,
+                        pg.page_name,
+                        l.details->>'page_name',
+                        l.details->>'name',
+                        NULLIF(TRIM(COALESCE(tu.first_name, '') || ' ' || COALESCE(tu.last_name, '')), ''),
+                        tu.email,
+                        l.details->>'email'
+                    ) AS resource_title,
                     COALESCE(l.details->>'reason', l.details->>'remarks', p.archive_reason, NULL) AS reason,
                     p.post_id AS target_post_id,
                     COALESCE(p.is_archived, FALSE) AS target_post_is_archived,
@@ -4408,6 +4454,14 @@ router.get('/audit-logs', async (req, res) => {
                     COALESCE(l.actor_role, 'admin') AS actor_role
              FROM audit_logs l
              LEFT JOIN users u ON l.actor_user_id = u.user_id
+             LEFT JOIN users tu
+               ON LOWER(COALESCE(l.target_type, '')) = 'user'
+              AND l.target_id::text ~ '^[0-9]+$'
+              AND tu.user_id = l.target_id::int
+             LEFT JOIN pages pg
+               ON LOWER(COALESCE(l.target_type, '')) = 'page'
+              AND l.target_id::text ~ '^[0-9]+$'
+              AND pg.page_id = l.target_id::int
              LEFT JOIN posts p
                ON LOWER(COALESCE(l.target_type, '')) IN ('post', 'announcement', 'event')
               AND l.target_id::text ~ '^[0-9]+$'

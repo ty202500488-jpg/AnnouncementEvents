@@ -234,7 +234,6 @@ export default function LandingPage() {
               <span className="wmsu-section-eyebrow">Academic Directory</span>
               <h2 className="wmsu-section-title">Colleges &amp; Academic Units</h2>
             </div>
-            <Link to="/auth" className="btn-nav">Sign In to Portal</Link>
           </div>
 
           <div className="wmsu-colleges-grid reveal-on-scroll">

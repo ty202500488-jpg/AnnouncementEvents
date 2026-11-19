@@ -1652,7 +1652,6 @@ Scoped strictly under .content-feed-container & .feed-*
 }
 
 .content-feed-container .csf-author-wrap.is-clickable:hover .csf-page-name {
-  color: #8c1030;
   text-decoration: none;
 }
 
@@ -1751,7 +1750,7 @@ Scoped strictly under .content-feed-container & .feed-*
 }
 
 .content-feed-container .csf-post-body-wrap {
-  padding: 0.875rem 1rem 0.5rem 1rem;
+  padding: 0.25rem 1rem 0.75rem 1rem;
 }
 
 .content-feed-container .csf-text-only-body {

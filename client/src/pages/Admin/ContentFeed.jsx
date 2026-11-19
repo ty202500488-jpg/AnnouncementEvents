@@ -1352,8 +1352,6 @@ const ContentFeed = () => {
               ? 'Permanently Delete Content?'
               : 'Restore Content?'
           }
-          itemName={selectedItem?.title || ''}
-          itemSubtitle={selectedItem ? `${String(selectedItem.type).toUpperCase()} • ${selectedItem.page_name || 'Campus Page'}` : ''}
           variant={
             activeModal === 'takedown' || activeModal === 'delete'
               ? 'danger'

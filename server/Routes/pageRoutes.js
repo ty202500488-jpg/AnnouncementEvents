@@ -182,7 +182,8 @@ router.get('/my-page-status', async (req, res) => {
 
         const pageQuery = await pool.query(
             `SELECT p.page_id, p.page_name, p.page_code, p.page_description, p.status,
-                    p.department_id, p.organization_id, p.avatar_url
+                    p.department_id, p.organization_id, p.avatar_url,
+                    COALESCE((SELECT COUNT(*)::int FROM page_follows pf WHERE pf.page_id = p.page_id), 0) AS followers_count
              FROM pages p
              LEFT JOIN page_members pm ON p.page_id = pm.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active'
              WHERE p.created_by = $1 OR pm.user_id = $1
@@ -204,6 +205,8 @@ router.get('/my-page-status', async (req, res) => {
             pageCode: page.page_code || 'SAO',
             description: page.page_description || '',
             profileImage: page.avatar_url || null,
+            followers_count: page.followers_count || 0,
+            followersCount: page.followers_count || 0,
             status: String(page.status || 'Pending').toLowerCase(),
             category: page.department_id ? 'Academic College' : 'Student Organization'
         });
@@ -1786,10 +1789,29 @@ async function handleFollowPage(req, res) {
         if (!(await assertNoIdorOnPageUserScope(req, res, user))) return;
         const userId = user.user_id;
 
-        // Verify page exists
-        const pageCheck = await pool.query(`SELECT page_id, page_name FROM pages WHERE page_id = $1`, [pageId]);
+        // Verify page exists and prevent following own/managed page
+        const pageCheck = await pool.query(
+            `SELECT p.page_id, p.page_name, p.page_code, p.created_by,
+                    EXISTS(
+                        SELECT 1 FROM page_members pm
+                        WHERE pm.page_id = p.page_id AND pm.user_id = $2 AND LOWER(pm.status) = 'active'
+                    ) AS is_member
+             FROM pages p
+             WHERE p.page_id = $1`,
+            [pageId, userId]
+        );
         if (pageCheck.rows.length === 0) {
             return res.status(404).json({ message: 'Page not found.' });
+        }
+
+        const targetPage = pageCheck.rows[0];
+        const isOfficialAdminPage =
+            ['WMSU', 'ADMIN'].includes(String(targetPage.page_code || '').toUpperCase()) ||
+            String(targetPage.page_name || '').trim().toLowerCase() === 'western mindanao state university';
+        const isAdminUser = String(user.role_name || '').toLowerCase() === 'admin';
+
+        if (Number(targetPage.created_by) === Number(userId) || targetPage.is_member || (isAdminUser && isOfficialAdminPage)) {
+            return res.status(400).json({ message: 'You cannot follow your own page.' });
         }
 
         await pool.query(

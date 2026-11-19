@@ -1981,7 +1981,8 @@ export function ExpandablePostText({
   const [truncatedText, setTruncatedText] = useState(null);
   const measureRef = useRef(null);
 
-  const normalizedText = typeof text === 'string' ? text : text ? String(text) : '';
+  const rawText = typeof text === 'string' ? text : text ? String(text) : '';
+  const normalizedText = rawText.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 
   useEffect(() => {
     setIsExpanded(false);
@@ -2025,7 +2026,7 @@ export function ExpandablePostText({
 
       while (low <= high) {
         const mid = Math.floor((low + high) / 2);
-        textNode.nodeValue = normalizedText.slice(0, mid).trimEnd();
+        textNode.nodeValue = normalizedText.slice(0, mid).replace(/[\s.,;:!?]+$/, '');
         if (target.scrollHeight <= maxAllowedHeight) {
           best = mid;
           low = mid + 1;
@@ -2035,7 +2036,7 @@ export function ExpandablePostText({
       }
 
       setHasOverflow(true);
-      setTruncatedText(normalizedText.slice(0, best).trimEnd());
+      setTruncatedText(normalizedText.slice(0, best).replace(/[\s.,;:!?]+$/, ''));
     };
 
     calculateTruncation();
