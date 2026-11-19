@@ -149,11 +149,6 @@ export default function LandingPage() {
           </div>
 
           <div className="hero-content">
-            <div className="hero-top-rule animate-text delay-1" aria-hidden="true">
-              <span className="hero-top-rule-bar"></span>
-              <span className="hero-top-rule-dot"></span>
-              <span className="hero-top-rule-line"></span>
-            </div>
             <h1 className="hero-title">
               <span className="hero-title-line">
                 <span className="hero-word word-1">Your</span>{' '}
@@ -167,7 +162,6 @@ export default function LandingPage() {
                 </span>
               </span>
             </h1>
-            <div className="hero-mid-divider animate-text delay-2" aria-hidden="true"></div>
             <p className="hero-subtitle animate-text delay-2">
               Stay updated with the latest announcements, events, deadlines, and activities happening around campus.
             </p>

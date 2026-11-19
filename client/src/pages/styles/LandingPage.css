@@ -1099,7 +1099,6 @@ body {
   position: relative;
   display: inline-block;
   padding-bottom: 0.2rem;
-  animation: gentleTextFloat 5s ease-in-out 1.4s infinite;
 }
 
 .shimmer-glow-text .hero-word {
