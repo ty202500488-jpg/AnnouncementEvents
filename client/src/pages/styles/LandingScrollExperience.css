@@ -1,0 +1,1247 @@
+/* ============================================================
+   CRIMSON SCROLL-DOWN EXPERIENCE
+   Tailored to WMSU CRIMSON System Theme:
+   Deep Burgundy-Maroon (#27030d / #4c0519 / #881337 / #be123c),
+   Soft Rose Accents (#fda4af / #fb7185 / #ffe4e6),
+   Crisp White & Slate Light Surfaces (#ffffff / #f8fafc / #e2e8f0),
+   Editorial Georgia Serif + Clean Sans Typography
+   ============================================================ */
+
+.cx-scroll-root {
+  position: relative;
+  width: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+  overflow-x: clip;
+  z-index: 3;
+}
+
+/* Ultra-fine top scroll progress hairline */
+.cx-scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2.5px;
+  z-index: 1050;
+  background: linear-gradient(90deg, #881337 0%, #be123c 45%, #fb7185 78%, #ffe4e6 100%);
+  transform-origin: left center;
+  transform: scaleX(0);
+  will-change: transform;
+  pointer-events: none;
+}
+
+.cx-inner {
+  width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+/* Smooth GPU Scroll Reveal */
+.cx-reveal {
+  opacity: 0;
+  transform: translate3d(0, 28px, 0) scale(0.985);
+  transition:
+    opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cx-reveal[data-visible='true'],
+.cx-reveal.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+/* ============================================================
+   BAND 1 — RISING WHITE CURTAIN + CRIMSON NEBULA SPLIT + MARQUEE
+   ============================================================ */
+
+.cx-light-band {
+  position: relative;
+  margin-top: -32px;
+  padding: clamp(3.75rem, 6.5vw, 5.75rem) clamp(1.25rem, 4vw, 2.5rem) clamp(4.5rem, 8vw, 6.75rem);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: #1f0a0f;
+  border-top: 1px solid rgba(254, 205, 211, 0.45);
+  border-top-left-radius: 36px;
+  border-top-right-radius: 36px;
+  box-shadow: 0 -18px 42px rgba(39, 3, 13, 0.28);
+  contain: layout style;
+  scroll-margin-top: 72px;
+  z-index: 4;
+}
+
+.cx-light-heading {
+  text-align: center;
+  max-width: 22ch;
+  margin: 0 auto clamp(2.5rem, 4.8vw, 3.75rem);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.1rem, 4.1vw, 3.35rem);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: #881337;
+  background: linear-gradient(120deg, #4c0519 0%, #881337 45%, #be123c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Asymmetric 2-Column Showcase Card */
+.cx-showcase-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
+  gap: clamp(1.25rem, 2.5vw, 2rem);
+  align-items: stretch;
+}
+
+/* Shared GPU-composited pointer spotlight inside cards */
+.cx-card-spotlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 340px;
+  height: 340px;
+  margin: -170px 0 0 -170px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(254, 205, 211, 0.16) 0%,
+    rgba(225, 29, 72, 0.08) 45%,
+    transparent 74%
+  );
+  opacity: 0;
+  transform: translate3d(50%, 30%, 0);
+  transition: opacity 0.28s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cx-card-spotlight-nebula {
+  width: 320px;
+  height: 320px;
+  margin: -160px 0 0 -160px;
+  background: radial-gradient(
+    circle,
+    rgba(254, 205, 211, 0.22) 0%,
+    transparent 68%
+  );
+  z-index: 2;
+}
+
+.cx-nebula-card:hover > .cx-card-spotlight,
+.cx-bento-card:hover > .cx-card-spotlight {
+  opacity: 1;
+}
+
+/* Left Card: WMSU Deep Burgundy-Crimson Volumetric Light-Beam Card */
+.cx-nebula-card {
+  position: relative;
+  min-height: 390px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 24% 20%, rgba(225, 29, 72, 0.38) 0%, transparent 56%),
+    linear-gradient(135deg, #27030d 0%, #4c0519 48%, #881337 100%);
+  border: 1px solid rgba(159, 18, 57, 0.28);
+  box-shadow:
+    0 26px 54px -20px rgba(76, 5, 25, 0.42),
+    inset 0 1px 0 rgba(255, 228, 230, 0.2);
+  overflow: hidden;
+  contain: layout paint style;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1.75rem;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s ease;
+}
+
+.cx-nebula-card:hover {
+  border-color: rgba(254, 205, 211, 0.34);
+}
+
+.cx-campus-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cx-nebula-card:hover .cx-campus-photo {
+  transform: scale(1.04);
+}
+
+.cx-campus-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(
+      circle at 22% 18%,
+      rgba(225, 29, 72, 0.3) 0%,
+      transparent 60%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(190, 18, 60, 0.38) 0%,
+      rgba(136, 19, 55, 0.36) 48%,
+      rgba(76, 5, 25, 0.74) 100%
+    );
+  pointer-events: none;
+}
+
+.cx-nebula-beam {
+  position: absolute;
+  top: -28%;
+  left: -18%;
+  width: 140%;
+  height: 74%;
+  background: linear-gradient(
+    118deg,
+    transparent 12%,
+    rgba(190, 18, 60, 0.42) 32%,
+    rgba(251, 113, 133, 0.72) 47%,
+    rgba(255, 241, 242, 0.6) 51%,
+    rgba(225, 29, 72, 0.38) 61%,
+    transparent 82%
+  );
+  transform: rotate(16deg) translate3d(0, 0, 0);
+  pointer-events: none;
+}
+
+.cx-nebula-beam-soft {
+  top: 12%;
+  left: -10%;
+  height: 60%;
+  opacity: 0.42;
+  background: linear-gradient(
+    118deg,
+    transparent 8%,
+    rgba(190, 18, 60, 0.32) 30%,
+    rgba(251, 113, 133, 0.5) 50%,
+    rgba(225, 29, 72, 0.28) 68%,
+    transparent 90%
+  );
+  transform: rotate(22deg) translate3d(0, 0, 0);
+}
+
+.cx-nebula-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 228, 230, 0.24) 1.15px, transparent 1.15px);
+  background-size: 26px 26px;
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.cx-nebula-streaks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cx-streak {
+  position: absolute;
+  height: 1.5px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 228, 230, 0.85) 60%, transparent 100%);
+  opacity: 0;
+  animation: cxStreakFly 5.6s linear infinite;
+}
+
+.cx-streak-1 { width: 88px; top: 28%; left: 10%; animation-delay: 0s; }
+.cx-streak-2 { width: 124px; top: 52%; left: 32%; animation-delay: 2s; }
+.cx-streak-3 { width: 72px; top: 70%; left: 18%; animation-delay: 3.7s; }
+
+@keyframes cxStreakFly {
+  0% { transform: translateX(-40px); opacity: 0; }
+  20% { opacity: 0.72; }
+  80% { opacity: 0.35; }
+  100% { transform: translateX(180px); opacity: 0; }
+}
+
+.cx-nebula-emblem {
+  position: absolute;
+  top: 44%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 118px;
+  height: 118px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.cx-nebula-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 228, 230, 0.32);
+  box-shadow:
+    0 0 36px rgba(190, 18, 60, 0.45),
+    inset 0 0 24px rgba(254, 205, 211, 0.18);
+  background: rgba(39, 3, 13, 0.56);
+}
+
+.cx-nebula-logo {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 9999px;
+  object-fit: cover;
+  opacity: 0.96;
+  box-shadow: 0 10px 26px rgba(39, 3, 13, 0.5);
+}
+
+.cx-nebula-footer {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.cx-visit-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.74rem 1.48rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #881337;
+  border: 1.5px solid #ffffff;
+  font-size: 0.87rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 10px 24px rgba(39, 3, 13, 0.32);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.22s ease, box-shadow 0.25s ease;
+}
+
+.cx-visit-btn:hover {
+  background: #fff1f2;
+  color: #881337;
+  border-color: #ffe4e6;
+  box-shadow: 0 14px 30px rgba(39, 3, 13, 0.42);
+}
+
+.cx-visit-btn i {
+  font-size: 0.76rem;
+}
+
+/* Right Panel: Crisp White & Slate Surface + 3-Row Elevated College Pill Marquee */
+.cx-right-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 22px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow:
+    0 2px 6px rgba(15, 23, 42, 0.05),
+    0 14px 32px -14px rgba(136, 19, 55, 0.1);
+  padding: clamp(1.75rem, 3.2vw, 2.6rem) 0 clamp(1.5rem, 2.8vw, 2.25rem);
+  overflow: hidden;
+}
+
+.cx-right-copy {
+  padding: 0 clamp(1.5rem, 3.2vw, 2.6rem);
+  margin-bottom: clamp(1.75rem, 3.2vw, 2.5rem);
+}
+
+.cx-light-lead {
+  margin: 0;
+  font-size: clamp(1.08rem, 1.75vw, 1.34rem);
+  font-weight: 500;
+  line-height: 1.6;
+  color: #334155;
+  max-width: 40ch;
+}
+
+@keyframes cxMarqueeScroll {
+  0% { transform: translate3d(0, 0, 0); }
+  100% { transform: translate3d(-50%, 0, 0); }
+}
+
+.cx-ticker-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+  overflow: hidden;
+  padding: 0.35rem 0;
+  scroll-margin-top: 100px;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.cx-ticker-wrap::before,
+.cx-ticker-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.cx-ticker-wrap::before {
+  left: 0;
+  background: linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.cx-ticker-wrap::after {
+  right: 0;
+  background: linear-gradient(270deg, #ffffff 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.cx-ticker-row {
+  display: flex;
+  width: max-content;
+  gap: 0.72rem;
+  animation: cxMarqueeScroll var(--row-dur, 38s) linear infinite;
+  will-change: transform;
+}
+
+.cx-ticker-row.is-reverse {
+  animation-direction: reverse;
+}
+
+.cx-ticker-wrap:hover .cx-ticker-row {
+  animation-play-state: paused;
+}
+
+.cx-college-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.62rem;
+  padding: 0.5rem 1rem 0.5rem 0.54rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 3px 10px -4px rgba(15, 23, 42, 0.06);
+  color: #1e293b;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
+}
+
+.cx-college-pill:hover {
+  transform: translateY(-2px);
+  background: #ffffff;
+  border-color: rgba(136, 19, 55, 0.36);
+  box-shadow: 0 8px 20px -8px rgba(136, 19, 55, 0.18);
+  color: #881337;
+}
+
+.cx-college-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(136, 19, 55, 0.09);
+  border: 1px solid rgba(159, 18, 57, 0.16);
+  color: #881337;
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   BAND 2 — DEEP CRIMSON BURGUNDY BENTO + CIRCUIT NETWORK
+   Matches CRIMSON's signature #27030d / #4c0519 / #881337 theme
+   ============================================================ */
+
+.cx-dark-band {
+  position: relative;
+  padding: clamp(5rem, 8.5vw, 7.25rem) clamp(1.25rem, 4vw, 2.5rem) clamp(2rem, 4vw, 3rem);
+  background:
+    radial-gradient(ellipse 75% 42% at 50% 0%, rgba(190, 18, 60, 0.34) 0%, transparent 66%),
+    linear-gradient(180deg, #27030d 0%, #3a0414 48%, #27030d 100%);
+  color: #fff5f6;
+  border-top: 1px solid rgba(254, 205, 211, 0.14);
+  scroll-margin-top: 72px;
+  overflow: hidden;
+  contain: layout paint style;
+  z-index: 4;
+}
+
+.cx-dark-ambient {
+  position: absolute;
+  top: -110px;
+  left: 50%;
+  width: min(940px, 110vw);
+  height: 440px;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse 60% 55% at 50% 35%,
+    rgba(225, 29, 72, 0.24) 0%,
+    rgba(136, 19, 55, 0.12) 48%,
+    transparent 74%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cx-dark-inner {
+  position: relative;
+  z-index: 2;
+}
+
+.cx-how-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(1rem, 3vw, 2.5rem);
+  margin-bottom: 1.15rem;
+}
+
+.cx-dark-heading {
+  margin: 0;
+  text-align: center;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.1rem, 4.2vw, 3.35rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: #fff5f6;
+}
+
+.cx-crimson-accent {
+  color: #fda4af;
+  text-shadow: 0 0 24px rgba(251, 113, 133, 0.34);
+}
+
+/* Decorative directional chevrons */
+.cx-chevrons {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: #fda4af;
+}
+
+.cx-chevron-item {
+  width: 9px;
+  height: 13px;
+  opacity: 0.22;
+  animation: cxChevronWave 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--ci, 0) * 0.16s);
+}
+
+.cx-chevrons.is-left .cx-chevron-item {
+  animation-delay: calc((4 - var(--ci, 0)) * 0.16s);
+}
+
+@keyframes cxChevronWave {
+  0%, 100% { opacity: 0.16; }
+  45% { opacity: 0.88; }
+}
+
+/* Scroll-Driven Circuit Buses */
+.cx-bus-top,
+.cx-bus-mid {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  pointer-events: none;
+}
+
+.cx-bus-top {
+  height: 54px;
+}
+
+.cx-bus-mid {
+  grid-column: 1 / -1;
+  height: 44px;
+  margin-block: -0.35rem;
+}
+
+.cx-bus-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cx-trace-base {
+  stroke: rgba(254, 205, 211, 0.18);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.cx-trace-lit {
+  stroke: #fda4af;
+  stroke-width: 2.2;
+  opacity: 0.15;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Asymmetric 2 + 1 CRIMSON Burgundy Bento Grid */
+.cx-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.cx-bento-card {
+  position: relative;
+  border-radius: 22px;
+  background: linear-gradient(155deg, rgba(136, 19, 55, 0.36) 0%, rgba(58, 5, 22, 0.78) 54%, rgba(36, 4, 13, 0.92) 100%);
+  border: 1px solid rgba(254, 205, 211, 0.18);
+  box-shadow:
+    0 22px 48px -22px rgba(20, 2, 7, 0.72),
+    inset 0 1px 0 rgba(255, 228, 230, 0.1);
+  overflow: hidden;
+  contain: layout paint style;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition:
+    opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.35s ease;
+}
+
+/* Focused card subtle GPU-composited radiance overlay (replaces expensive box-shadow transition) */
+.cx-bento-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 42% at 50% 0%,
+    rgba(225, 29, 72, 0.18) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.38s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Focused card active top-edge highlight */
+.cx-bento-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16%;
+  right: 16%;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent 0%, rgba(254, 205, 211, 0.85) 50%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.38s ease;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.cx-bento-card.is-focused {
+  border-color: rgba(254, 205, 211, 0.38);
+}
+
+.cx-bento-card.is-focused::before,
+.cx-bento-card.is-focused::after {
+  opacity: 1;
+}
+
+.cx-bento-card:hover {
+  border-color: rgba(254, 205, 211, 0.46);
+}
+
+.cx-bento-card-2 {
+  transition-delay: 0.08s;
+}
+
+.cx-bento-head {
+  position: relative;
+  z-index: 2;
+  padding: clamp(1.5rem, 2.8vw, 2.15rem) clamp(1.5rem, 2.8vw, 2.15rem) 1rem;
+}
+
+.cx-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background: rgba(251, 113, 133, 0.22);
+  border: 1px solid rgba(254, 205, 211, 0.36);
+  color: #ffe4e6;
+  font-size: 0.82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 1rem;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.cx-bento-card.is-focused .cx-step-badge {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  border-color: #fda4af;
+  color: #ffffff;
+  box-shadow: 0 0 20px rgba(225, 29, 72, 0.65);
+}
+
+.cx-bento-title {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.2rem, 1.75vw, 1.42rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #fff5f6;
+}
+
+.cx-bento-desc {
+  margin: 0 0 0.65rem;
+  font-size: 0.92rem;
+  line-height: 1.62;
+  color: rgba(255, 228, 230, 0.82);
+  max-width: 44ch;
+}
+
+.cx-bento-meta {
+  margin: 0;
+  font-size: 0.81rem;
+  line-height: 1.55;
+  color: rgba(255, 228, 230, 0.58);
+}
+
+.cx-bento-meta strong {
+  color: rgba(254, 205, 211, 0.88);
+  font-weight: 600;
+}
+
+/* Visual Stages inside Bento Cards */
+.cx-bento-stage {
+  position: relative;
+  z-index: 2;
+  min-height: 210px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.cx-step-svg {
+  width: 52px;
+  height: 52px;
+  display: block;
+}
+
+/* STEP 1 STAGE: Glowing Shield Orb */
+.cx-stage-shield {
+  min-height: 248px;
+  padding: 1rem 0 1.5rem;
+  overflow: visible;
+}
+
+.cx-orb-glow {
+  position: absolute;
+  width: 224px;
+  height: 224px;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgba(225, 29, 72, 0.42) 0%,
+    rgba(159, 18, 57, 0.18) 44%,
+    transparent 72%
+  );
+  opacity: 0.78;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.cx-bento-card.is-focused .cx-orb-glow {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.cx-orb-ring {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid rgba(254, 205, 211, 0.22);
+}
+
+.cx-orb-ring-1 {
+  width: 112px;
+  height: 112px;
+  border-color: rgba(253, 164, 175, 0.4);
+  animation: cxOrbPulse 3.8s ease-in-out infinite;
+}
+
+.cx-orb-ring-2 {
+  width: 162px;
+  height: 162px;
+  border-style: dashed;
+  animation: cxSpinSlow 32s linear infinite;
+}
+
+.cx-orb-ring-3 {
+  width: 214px;
+  height: 214px;
+  border-color: rgba(255, 228, 230, 0.12);
+}
+
+@keyframes cxOrbPulse {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.07); opacity: 1; }
+}
+
+@keyframes cxSpinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.cx-orb-core {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(155deg, rgba(136, 19, 55, 0.65) 0%, rgba(39, 3, 13, 0.94) 100%);
+  border: 1px solid rgba(254, 205, 211, 0.34);
+  color: #ffe4e6;
+  box-shadow:
+    0 12px 30px rgba(31, 3, 11, 0.55),
+    0 0 28px rgba(225, 29, 72, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+/* STEP 2 STAGE: Radial Hub & Animated Circuit Pulses */
+.cx-stage-hub {
+  padding: 0 1rem 1rem;
+}
+
+.cx-hub-svg {
+  width: 100%;
+  max-width: 380px;
+  height: 190px;
+  display: block;
+}
+
+.cx-hub-line {
+  stroke: rgba(254, 205, 211, 0.18);
+  stroke-width: 1.4;
+}
+
+.cx-hub-pulse {
+  stroke: #fda4af;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 16 84;
+  stroke-dashoffset: 100;
+  animation: cxPulseFlow 3.2s linear infinite;
+}
+
+.cx-pulse-a { animation-delay: 0s; }
+.cx-pulse-b { animation-delay: 1.05s; }
+.cx-pulse-c { animation-delay: 2.1s; }
+
+@keyframes cxPulseFlow {
+  0% { stroke-dashoffset: 100; opacity: 0; }
+  12% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { stroke-dashoffset: -18; opacity: 0; }
+}
+
+.cx-sat-node {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(58, 5, 22, 0.92);
+  border: 1px solid rgba(254, 205, 211, 0.22);
+  color: rgba(254, 205, 211, 0.8);
+  font-size: 0.76rem;
+  box-shadow: 0 8px 18px rgba(20, 2, 7, 0.45);
+  transition: border-color 0.3s ease, color 0.3s ease;
+}
+
+.cx-bento-card.is-focused .cx-sat-node {
+  border-color: rgba(253, 164, 175, 0.42);
+  color: #ffe4e6;
+}
+
+.cx-sat-1 { top: 28px; left: 10%; }
+.cx-sat-2 { top: 50%; left: 5%; transform: translateY(-50%); }
+.cx-sat-3 { bottom: 28px; left: 10%; }
+.cx-sat-4 { top: 28px; right: 10%; }
+.cx-sat-5 { top: 50%; right: 5%; transform: translateY(-50%); }
+.cx-sat-6 { bottom: 28px; right: 10%; }
+
+.cx-hub-core {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(155deg, rgba(136, 19, 55, 0.72) 0%, rgba(39, 3, 13, 0.95) 100%);
+  border: 1px solid rgba(253, 164, 175, 0.44);
+  color: #ffe4e6;
+  box-shadow:
+    0 14px 30px rgba(20, 2, 7, 0.55),
+    0 0 26px rgba(225, 29, 72, 0.4);
+}
+
+.cx-hub-core .cx-step-svg {
+  width: 44px;
+  height: 44px;
+}
+
+/* STEP 3 WIDE BENTO CARD: Horizontal Circuit Waveform + Live QR Scan Chip */
+.cx-bento-wide {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.15fr);
+  align-items: center;
+  min-height: 248px;
+}
+
+.cx-bento-wide-copy {
+  padding: clamp(1.75rem, 3vw, 2.5rem);
+}
+
+.cx-stage-wave {
+  min-height: 230px;
+  justify-content: flex-end;
+  padding-right: clamp(1.5rem, 3.5vw, 3rem);
+}
+
+.cx-wave-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cx-qr-chip {
+  position: relative;
+  z-index: 2;
+  width: 96px;
+  height: 96px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(155deg, rgba(136, 19, 55, 0.72) 0%, rgba(39, 3, 13, 0.96) 100%);
+  border: 1px solid rgba(253, 164, 175, 0.46);
+  color: #ffe4e6;
+  box-shadow:
+    0 18px 42px rgba(20, 2, 7, 0.58),
+    0 0 36px rgba(225, 29, 72, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.cx-qr-chip .cx-step-svg {
+  width: 56px;
+  height: 56px;
+}
+
+.cx-qr-scan-beam {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent 0%, #fda4af 35%, #ffffff 50%, #fda4af 65%, transparent 100%);
+  box-shadow: 0 0 10px rgba(251, 113, 133, 0.85);
+  animation: cxQrScan 2.8s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes cxQrScan {
+  0%, 100% { transform: translate3d(0, 17px, 0); opacity: 0.45; }
+  50% { transform: translate3d(0, 77px, 0); opacity: 1; }
+}
+
+/* Terminal Circuit Stem Feeding into Horizon Finale */
+.cx-bus-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 1.15rem;
+}
+
+.cx-stem-track {
+  width: 2px;
+  height: 68px;
+  border-radius: 9999px;
+  background: rgba(254, 205, 211, 0.18);
+  overflow: hidden;
+}
+
+.cx-stem-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #be123c 0%, #fb7185 65%, #ffe4e6 100%);
+  box-shadow: 0 0 14px rgba(251, 113, 133, 0.85);
+  transform-origin: top center;
+  transform: scaleY(0);
+  will-change: transform;
+}
+
+.cx-stem-node {
+  width: 12px;
+  height: 12px;
+  margin-top: -1px;
+  border-radius: 9999px;
+  background: #27030d;
+  border: 2px solid rgba(254, 205, 211, 0.32);
+  transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease;
+}
+
+.cx-stem-node.is-lit {
+  background: #fb7185;
+  border-color: #ffe4e6;
+  box-shadow: 0 0 18px rgba(251, 113, 133, 0.95);
+  transform: scale(1.2);
+}
+
+/* ============================================================
+   BAND 3 — DOTTED DOME + LUMINOUS CRIMSON HORIZON FINALE
+   ============================================================ */
+
+.cx-horizon-cta {
+  position: relative;
+  min-height: clamp(360px, 50vh, 460px);
+  padding: clamp(3.5rem, 6.5vw, 5.25rem) 1.5rem clamp(5.5rem, 10vw, 8.25rem);
+  background: linear-gradient(180deg, #27030d 0%, #3b0415 58%, #4c0519 100%);
+  color: #fff5f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  contain: layout paint style;
+  z-index: 4;
+}
+
+/* Dotted halftone hemisphere dome rising with scroll */
+.cx-horizon-dome {
+  position: absolute;
+  left: 50%;
+  bottom: -440px;
+  width: min(1240px, 145vw);
+  height: 620px;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  background-image: radial-gradient(rgba(255, 228, 230, 0.34) 1.35px, transparent 1.35px);
+  background-size: 16px 16px;
+  transform: translate3d(-50%, 72px, 0);
+  opacity: 0.28;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Intense curved volumetric crimson-rose horizon glow */
+.cx-horizon-arc {
+  position: absolute;
+  left: 50%;
+  bottom: -165px;
+  width: min(1480px, 170vw);
+  height: 410px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse 56% 64% at 50% 72%,
+    rgba(255, 241, 242, 0.92) 0%,
+    rgba(253, 164, 175, 0.8) 22%,
+    rgba(225, 29, 72, 0.62) 44%,
+    rgba(136, 19, 55, 0.28) 64%,
+    transparent 82%
+  );
+  transform: translate3d(-50%, 78px, 0) scaleX(0.84);
+  opacity: 0.45;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Crisp blazing bottom white-rose horizon crest melting into white footer */
+.cx-horizon-core {
+  position: absolute;
+  left: 50%;
+  bottom: -110px;
+  width: min(1200px, 145vw);
+  height: 210px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse 52% 62% at 50% 70%,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(255, 228, 230, 0.78) 32%,
+    rgba(244, 63, 94, 0.36) 58%,
+    transparent 82%
+  );
+  transform: translate3d(-50%, 54px, 0);
+  opacity: 0.38;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.cx-horizon-inner {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cx-horizon-heading {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.25rem, 4.8vw, 3.85rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: #fff5f6;
+  text-shadow: 0 8px 30px rgba(31, 3, 11, 0.5);
+}
+
+.cx-horizon-action {
+  margin-top: 1.75rem;
+}
+
+.cx-horizon-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.85rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #881337;
+  border: 1.5px solid #ffffff;
+  font-size: 0.94rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 12px 30px rgba(39, 3, 13, 0.36);
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.28s ease;
+}
+
+.cx-horizon-btn:hover {
+  background: #fff1f2;
+  color: #881337;
+  border-color: #ffe4e6;
+  box-shadow: 0 16px 38px rgba(39, 3, 13, 0.46);
+}
+
+/* ============================================================
+   RESPONSIVE BREAKPOINTS
+   ============================================================ */
+
+@media (max-width: 960px) {
+  .cx-showcase-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cx-nebula-card {
+    min-height: 280px;
+  }
+
+  .cx-bento-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .cx-stage-wave {
+    min-height: 185px;
+    justify-content: center;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .cx-light-band {
+    margin-top: -20px;
+    padding-top: 3rem;
+  }
+
+  .cx-bento-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cx-bus-top,
+  .cx-bus-mid {
+    display: none;
+  }
+
+  .cx-chevrons {
+    display: none;
+  }
+
+  .cx-sat-1, .cx-sat-3 { left: 6%; }
+  .cx-sat-2 { left: 2%; }
+  .cx-sat-4, .cx-sat-6 { right: 6%; }
+  .cx-sat-5 { right: 2%; }
+
+  .cx-horizon-cta {
+    min-height: 320px;
+    padding-bottom: 5.5rem;
+  }
+}
+
+/* Pause offscreen decorative loops so scrolled-out bands consume zero GPU/CPU */
+.cx-light-band[data-in-view='false'] .cx-ticker-row,
+.cx-light-band[data-in-view='false'] .cx-streak,
+.cx-dark-band[data-in-view='false'] .cx-chevron-item,
+.cx-dark-band[data-in-view='false'] .cx-orb-ring-1,
+.cx-dark-band[data-in-view='false'] .cx-orb-ring-2,
+.cx-dark-band[data-in-view='false'] .cx-hub-pulse,
+.cx-dark-band[data-in-view='false'] .cx-qr-scan-beam {
+  animation-play-state: paused;
+}
+
+/* ============================================================
+   ACCESSIBILITY — REDUCED MOTION
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .cx-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .cx-trace-lit {
+    opacity: 1 !important;
+  }
+
+  .cx-stem-fill {
+    transform: scaleY(1) !important;
+  }
+
+  .cx-ticker-row,
+  .cx-streak,
+  .cx-chevron-item,
+  .cx-orb-ring-1,
+  .cx-orb-ring-2,
+  .cx-hub-pulse,
+  .cx-qr-scan-beam {
+    animation: none;
+  }
+
+  .cx-nebula-card,
+  .cx-bento-card,
+  .cx-visit-btn,
+  .cx-horizon-btn,
+  .cx-horizon-dome,
+  .cx-horizon-arc,
+  .cx-horizon-core {
+    transform: none !important;
+    transition: none;
+  }
+}

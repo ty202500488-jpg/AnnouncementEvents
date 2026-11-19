@@ -1,6 +1,7 @@
 import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import InteractiveCrimsonBg, { useInteractiveCrimsonBg } from '../assets/components/InteractiveCrimsonBg';
+import InteractiveCrimsonBg from '../assets/components/InteractiveCrimsonBg';
+import { useInteractiveCrimsonBg } from '../utils/useInteractiveCrimsonBg';
 import '../pages/styles/Auth.css';
 
 const collegeDepartments = {

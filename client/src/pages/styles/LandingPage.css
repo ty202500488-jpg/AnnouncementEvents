@@ -15,6 +15,15 @@
   padding: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+#campus-life,
+#colleges {
+  scroll-margin-top: 72px;
+}
+
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   line-height: 1.5;
@@ -294,14 +303,18 @@ body {
   left: 0;
   width: 100%;
   height: 72px;
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.98);
   border-bottom: 1px solid #e2e8f0;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   overflow-x: clip;
   z-index: 1000;
+  transition: box-shadow 0.25s ease, background-color 0.25s ease;
   animation: navbarSlideIn 0.65s 0.04s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.navbar.is-scrolled {
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 8px 24px -10px rgba(15, 23, 42, 0.14);
 }
 
 @keyframes navbarSlideIn {
@@ -344,7 +357,7 @@ body {
   width: auto;
   object-fit: contain;
   border-radius: 50%;
-  animation: logoGlowPulse 5s ease-in-out 1s infinite;
+  box-shadow: 0 0 12px rgba(159, 18, 57, 0.28);
   transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
 }
 
@@ -388,13 +401,11 @@ body {
 }
 
 .logo-text .logo-accent {
-  background: linear-gradient(110deg, #881337 0%, #be123c 45%, #e11d48 75%, #881337 100%);
-  background-size: 220% auto;
+  background: linear-gradient(110deg, #881337 0%, #be123c 50%, #e11d48 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: #881337;
-  animation: shimmerFlow 6s ease-in-out infinite;
 }
 
 @keyframes logoTextReveal {
@@ -475,11 +486,13 @@ body {
   transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.nav-link-item:hover {
+.nav-link-item:hover,
+.nav-link-item.is-active {
   color: #881337;
 }
 
-.nav-link-item:hover::after {
+.nav-link-item:hover::after,
+.nav-link-item.is-active::after {
   transform: scaleX(1);
 }
 
@@ -622,17 +635,17 @@ body {
   background: linear-gradient(135deg, #9f1239 0%, #881337 100%);
   color: #ffffff;
   border: 1px solid #881337;
-  box-shadow: 0 4px 14px rgba(136, 19, 55, 0.22);
+  box-shadow: 0 6px 18px rgba(136, 19, 55, 0.28);
   cursor: pointer;
   transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, border-color 0.25s ease;
-  animation: navRightEnter 0.7s 0.32s cubic-bezier(0.22, 1, 0.36, 1) both, navBtnPulse 3.5s ease-in-out 1.3s infinite;
+  animation: navRightEnter 0.7s 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .landing-page-wrapper .btn-nav::before {
   content: '';
   position: absolute;
   top: 0;
-  left: -120%;
+  left: 0;
   width: 65%;
   height: 100%;
   background: linear-gradient(
@@ -641,7 +654,7 @@ body {
     rgba(255, 255, 255, 0.28) 50%,
     transparent 100%
   );
-  transform: skewX(-20deg);
+  transform: translate3d(-180%, 0, 0) skewX(-20deg);
   animation: navBtnSheen 4.5s ease-in-out 1.3s infinite;
   pointer-events: none;
 }
@@ -654,8 +667,8 @@ body {
 
 .landing-page-wrapper .btn-nav:hover::before {
   animation: none;
-  left: 140%;
-  transition: left 0.55s ease;
+  transform: translate3d(240%, 0, 0) skewX(-20deg);
+  transition: transform 0.55s ease;
 }
 
 .landing-page-wrapper .btn-nav:active {
@@ -673,21 +686,12 @@ body {
   }
 }
 
-@keyframes navBtnPulse {
-  0%, 100% {
-    box-shadow: 0 8px 24px rgba(86, 28, 36, 0.4);
-  }
-  50% {
-    box-shadow: 0 10px 28px rgba(159, 18, 57, 0.55), 0 0 14px rgba(232, 216, 196, 0.2);
-  }
-}
-
 @keyframes navBtnSheen {
   0%, 65% {
-    left: -120%;
+    transform: translate3d(-180%, 0, 0) skewX(-20deg);
   }
   100% {
-    left: 150%;
+    transform: translate3d(260%, 0, 0) skewX(-20deg);
   }
 }
 
@@ -698,14 +702,35 @@ body {
 
 /* HERO SECTION */
 .hero {
+  --hero-exit: 0;
   position: relative;
   width: 100%;
   min-height: calc(100vh - 72px);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 2.5rem 2rem 2rem;
+  padding: 2.5rem 2rem 3.5rem;
   overflow: hidden;
+  contain: layout paint style;
+  z-index: 1;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: -12% -8% auto auto;
+  width: 58vw;
+  max-width: 760px;
+  height: 55vh;
+  background: radial-gradient(
+    ellipse 62% 52% at 58% 42%,
+    rgba(251, 113, 133, 0.2) 0%,
+    rgba(225, 29, 72, 0.12) 32%,
+    transparent 70%
+  );
+  transform: rotate(-18deg);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .hero-container {
@@ -800,7 +825,6 @@ body {
     transform 0.85s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.65s ease,
     box-shadow 0.4s ease;
-  will-change: top, left, width, height, transform;
 }
 
 .hero-card img {
@@ -1084,8 +1108,7 @@ body {
   opacity: 0;
   animation: kineticWordReveal 0.7s forwards cubic-bezier(0.22, 1, 0.36, 1);
   transform-origin: bottom center;
-  transition: transform 0.25s ease, filter 0.25s ease;
-  will-change: opacity, transform, filter;
+  transition: transform 0.25s ease;
 }
 
 .hero-word:hover {
@@ -1163,7 +1186,6 @@ body {
 .animate-text {
   opacity: 0;
   animation: modernTextReveal 0.8s forwards cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform, filter;
 }
 
 .delay-1 { animation-delay: 0.3s; }
@@ -1299,6 +1321,11 @@ body {
     animation: none;
     transform: none;
   }
+  .hero-container,
+  .hero::after {
+    transform: none !important;
+    opacity: 1 !important;
+  }
 }
 
 .btn-primary1 {
@@ -1344,11 +1371,10 @@ body {
   font-size: 0.95rem;
   font-weight: 700;
   text-decoration: none;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.16);
   color: #ffffff;
   border: 1.5px solid rgba(255, 255, 255, 0.55);
   box-shadow: 0 8px 20px rgba(30, 7, 11, 0.16);
-  backdrop-filter: blur(10px);
   transition: all 0.25s ease;
 }
 
@@ -1647,19 +1673,7 @@ body {
   overflow-x: clip;
   padding: 2.5rem 2rem;
   margin-top: 0;
-  z-index: 2;
-  animation: footerReveal 0.75s 1.12s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes footerReveal {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  z-index: 4;
 }
 
 .footer-container {

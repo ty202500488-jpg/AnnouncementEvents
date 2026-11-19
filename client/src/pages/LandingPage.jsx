@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import InteractiveCrimsonBg, { useInteractiveCrimsonBg } from '../assets/components/InteractiveCrimsonBg';
+import InteractiveCrimsonBg from '../assets/components/InteractiveCrimsonBg';
+import { useInteractiveCrimsonBg } from '../utils/useInteractiveCrimsonBg';
+import LandingScrollExperience from '../assets/components/LandingScrollExperience';
 import './styles/LandingPage.css';
 import logo from '../assets/images/logo.jpg';
 import image1 from '../assets/images/image1.jpg';
@@ -44,13 +46,15 @@ const WMSU_COLLEGES = [
 
 export default function LandingPage() {
   const [cycleIndex, setCycleIndex] = useState(0);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [activeNav, setActiveNav] = useState('campus-life');
   const { hostRef: heroRef, ripples, onMouseMove: handleHeroMouseMove, onMouseLeave: handleHeroMouseLeave, onClick: handleHeroClick } =
     useInteractiveCrimsonBg('a, button, .hero-card');
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCycleIndex((prev) => (prev + 1) % HERO_IMAGES.length);
-    }, 10000);
+    }, 6000);
     return () => clearInterval(timer);
   }, []);
 
@@ -79,12 +83,16 @@ export default function LandingPage() {
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    // Smooth scrolling for anchor links
+    // Smooth scrolling for anchor links (including # back-to-top)
     const anchors = document.querySelectorAll('a[href^="#"]');
     const handleAnchorClick = function (e) {
       const targetId = this.getAttribute('href');
-      if (targetId === '#') return;
-      
+      if (targetId === '#') {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
       const targetElement = document.querySelector(targetId);
       if (targetElement) {
         e.preventDefault();
@@ -92,19 +100,76 @@ export default function LandingPage() {
       }
     };
 
-    anchors.forEach(anchor => {
+    anchors.forEach((anchor) => {
       anchor.addEventListener('click', handleAnchorClick);
     });
 
     return () => {
-      anchors.forEach(anchor => anchor.removeEventListener('click', handleAnchorClick));
+      anchors.forEach((anchor) => anchor.removeEventListener('click', handleAnchorClick));
     };
   }, []);
+
+  useEffect(() => {
+    const aboutEl = document.getElementById('about-wmsu');
+    const collegesEl = document.getElementById('colleges');
+
+    if (typeof IntersectionObserver === 'undefined') {
+      return undefined;
+    }
+
+    // Track navbar scrolled state using a lightweight sentinel at the top of the page
+    const navSentinel = document.createElement('div');
+    navSentinel.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:16px;pointer-events:none;visibility:hidden;';
+    document.body.prepend(navSentinel);
+
+    const navObserver = new IntersectionObserver(
+      ([entry]) => {
+        setIsScrolled(!entry.isIntersecting);
+      },
+      { threshold: 0 }
+    );
+    navObserver.observe(navSentinel);
+
+    // Track active nav section without scroll-event getBoundingClientRect() calls
+    const sectionObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          if (entry.target === collegesEl) {
+            setActiveNav('colleges');
+          } else if (entry.target === aboutEl) {
+            setActiveNav('about-wmsu');
+          }
+        });
+      },
+      { rootMargin: '-180px 0px -65% 0px', threshold: 0 }
+    );
+
+    if (aboutEl) sectionObserver.observe(aboutEl);
+    if (collegesEl) sectionObserver.observe(collegesEl);
+
+    const heroObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setActiveNav('campus-life');
+        }
+      },
+      { rootMargin: '0px 0px -75% 0px', threshold: 0 }
+    );
+    if (heroRef.current) heroObserver.observe(heroRef.current);
+
+    return () => {
+      navObserver.disconnect();
+      sectionObserver.disconnect();
+      heroObserver.disconnect();
+      navSentinel.remove();
+    };
+  }, [heroRef]);
 
   return (
     <div className="landing-page-wrapper">
       {/* Navigation Bar */}
-      <header className="navbar">
+      <header className={`navbar ${isScrolled ? 'is-scrolled' : ''}`}>
         <div className="nav-container">
           <a href="#" className="nav-logo">
             <img src={logo} alt="CRIMSON Logo" className="logo-img" />
@@ -114,9 +179,9 @@ export default function LandingPage() {
           </a>
 
           <nav className="nav-links" aria-label="Primary">
-            <a href="#campus-life" className="nav-link-item">Campus Life</a>
-            <a href="#about-wmsu" className="nav-link-item">About WMSU</a>
-            <a href="#colleges" className="nav-link-item">Colleges</a>
+            <a href="#campus-life" className={`nav-link-item ${activeNav === 'campus-life' ? 'is-active' : ''}`}>Campus Life</a>
+            <a href="#about-wmsu" className={`nav-link-item ${activeNav === 'about-wmsu' ? 'is-active' : ''}`}>About WMSU</a>
+            <a href="#colleges" className={`nav-link-item ${activeNav === 'colleges' ? 'is-active' : ''}`}>Colleges</a>
           </nav>
 
           <div className="nav-actions">
@@ -197,71 +262,7 @@ export default function LandingPage() {
         </div>
       </main>
 
-      {/* About WMSU Section */}
-      <section id="about-wmsu" className="wmsu-about-section">
-        <div className="wmsu-section-inner">
-          <div className="wmsu-about-grid reveal-on-scroll">
-            <div className="wmsu-about-copy">
-              <span className="wmsu-section-eyebrow">Official University Portal</span>
-              <h2 className="wmsu-section-title">Western Mindanao State University</h2>
-              <p className="wmsu-section-text">
-                Tracing its roots to 1904 as a normal school in Zamboanga and chartered as a state university,
-                WMSU serves as a flagship institution for instruction, research, extension, and regional
-                development in Western Mindanao.
-              </p>
-              <a
-                href="https://wmsu.edu.ph/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wmsu-official-link"
-              >
-                <span>Visit Official WMSU Website (wmsu.edu.ph)</span>
-                <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-              </a>
-            </div>
-
-            <div className="wmsu-stats-row">
-              <div className="wmsu-stat-item">
-                <span className="wmsu-stat-num">1904</span>
-                <span className="wmsu-stat-label">Founded in Zamboanga</span>
-              </div>
-              <div className="wmsu-stat-item">
-                <span className="wmsu-stat-num">17</span>
-                <span className="wmsu-stat-label">Academic Colleges</span>
-              </div>
-              <div className="wmsu-stat-item">
-                <span className="wmsu-stat-num">2040</span>
-                <span className="wmsu-stat-label">Smart Research Vision</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Colleges & Academic Units Section */}
-      <section id="colleges" className="wmsu-colleges-section">
-        <div className="wmsu-section-inner">
-          <div className="wmsu-colleges-header reveal-on-scroll">
-            <div>
-              <span className="wmsu-section-eyebrow">Academic Directory</span>
-              <h2 className="wmsu-section-title">Colleges &amp; Academic Units</h2>
-            </div>
-          </div>
-
-          <div className="wmsu-colleges-grid reveal-on-scroll">
-            {WMSU_COLLEGES.map((college, idx) => (
-              <div
-                key={college}
-                className="wmsu-college-chip"
-                style={{ '--chip-idx': idx }}
-              >
-                <span className="wmsu-college-dot" aria-hidden="true"></span>
-                <span>{college}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <LandingScrollExperience colleges={WMSU_COLLEGES} logo={logo} />
 
       {/* Footer */}
       <footer className="footer">
