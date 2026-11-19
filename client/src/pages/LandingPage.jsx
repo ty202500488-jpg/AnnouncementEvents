@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import InteractiveCrimsonBg, { useInteractiveCrimsonBg } from '../assets/components/InteractiveCrimsonBg';
 import './styles/LandingPage.css';
 import logo from '../assets/images/logo.jpg';
 import image1 from '../assets/images/image1.jpg';
@@ -43,46 +44,8 @@ const WMSU_COLLEGES = [
 
 export default function LandingPage() {
   const [cycleIndex, setCycleIndex] = useState(0);
-  const [ripples, setRipples] = useState([]);
-  const heroRef = useRef(null);
-  const rippleIdRef = useRef(0);
-
-  const handleHeroMouseMove = (e) => {
-    const el = heroRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const normX = (x / Math.max(rect.width, 1) - 0.5) * 2;
-    const normY = (y / Math.max(rect.height, 1) - 0.5) * 2;
-    el.style.setProperty('--mx', `${x}px`);
-    el.style.setProperty('--my', `${y}px`);
-    el.style.setProperty('--px', `${normX.toFixed(3)}`);
-    el.style.setProperty('--py', `${normY.toFixed(3)}`);
-    el.style.setProperty('--glow-opacity', '1');
-  };
-
-  const handleHeroMouseLeave = () => {
-    const el = heroRef.current;
-    if (!el) return;
-    el.style.setProperty('--px', '0');
-    el.style.setProperty('--py', '0');
-    el.style.setProperty('--glow-opacity', '0.45');
-  };
-
-  const handleHeroClick = (e) => {
-    if (e.target.closest('a, button, .hero-card')) return;
-    const el = heroRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const id = ++rippleIdRef.current;
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setRipples((prev) => [...prev.slice(-4), { id, x, y }]);
-    setTimeout(() => {
-      setRipples((prev) => prev.filter((r) => r.id !== id));
-    }, 850);
-  };
+  const { hostRef: heroRef, ripples, onMouseMove: handleHeroMouseMove, onMouseLeave: handleHeroMouseLeave, onClick: handleHeroClick } =
+    useInteractiveCrimsonBg('a, button, .hero-card');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -167,24 +130,12 @@ export default function LandingPage() {
       <main
         id="campus-life"
         ref={heroRef}
-        className="hero"
+        className="hero interactive-crimson-host"
         onMouseMove={handleHeroMouseMove}
         onMouseLeave={handleHeroMouseLeave}
         onClick={handleHeroClick}
       >
-        <div className="hero-interactive-bg" aria-hidden="true">
-          <div className="hero-orb hero-orb-1" />
-          <div className="hero-orb hero-orb-2" />
-          <div className="hero-dot-grid" />
-          <div className="hero-spotlight" />
-          {ripples.map((r) => (
-            <span
-              key={r.id}
-              className="hero-click-ripple"
-              style={{ left: `${r.x}px`, top: `${r.y}px` }}
-            />
-          ))}
-        </div>
+        <InteractiveCrimsonBg ripples={ripples} />
 
         <div className="hero-container">
           

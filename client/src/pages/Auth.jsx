@@ -1,5 +1,6 @@
 import { Fragment, useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import InteractiveCrimsonBg, { useInteractiveCrimsonBg } from '../assets/components/InteractiveCrimsonBg';
 import '../pages/styles/Auth.css';
 
 const collegeDepartments = {
@@ -122,6 +123,8 @@ const INITIAL_REG_DATA = {
 export default function Auth() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { hostRef: authBgRef, ripples, onMouseMove: handleAuthBgMove, onMouseLeave: handleAuthBgLeave, onClick: handleAuthBgClick } =
+    useInteractiveCrimsonBg('a, button, input, select, textarea, label, .login-card');
   const [activeTab, setActiveTab] = useState(() => (searchParams.get('tab') === 'register' ? 'register' : 'login'));
   const [selectedCollege, setSelectedCollege] = useState('');
   const [availableCourses, setAvailableCourses] = useState([]);
@@ -906,7 +909,14 @@ export default function Auth() {
   };
 
   return (
-    <div className="auth-page-root">
+    <div
+      ref={authBgRef}
+      className="auth-page-root interactive-crimson-host"
+      onMouseMove={handleAuthBgMove}
+      onMouseLeave={handleAuthBgLeave}
+      onClick={handleAuthBgClick}
+    >
+      <InteractiveCrimsonBg ripples={ripples} />
       <main className="login-wrapper">
         <div className={`login-card-wrapper ${activeTab === 'register' ? 'wide-mode' : ''}`}>
           <div className="card-glow-bg"></div>
