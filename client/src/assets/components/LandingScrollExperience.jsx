@@ -1,7 +1,9 @@
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import wmsuCampusImg from '../images/wmsu-campus.jpg';
 import '../../pages/styles/LandingScrollExperience.css';
+
+const ABOUT_HEADING_WORDS = 'Western Mindanao State University'.split(' ');
 
 const PORTAL_STEPS = [
   {
@@ -10,7 +12,7 @@ const PORTAL_STEPS = [
     desc: 'Use your @wmsu.edu.ph email and Student ID.',
     previewTitle: 'Verified Campus Accounts',
     previewDesc: 'Sign in for Student, Staff, or Admin access.',
-    icon: 'signin',
+    icon: 'fa-shield-halved',
   },
   {
     number: '2',
@@ -18,15 +20,15 @@ const PORTAL_STEPS = [
     desc: 'Follow your college and student organizations.',
     previewTitle: 'Advisories & Updates',
     previewDesc: 'See announcements and deadlines in one feed.',
-    icon: 'pages',
+    icon: 'fa-layer-group',
   },
   {
     number: '3',
     title: 'Events & Announcements',
-    desc: 'Browse campus announcements, reserve event slots, and check in with QR.',
-    previewTitle: 'Announcements & Check-In',
-    previewDesc: 'Track announcements, registrations, and venue attendance.',
-    icon: 'events',
+    desc: 'Browse updates, reserve seats, and check in with QR.',
+    previewTitle: 'Events & Check-In',
+    previewDesc: 'Track posts, registrations, and attendance.',
+    icon: 'fa-calendar-check',
   },
 ];
 
@@ -49,83 +51,6 @@ const COLLEGE_ICONS = [
   'fa-person-running',
   'fa-hands-holding-circle',
 ];
-
-function StepLineIcon({ type }) {
-  if (type === 'signin') {
-    return (
-      <svg viewBox="0 0 88 88" fill="none" className="cx-step-svg" aria-hidden="true">
-        <path
-          d="M44 12L70 22V42C70 59.5 58.6 72.4 44 77C29.4 72.4 18 59.5 18 42V22L44 12Z"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle cx="44" cy="39" r="8" stroke="currentColor" strokeWidth="2.2" />
-        <path
-          d="M31 57C33.8 51.8 38.5 49 44 49C49.5 49 54.2 51.8 57 57"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  }
-
-  if (type === 'pages') {
-    return (
-      <svg viewBox="0 0 88 88" fill="none" className="cx-step-svg" aria-hidden="true">
-        <rect
-          x="18"
-          y="16"
-          width="42"
-          height="54"
-          rx="6"
-          stroke="currentColor"
-          strokeWidth="2.2"
-        />
-        <path
-          d="M28 31H48M28 42H48M28 53H40"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-        />
-        <path
-          d="M64 26L68 30L75 23M64 41L68 45L75 38M64 56L68 60L75 53"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 88 88" fill="none" className="cx-step-svg" aria-hidden="true">
-      <rect
-        x="22"
-        y="16"
-        width="44"
-        height="56"
-        rx="7"
-        stroke="currentColor"
-        strokeWidth="2.2"
-      />
-      <rect x="31" y="26" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="47" y="26" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <rect x="31" y="42" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="2" />
-      <path
-        d="M47 47L51 51L58 43"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M36 62H52" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function ChevronRun({ direction = 'right' }) {
   const isLeft = direction === 'left';
@@ -218,17 +143,11 @@ function LandingScrollExperience({ colleges = [] }) {
   const aboutRef = useRef(null);
   const tickerWrapRef = useRef(null);
   const howRef = useRef(null);
-  const traceTopLRef = useRef(null);
-  const traceTopRRef = useRef(null);
-  const traceMidLRef = useRef(null);
-  const traceMidRRef = useRef(null);
-  const stemFillRef = useRef(null);
-  const stemNodeRef = useRef(null);
   const horizonRef = useRef(null);
-  const horizonDomeRef = useRef(null);
   const horizonArcRef = useRef(null);
   const horizonCoreRef = useRef(null);
   const cardRefs = useRef([]);
+  const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
     const rootEl = rootRef.current;
@@ -252,7 +171,7 @@ function LandingScrollExperience({ colleges = [] }) {
           }
         });
       },
-      { threshold: 0.08, rootMargin: '0px 0px -48px 0px' }
+      { threshold: 0.05, rootMargin: '0px 0px -24px 0px' }
     );
 
     revealEls.forEach((el) => observer.observe(el));
@@ -293,9 +212,6 @@ function LandingScrollExperience({ colleges = [] }) {
     const current = { ...target };
     const applied = {
       page: -1,
-      busTop: -1,
-      busMid: -1,
-      busStem: -1,
       horizon: -1,
     };
 
@@ -351,6 +267,7 @@ function LandingScrollExperience({ colleges = [] }) {
     const applyDirectStyles = (nextActiveStep, nextHorizonLit) => {
       if (nextActiveStep !== lastActiveStep) {
         lastActiveStep = nextActiveStep;
+        setActiveStep(nextActiveStep);
         cardRefs.current.forEach((el, idx) => {
           if (el) el.classList.toggle('is-focused', idx === nextActiveStep);
         });
@@ -358,7 +275,6 @@ function LandingScrollExperience({ colleges = [] }) {
 
       if (nextHorizonLit !== lastHorizonLit) {
         lastHorizonLit = nextHorizonLit;
-        if (stemNodeRef.current) stemNodeRef.current.classList.toggle('is-lit', nextHorizonLit);
         if (horizonRef.current) horizonRef.current.classList.toggle('is-lit', nextHorizonLit);
       }
 
@@ -367,47 +283,18 @@ function LandingScrollExperience({ colleges = [] }) {
         progressBarRef.current.style.transform = `scaleX(${current.page.toFixed(4)})`;
       }
 
-      const howInView = !howRef.current || howRef.current.dataset.inView !== 'false';
-      if (howInView) {
-        const busTop = clamp01(current.how * 3.1);
-        if (Math.abs(busTop - applied.busTop) > 0.01) {
-          applied.busTop = busTop;
-          const op = (0.15 + busTop * 0.85).toFixed(2);
-          if (traceTopLRef.current) traceTopLRef.current.style.opacity = op;
-          if (traceTopRRef.current) traceTopRRef.current.style.opacity = op;
-        }
-
-        const busMid = clamp01((current.how - 0.32) * 2.8);
-        if (Math.abs(busMid - applied.busMid) > 0.01) {
-          applied.busMid = busMid;
-          const op = (0.15 + busMid * 0.85).toFixed(2);
-          if (traceMidLRef.current) traceMidLRef.current.style.opacity = op;
-          if (traceMidRRef.current) traceMidRRef.current.style.opacity = op;
-        }
-
-        const busStem = clamp01((current.how - 0.56) * 2.5);
-        if (stemFillRef.current && Math.abs(busStem - applied.busStem) > 0.004) {
-          applied.busStem = busStem;
-          stemFillRef.current.style.transform = `scaleY(${busStem.toFixed(4)})`;
-        }
-      }
-
       const horizonInView = !horizonRef.current || horizonRef.current.dataset.inView !== 'false';
       if (horizonInView && Math.abs(current.horizon - applied.horizon) > 0.002) {
         applied.horizon = current.horizon;
         const hp = current.horizon;
         const inv = 1 - hp;
-        if (horizonDomeRef.current) {
-          horizonDomeRef.current.style.transform = `translate3d(-50%, ${(inv * 72).toFixed(1)}px, 0)`;
-          horizonDomeRef.current.style.opacity = (0.28 + hp * 0.72).toFixed(2);
-        }
         if (horizonArcRef.current) {
-          horizonArcRef.current.style.transform = `translate3d(-50%, ${(inv * 64).toFixed(1)}px, 0)`;
-          horizonArcRef.current.style.opacity = (0.45 + hp * 0.55).toFixed(2);
+          horizonArcRef.current.style.transform = `translate3d(-50%, ${(inv * 72).toFixed(1)}px, 0) scaleX(${(0.82 + hp * 0.22).toFixed(3)})`;
+          horizonArcRef.current.style.opacity = (0.35 + hp * 0.65).toFixed(2);
         }
         if (horizonCoreRef.current) {
-          horizonCoreRef.current.style.transform = `translate3d(-50%, ${(inv * 48).toFixed(1)}px, 0)`;
-          horizonCoreRef.current.style.opacity = (0.38 + hp * 0.62).toFixed(2);
+          horizonCoreRef.current.style.transform = `translate3d(-50%, ${(inv * 56).toFixed(1)}px, 0) scaleX(${(0.86 + hp * 0.18).toFixed(3)})`;
+          horizonCoreRef.current.style.opacity = (0.32 + hp * 0.68).toFixed(2);
         }
       }
     };
@@ -487,8 +374,30 @@ function LandingScrollExperience({ colleges = [] }) {
          ======================================================= */}
       <section id="about-wmsu" ref={aboutRef} className="cx-light-band">
         <div className="cx-inner">
-          <h2 className="cx-light-heading cx-reveal">
-            Western Mindanao State University
+          <h2
+            className="cx-light-heading cx-reveal"
+            aria-label="Western Mindanao State University"
+          >
+            {(() => {
+              let charIdx = 0;
+              return ABOUT_HEADING_WORDS.map((word, wordIdx) => (
+                <span key={word} className="cx-letter-word" aria-hidden="true">
+                  {word.split('').map((char) => {
+                    const idx = charIdx++;
+                    return (
+                      <span
+                        key={idx}
+                        className="cx-letter-char"
+                        style={{ '--char-index': idx }}
+                      >
+                        {char}
+                      </span>
+                    );
+                  })}
+                  {wordIdx < ABOUT_HEADING_WORDS.length - 1 ? ' ' : null}
+                </span>
+              ));
+            })()}
           </h2>
 
           {/* Asymmetric 2-Column Showcase Card */}
@@ -554,8 +463,7 @@ function LandingScrollExperience({ colleges = [] }) {
       </section>
 
       {/* =======================================================
-          BAND 2 — DEEP OBSIDIAN-CRIMSON BENTO + ANIMATED CIRCUIT NETWORK
-          (Gcore 0:13 → 0:17 tailored to CRIMSON's 3 Portal Steps)
+          BAND 2 — SPLIT-SCREEN EDITORIAL STEPPER + STICKY LIVE PREVIEW STAGE
          ======================================================= */}
       <section id="how-it-works" ref={howRef} className="cx-dark-band">
         <div className="cx-dark-ambient" aria-hidden="true" />
@@ -569,149 +477,46 @@ function LandingScrollExperience({ colleges = [] }) {
             <ChevronRun direction="left" />
           </div>
 
-          {/* Scroll-driven top circuit bus feeding into the Bento grid */}
-          <div className="cx-bus-top" aria-hidden="true">
-            <svg viewBox="0 0 600 54" fill="none" preserveAspectRatio="none" className="cx-bus-svg">
-              <path d="M300 0V24H150V54" className="cx-trace-base" />
-              <path d="M300 0V24H450V54" className="cx-trace-base" />
-              <path ref={traceTopLRef} d="M300 0V24H150V54" className="cx-trace-lit cx-trace-top-l" pathLength="1" />
-              <path ref={traceTopRRef} d="M300 0V24H450V54" className="cx-trace-lit cx-trace-top-r" pathLength="1" />
-            </svg>
+          <div className="cx-stages-grid">
+            {PORTAL_STEPS.map((step, idx) => {
+              const isActive = activeStep === idx;
+              return (
+                <article
+                  key={step.number}
+                  ref={(el) => { cardRefs.current[idx] = el; }}
+                  className={`cx-stage-col cx-reveal${isActive ? ' is-active is-focused' : ''}`}
+                  style={{ '--stage-idx': idx }}
+                  onMouseEnter={() => setActiveStep(idx)}
+                >
+                  <div className="cx-stage-slash-wrap" aria-hidden="true">
+                    <span className="cx-stage-big-num">{step.number}</span>
+                    <span className="cx-stage-slash" />
+                  </div>
+
+                  <div className="cx-stage-body">
+                    <span className="cx-stage-icon" aria-hidden="true">
+                      <i className={`fa-solid ${step.icon}`} />
+                    </span>
+                    <h3 className="cx-stage-title">{step.title}</h3>
+                    <div className="cx-stage-rule" aria-hidden="true">
+                      <span className="cx-stage-rule-lit" />
+                    </div>
+                    <p className="cx-stage-desc">{step.desc}</p>
+                    <p className="cx-stage-meta">{step.previewDesc}</p>
+                  </div>
+                </article>
+              );
+            })}
           </div>
 
-          {/* Asymmetric 2 + 1 Dark Obsidian Bento Grid */}
-          <div className="cx-bento-grid">
-            {/* STEP 1 — Sign In (Glowing Shield Orb Card) */}
-            <article
-              ref={(el) => { cardRefs.current[0] = el; }}
-              className="cx-bento-card cx-bento-card-1 cx-reveal is-focused"
-              onMouseMove={handleCardPointerMove}
-              onMouseLeave={handleCardPointerLeave}
-            >
-              <span className="cx-card-spotlight" aria-hidden="true" />
-              <div className="cx-bento-head">
-                <span className="cx-step-badge">{PORTAL_STEPS[0].number}</span>
-                <h3 className="cx-bento-title">{PORTAL_STEPS[0].title}</h3>
-                <p className="cx-bento-desc">{PORTAL_STEPS[0].desc}</p>
-                <p className="cx-bento-meta">
-                  <strong>{PORTAL_STEPS[0].previewTitle}:</strong> {PORTAL_STEPS[0].previewDesc}
-                </p>
-              </div>
-
-              <div className="cx-bento-stage cx-stage-shield" aria-hidden="true">
-                <div className="cx-orb-glow" />
-                <div className="cx-orb-ring cx-orb-ring-1" />
-                <div className="cx-orb-ring cx-orb-ring-2" />
-                <div className="cx-orb-ring cx-orb-ring-3" />
-                <div className="cx-orb-core">
-                  <StepLineIcon type="signin" />
-                </div>
-              </div>
-            </article>
-
-            {/* STEP 2 — Follow Pages (Radial Hub & Animated Circuit Pulses Card) */}
-            <article
-              ref={(el) => { cardRefs.current[1] = el; }}
-              className="cx-bento-card cx-bento-card-2 cx-reveal"
-              onMouseMove={handleCardPointerMove}
-              onMouseLeave={handleCardPointerLeave}
-            >
-              <span className="cx-card-spotlight" aria-hidden="true" />
-              <div className="cx-bento-head">
-                <span className="cx-step-badge">{PORTAL_STEPS[1].number}</span>
-                <h3 className="cx-bento-title">{PORTAL_STEPS[1].title}</h3>
-                <p className="cx-bento-desc">{PORTAL_STEPS[1].desc}</p>
-                <p className="cx-bento-meta">
-                  <strong>{PORTAL_STEPS[1].previewTitle}:</strong> {PORTAL_STEPS[1].previewDesc}
-                </p>
-              </div>
-
-              <div className="cx-bento-stage cx-stage-hub" aria-hidden="true">
-                <svg viewBox="0 0 360 190" fill="none" className="cx-hub-svg">
-                  {/* Base circuit traces */}
-                  <path d="M52 44H116L146 84H162" className="cx-hub-line" />
-                  <path d="M36 96H162" className="cx-hub-line" />
-                  <path d="M52 148H116L146 108H162" className="cx-hub-line" />
-                  <path d="M308 44H244L214 84H198" className="cx-hub-line" />
-                  <path d="M324 96H198" className="cx-hub-line" />
-                  <path d="M308 148H244L214 108H198" className="cx-hub-line" />
-
-                  {/* Animated glowing crimson signal pulses */}
-                  <path d="M52 44H116L146 84H162" className="cx-hub-pulse cx-pulse-a" pathLength="100" />
-                  <path d="M36 96H162" className="cx-hub-pulse cx-pulse-b" pathLength="100" />
-                  <path d="M52 148H116L146 108H162" className="cx-hub-pulse cx-pulse-c" pathLength="100" />
-                  <path d="M308 44H244L214 84H198" className="cx-hub-pulse cx-pulse-b" pathLength="100" />
-                  <path d="M324 96H198" className="cx-hub-pulse cx-pulse-a" pathLength="100" />
-                  <path d="M308 148H244L214 108H198" className="cx-hub-pulse cx-pulse-c" pathLength="100" />
-                </svg>
-
-                <span className="cx-sat-node cx-sat-1"><i className="fa-solid fa-graduation-cap" /></span>
-                <span className="cx-sat-node cx-sat-2"><i className="fa-solid fa-bullhorn" /></span>
-                <span className="cx-sat-node cx-sat-3"><i className="fa-solid fa-building-columns" /></span>
-                <span className="cx-sat-node cx-sat-4"><i className="fa-solid fa-users" /></span>
-                <span className="cx-sat-node cx-sat-5"><i className="fa-solid fa-bell" /></span>
-                <span className="cx-sat-node cx-sat-6"><i className="fa-solid fa-calendar-days" /></span>
-
-                <div className="cx-hub-core">
-                  <StepLineIcon type="pages" />
-                </div>
-              </div>
-            </article>
-
-            {/* Connecting Scroll-Driven Circuit Bridge into Step 3 */}
-            <div className="cx-bus-mid" aria-hidden="true">
-              <svg viewBox="0 0 600 44" fill="none" preserveAspectRatio="none" className="cx-bus-svg">
-                <path d="M150 0V22H300V44" className="cx-trace-base" />
-                <path d="M450 0V22H300V44" className="cx-trace-base" />
-                <path ref={traceMidLRef} d="M150 0V22H300V44" className="cx-trace-lit cx-trace-mid-l" pathLength="1" />
-                <path ref={traceMidRRef} d="M450 0V22H300V44" className="cx-trace-lit cx-trace-mid-r" pathLength="1" />
-              </svg>
-            </div>
-
-            {/* STEP 3 — Events & Announcements (Wide Featured Circuit Waveform + QR Scan Card) */}
-            <article
-              ref={(el) => { cardRefs.current[2] = el; }}
-              className="cx-bento-card cx-bento-wide cx-reveal"
-              onMouseMove={handleCardPointerMove}
-              onMouseLeave={handleCardPointerLeave}
-            >
-              <span className="cx-card-spotlight" aria-hidden="true" />
-              <div className="cx-bento-head cx-bento-wide-copy">
-                <span className="cx-step-badge">{PORTAL_STEPS[2].number}</span>
-                <h3 className="cx-bento-title">{PORTAL_STEPS[2].title}</h3>
-                <p className="cx-bento-desc">{PORTAL_STEPS[2].desc}</p>
-                <p className="cx-bento-meta">
-                  <strong>{PORTAL_STEPS[2].previewTitle}:</strong> {PORTAL_STEPS[2].previewDesc}
-                </p>
-              </div>
-
-              <div className="cx-bento-stage cx-stage-wave" aria-hidden="true">
-                <svg viewBox="0 0 460 180" fill="none" className="cx-wave-svg">
-                  <path d="M0 36H104L134 62H236L264 90H340" className="cx-hub-line" />
-                  <path d="M0 72H148L178 90H340" className="cx-hub-line" />
-                  <path d="M0 108H148L178 90H340" className="cx-hub-line" />
-                  <path d="M0 144H104L134 118H236L264 90H340" className="cx-hub-line" />
-
-                  <path d="M0 36H104L134 62H236L264 90H340" className="cx-hub-pulse cx-pulse-a" pathLength="100" />
-                  <path d="M0 72H148L178 90H340" className="cx-hub-pulse cx-pulse-c" pathLength="100" />
-                  <path d="M0 108H148L178 90H340" className="cx-hub-pulse cx-pulse-b" pathLength="100" />
-                  <path d="M0 144H104L134 118H236L264 90H340" className="cx-hub-pulse cx-pulse-a" pathLength="100" />
-                </svg>
-
-                <div className="cx-qr-chip">
-                  <div className="cx-qr-scan-beam" />
-                  <StepLineIcon type="events" />
-                </div>
-              </div>
-            </article>
-          </div>
-
-          {/* Terminal circuit stem feeding into the Crimson Horizon Finale */}
-          <div className="cx-bus-bottom" aria-hidden="true">
-            <div className="cx-stem-track">
-              <div ref={stemFillRef} className="cx-stem-fill" />
-            </div>
-            <span ref={stemNodeRef} className="cx-stem-node" />
+          <div className="cx-band-divider cx-reveal" aria-hidden="true">
+            <span className="cx-band-divider-line" />
+            <span className="cx-band-divider-diamonds">
+              <span className="cx-band-divider-diamond cx-band-divider-diamond-side" />
+              <span className="cx-band-divider-diamond" />
+              <span className="cx-band-divider-diamond cx-band-divider-diamond-side" />
+            </span>
+            <span className="cx-band-divider-line" />
           </div>
         </div>
       </section>
@@ -721,14 +526,17 @@ function LandingScrollExperience({ colleges = [] }) {
           (Gcore 0:20 dotted globe + 0:37 glowing horizon CTA)
          ======================================================= */}
       <section id="join-crimson" ref={horizonRef} className="cx-horizon-cta">
-        <div ref={horizonDomeRef} className="cx-horizon-dome" aria-hidden="true" />
         <div ref={horizonArcRef} className="cx-horizon-arc" aria-hidden="true" />
         <div ref={horizonCoreRef} className="cx-horizon-core" aria-hidden="true" />
 
         <div className="cx-horizon-inner cx-reveal">
           <h2 className="cx-horizon-heading">
-            JOIN <span className="cx-crimson-accent">CRIMSON</span>
+            <span className="cx-horizon-word-left">JOIN</span>{' '}
+            <span className="cx-crimson-accent cx-horizon-word-right">CRIMSON</span>
           </h2>
+          <p className="cx-horizon-sub">
+            Stay connected with official university advisories, college updates, and campus events in one unified feed.
+          </p>
           <div className="cx-horizon-action">
             <Link
               to="/auth"
@@ -737,6 +545,7 @@ function LandingScrollExperience({ colleges = [] }) {
               onMouseLeave={handleMagneticLeave}
             >
               <span>Get Started</span>
+              <i className="fa-solid fa-arrow-right" aria-hidden="true" />
             </Link>
           </div>
         </div>

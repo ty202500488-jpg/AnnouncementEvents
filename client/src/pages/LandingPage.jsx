@@ -111,7 +111,7 @@ export default function LandingPage() {
 
   useEffect(() => {
     const aboutEl = document.getElementById('about-wmsu');
-    const collegesEl = document.getElementById('colleges');
+    const howItWorksEl = document.getElementById('how-it-works');
 
     if (typeof IntersectionObserver === 'undefined') {
       return undefined;
@@ -135,8 +135,8 @@ export default function LandingPage() {
       (entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
-          if (entry.target === collegesEl) {
-            setActiveNav('colleges');
+          if (entry.target === howItWorksEl) {
+            setActiveNav('how-it-works');
           } else if (entry.target === aboutEl) {
             setActiveNav('about-wmsu');
           }
@@ -146,7 +146,7 @@ export default function LandingPage() {
     );
 
     if (aboutEl) sectionObserver.observe(aboutEl);
-    if (collegesEl) sectionObserver.observe(collegesEl);
+    if (howItWorksEl) sectionObserver.observe(howItWorksEl);
 
     const heroObserver = new IntersectionObserver(
       ([entry]) => {
@@ -179,9 +179,9 @@ export default function LandingPage() {
           </a>
 
           <nav className="nav-links" aria-label="Primary">
-            <a href="#campus-life" className={`nav-link-item ${activeNav === 'campus-life' ? 'is-active' : ''}`}>Campus Life</a>
+            <a href="#campus-life" className={`nav-link-item ${activeNav === 'campus-life' ? 'is-active' : ''}`}>Home</a>
             <a href="#about-wmsu" className={`nav-link-item ${activeNav === 'about-wmsu' ? 'is-active' : ''}`}>About WMSU</a>
-            <a href="#colleges" className={`nav-link-item ${activeNav === 'colleges' ? 'is-active' : ''}`}>Colleges</a>
+            <a href="#how-it-works" className={`nav-link-item ${activeNav === 'how-it-works' ? 'is-active' : ''}`}>How It Works</a>
           </nav>
 
           <div className="nav-actions">
