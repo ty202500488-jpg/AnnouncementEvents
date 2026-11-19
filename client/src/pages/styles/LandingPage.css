@@ -705,9 +705,110 @@ body {
   flex-direction: column;
   justify-content: center;
   padding: 2.5rem 2rem 2rem;
+  overflow: hidden;
+  --mx: 50%;
+  --my: 45%;
+  --px: 0;
+  --py: 0;
+  --glow-opacity: 0.45;
+}
+
+.hero-interactive-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.hero-spotlight {
+  position: absolute;
+  inset: 0;
+  opacity: var(--glow-opacity);
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    480px circle at var(--mx) var(--my),
+    rgba(244, 63, 94, 0.22) 0%,
+    rgba(190, 18, 60, 0.1) 42%,
+    transparent 74%
+  );
+}
+
+.hero-dot-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 228, 230, 0.24) 1.25px, transparent 1.25px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(320px circle at var(--mx) var(--my), rgba(0, 0, 0, 0.95) 0%, transparent 100%);
+  mask-image: radial-gradient(320px circle at var(--mx) var(--my), rgba(0, 0, 0, 0.95) 0%, transparent 100%);
+  opacity: var(--glow-opacity);
+  transition: opacity 0.35s ease;
+}
+
+.hero-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.hero-orb-1 {
+  width: 420px;
+  height: 420px;
+  top: -110px;
+  left: -80px;
+  background: radial-gradient(circle, rgba(225, 29, 72, 0.24) 0%, transparent 70%);
+  transform: translate3d(calc(var(--px) * 24px), calc(var(--py) * 18px), 0);
+}
+
+.hero-orb-2 {
+  width: 480px;
+  height: 480px;
+  bottom: -140px;
+  right: -90px;
+  background: radial-gradient(circle, rgba(159, 18, 57, 0.28) 0%, transparent 70%);
+  transform: translate3d(calc(var(--px) * -28px), calc(var(--py) * -22px), 0);
+}
+
+.hero-click-ripple {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  margin-top: -12px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(254, 205, 211, 0.55);
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.22) 0%, transparent 70%);
+  animation: heroBgRipple 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes heroBgRipple {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(11);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb,
+  .hero-spotlight,
+  .hero-dot-grid {
+    transition: none;
+    transform: none;
+  }
+  .hero-click-ripple {
+    display: none;
+  }
 }
 
 .hero-container {
+  position: relative;
+  z-index: 2;
   width: 100%;
   max-width: 1280px;
   margin: auto;
