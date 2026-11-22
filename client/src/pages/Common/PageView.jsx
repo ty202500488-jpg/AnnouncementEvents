@@ -521,7 +521,7 @@ export default function PageView({ role = 'guest' }) {
           showSearchDropdown={showDropdown}
           onSelectSearchResult={handleSelectSearchResult}
           searchContainerRef={searchContainerRef}
-          showQrButton={Boolean(token)}
+          showQrButton={false}
           qrHref={isStaff ? '/staff/attendance/check-in/scan' : '/student/attendance/check-in/scan'}
           notifications={notifications}
           loadingNotifs={loadingNotifs}
@@ -963,14 +963,7 @@ export default function PageView({ role = 'guest' }) {
                         isOwner={Boolean(page.is_owner || item.is_owner)}
                         isRegistering={registeringEventId === (item.id || item.post_id)}
                         onToggleRegister={!(page.is_owner || item.is_owner) ? () => handleEventRegister(item) : null}
-                        onViewRegistrations={() => setViewingRegistrationsEvent(item)}
-                        onScanAttendance={token ? () => {
-                          const scanToken = prompt("Scan or enter event QR token:");
-                          if (scanToken) {
-                            const clean = scanToken.trim().split('/').pop();
-                            navigate(isStaff ? `/staff/attendance/check-in/${clean}` : `/student/attendance/check-in/${clean}`);
-                          }
-                        } : null}
+                            onViewRegistrations={() => setViewingRegistrationsEvent(item)}
                       />
                     )}
                   </article>

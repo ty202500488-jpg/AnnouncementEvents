@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
+import QRCheckInScanner from '../../assets/components/QRCheckInScanner';
 import {
   EventPostMeta,
   EventPostActionBar,
@@ -15,7 +16,6 @@ import EventRegistrationModal from '../../assets/components/EventRegistrationMod
 import '../styles/StaffDashboard.css';
 
 export default function StaffMyEvents() {
-  const navigate = useNavigate();
   const [myEvents, setMyEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -27,6 +27,7 @@ export default function StaffMyEvents() {
   const [submittingPost, setSubmittingPost] = useState(false);
   const [deletingPost, setDeletingPost] = useState(null);
   const [registeringModalEvent, setRegisteringModalEvent] = useState(null);
+  const [scannerEvent, setScannerEvent] = useState(null);
   const token = localStorage.getItem('token');
 
   const handleOpenEditPost = (item) => {
@@ -77,33 +78,50 @@ export default function StaffMyEvents() {
     }
   };
 
-  useEffect(() => {
-    const fetchMyEvents = async () => {
-      try {
-        const storedUser = localStorage.getItem('user');
-        const parsedUser = storedUser ? JSON.parse(storedUser) : {};
-        const staffId = parsedUser.id || parsedUser.staff_id;
+  const fetchMyEvents = useCallback(async () => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      const parsedUser = storedUser ? JSON.parse(storedUser) : {};
+      const staffId = parsedUser.id || parsedUser.staff_id;
 
-        const response = await fetch(`http://localhost:5000/users/my-events?staff_id=${staffId}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
-        });
-        const data = await response.json();
-        if (response.ok && data.events) {
-          setMyEvents(data.events);
+      const response = await fetch(`http://localhost:5000/users/my-events?staff_id=${staffId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
-      } catch (err) {
-        console.error('Failed to fetch staff events:', err);
-      } finally {
-        setLoading(false);
+      });
+      const data = await response.json();
+      if (response.ok && data.events) {
+        setMyEvents(data.events);
       }
-    };
+    } catch (err) {
+      console.error('Failed to fetch staff events:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
 
+  useEffect(() => {
     fetchMyEvents();
-  }, []);
+  }, [fetchMyEvents]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      fetchMyEvents();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [fetchMyEvents]);
+
+  useEffect(() => {
+    if (!scannerEvent) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setScannerEvent(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [scannerEvent]);
 
   const handleCancelRegistration = async (eventId) => {
     if (!window.confirm('Are you sure you want to cancel your registration for this event?')) return;
@@ -292,10 +310,45 @@ export default function StaffMyEvents() {
                           )}
                           {(() => {
                             const sLower = String(item.registration_status || 'Registered').toLowerCase();
-                            const badgeLabel = sLower === 'pending' ? 'Pending Approval' : sLower === 'rejected' ? 'Declined' : isUpcoming ? 'Confirmed' : 'Ended';
-                            const badgeBg = sLower === 'pending' ? '#fef3c7' : sLower === 'rejected' ? '#ffe4e6' : isUpcoming ? '#e6f7ef' : '#f1f5f9';
-                            const badgeColor = sLower === 'pending' ? '#b45309' : sLower === 'rejected' ? '#be123c' : isUpcoming ? '#0f8a5f' : '#475569';
-                            const badgeBorder = sLower === 'pending' ? '#fde68a' : sLower === 'rejected' ? '#fecdd3' : isUpcoming ? '#a7e3c8' : '#e2e8f0';
+                            const isAttended =
+                              sLower === 'attended' ||
+                              String(item.user_attendance_status || '').toUpperCase() === 'PRESENT';
+                            const badgeLabel = isAttended
+                              ? 'Attended'
+                              : sLower === 'pending'
+                                ? 'Pending Approval'
+                                : sLower === 'rejected'
+                                  ? 'Declined'
+                                  : isUpcoming
+                                    ? 'Confirmed'
+                                    : 'Ended';
+                            const badgeBg = isAttended
+                              ? '#e6f7ef'
+                              : sLower === 'pending'
+                                ? '#fef3c7'
+                                : sLower === 'rejected'
+                                  ? '#ffe4e6'
+                                  : isUpcoming
+                                    ? '#e6f7ef'
+                                    : '#f1f5f9';
+                            const badgeColor = isAttended
+                              ? '#0f8a5f'
+                              : sLower === 'pending'
+                                ? '#b45309'
+                                : sLower === 'rejected'
+                                  ? '#be123c'
+                                  : isUpcoming
+                                    ? '#0f8a5f'
+                                    : '#475569';
+                            const badgeBorder = isAttended
+                              ? '#a7e3c8'
+                              : sLower === 'pending'
+                                ? '#fde68a'
+                                : sLower === 'rejected'
+                                  ? '#fecdd3'
+                                  : isUpcoming
+                                    ? '#a7e3c8'
+                                    : '#e2e8f0';
                             return (
                               <span
                                 style={{
@@ -372,7 +425,7 @@ export default function StaffMyEvents() {
                     </div>
                   )}
 
-                  {/* Inline Action Bar (Scan / Unregister / Resubmit) */}
+                  {/* Inline Action Bar (Attendance / Unregister / Resubmit) */}
                   <EventPostActionBar
                     isRegistered={Boolean(item.is_registered)}
                     registrationStatus={item.registration_status || 'Registered'}
@@ -380,6 +433,11 @@ export default function StaffMyEvents() {
                     requiresRegistration={item.requires_registration !== false}
                     registeredCount={currentRegistered}
                     capacity={item.max_capacity || item.capacity}
+                    attendanceStatus={item.attendance_status}
+                    attendanceOpenTime={item.attendance_open_time}
+                    attendanceCloseTime={item.attendance_close_time}
+                    userAttendanceStatus={item.user_attendance_status}
+                    userCheckinTime={item.user_checkin_time}
                     onToggleRegister={
                       isUpcoming
                         ? () => {
@@ -391,13 +449,11 @@ export default function StaffMyEvents() {
                           }
                         : null
                     }
-                    onScanAttendance={isUpcoming && item.is_registered ? () => {
-                      const scanToken = prompt("Scan or enter event QR token:");
-                      if (scanToken) {
-                        const clean = scanToken.trim().split('/').pop();
-                        navigate(`/staff/attendance/check-in/${clean}`);
-                      }
-                    } : null}
+                    onScanAttendance={
+                      item.is_registered && item.attendance_status === 'ACTIVE'
+                        ? () => setScannerEvent(item)
+                        : null
+                    }
                   />
                 </article>
               );
@@ -405,6 +461,52 @@ export default function StaffMyEvents() {
           </div>
         )}
       </main>
+      {scannerEvent &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`QR Attendance Check-In for ${scannerEvent.title || 'Event'}`}
+            onClick={() => setScannerEvent(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(5px)',
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 'clamp(0.625rem, 2.5vw, 1.25rem)',
+              boxSizing: 'border-box',
+            }}
+          >
+            <QRCheckInScanner
+              role="staff"
+              isModal={true}
+              expectedEventId={scannerEvent.id}
+              eventTitle={scannerEvent.title}
+              onClose={() => setScannerEvent(null)}
+              onCheckInSuccess={(data) => {
+                const targetId = scannerEvent.id;
+                setMyEvents((prev) =>
+                  prev.map((ev) =>
+                    ev.id === targetId
+                      ? {
+                          ...ev,
+                          user_attendance_status: 'PRESENT',
+                          user_checkin_time: data?.checkinTime || new Date().toISOString(),
+                          registration_status: 'Attended',
+                          is_registered: true,
+                        }
+                      : ev
+                  )
+                );
+              }}
+            />
+          </div>,
+          document.body
+        )}
       {registeringModalEvent && (
         <EventRegistrationModal
           event={registeringModalEvent}

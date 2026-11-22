@@ -587,13 +587,6 @@ export default function StaffDashboard() {
                     isRegistering={registeringEventId === postId}
                     onToggleRegister={!item.is_owner ? () => handleEventRegister(item) : null}
                     onViewRegistrations={() => setViewingRegistrationsEvent(item)}
-                    onScanAttendance={() => {
-                      const scanToken = prompt("Scan or enter event QR token:");
-                      if (scanToken) {
-                        const clean = scanToken.trim().split('/').pop();
-                        navigate(`/staff/attendance/check-in/${clean}`);
-                      }
-                    }}
                   />
                 )}
               </article>

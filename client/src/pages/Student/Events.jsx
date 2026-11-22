@@ -343,13 +343,6 @@ export default function Events() {
                     capacity={item.max_capacity || item.capacity}
                     isRegistering={registeringEventId === (item.id || item.post_id)}
                     onToggleRegister={() => handleEventRegister(item)}
-                    onScanAttendance={() => {
-                      const scanToken = prompt("Scan or enter event QR token:");
-                      if (scanToken) {
-                        const clean = scanToken.trim().split('/').pop();
-                        navigate(`/student/attendance/check-in/${clean}`);
-                      }
-                    }}
                   />
                 </article>
               );

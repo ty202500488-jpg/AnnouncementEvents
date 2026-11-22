@@ -6,6 +6,7 @@ import logo from '../images/logo.jpg';
 import QRCheckInScanner from './QRCheckInScanner';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 import { formatNotificationDisplay } from '../../utils/notificationUtils';
+import { getAttendanceButtonState } from '../../utils/attendanceUtils';
 
 const MAX_COLLAPSED_DEPTS = 5;
 
@@ -1246,13 +1247,30 @@ export function EventPostActionBar({
   onToggleRegister = null,
   onScanAttendance = null,
   onViewRegistrations = null,
+  attendanceStatus = undefined,
+  attendanceOpenTime = null,
+  attendanceCloseTime = null,
+  userAttendanceStatus = null,
+  userCheckinTime = null,
 }) {
   const effectiveStatus = registrationStatus || (isRegistered ? 'Registered' : null);
   const normStatus = String(effectiveStatus || '').toLowerCase();
-  const isConfirmed = normStatus === 'registered';
+  const isConfirmed = normStatus === 'registered' || normStatus === 'attended';
+  const isAttended =
+    normStatus === 'attended' || String(userAttendanceStatus || '').toUpperCase() === 'PRESENT';
   const isPending = normStatus === 'pending';
   const isRejected = normStatus === 'rejected';
   const isFull = Boolean(capacity && Number(registeredCount) >= Number(capacity));
+  const attendanceBtn =
+    attendanceStatus !== undefined
+      ? getAttendanceButtonState({
+          attendanceStatus,
+          attendanceOpenTime,
+          attendanceCloseTime,
+          userAttendanceStatus,
+          registrationStatus: effectiveStatus,
+        })
+      : null;
 
   if (requiresRegistration === false) {
     return (
@@ -1288,9 +1306,20 @@ export function EventPostActionBar({
     );
   }
 
-  if (!onToggleRegister && !(onScanAttendance && isConfirmed) && !(onViewRegistrations && isOwner)) {
+  if (
+    !onToggleRegister &&
+    !(onScanAttendance && isConfirmed) &&
+    !attendanceBtn?.visible &&
+    !(onViewRegistrations && isOwner)
+  ) {
     return null;
   }
+
+  const parsedCheckinDate = userCheckinTime ? new Date(userCheckinTime) : null;
+  const formattedCheckinTime =
+    parsedCheckinDate && !Number.isNaN(parsedCheckinDate.getTime())
+      ? parsedCheckinDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+      : '';
 
   return (
     <div
@@ -1364,26 +1393,100 @@ export function EventPostActionBar({
           </button>
         )}
 
-        {onScanAttendance && isConfirmed && (
-          <button
-            type="button"
-            onClick={onScanAttendance}
-            style={{
-              backgroundColor: '#ffffff',
-              color: '#475569',
-              border: '1px solid #e2e8f0',
-              padding: '0.45rem 0.875rem',
-              borderRadius: '0.5rem',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-            }}
-          >
-            <i className="fa-solid fa-qrcode"></i> Scan Attendance
-          </button>
+        {attendanceBtn?.visible ? (
+          attendanceBtn.mode === 'PRESENT' ? (
+            <span
+              title={
+                formattedCheckinTime
+                  ? `Attendance recorded at ${formattedCheckinTime}`
+                  : attendanceBtn.tooltip
+              }
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.4rem 0.75rem',
+                borderRadius: '0.5rem',
+                backgroundColor: '#ecfdf5',
+                color: '#047857',
+                border: '1px solid #a7f3d0',
+                fontSize: '0.8rem',
+                fontWeight: 700,
+              }}
+            >
+              <i className="fa-solid fa-circle-check"></i>
+              <span>Present</span>
+            </span>
+          ) : attendanceBtn.mode === 'ACTIVE' ? (
+            <button
+              type="button"
+              onClick={onScanAttendance || undefined}
+              disabled={!onScanAttendance}
+              title={attendanceBtn.tooltip}
+              style={{
+                backgroundColor: '#8c1030',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.45rem 0.875rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.8125rem',
+                fontWeight: 700,
+                cursor: onScanAttendance ? 'pointer' : 'not-allowed',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}
+            >
+              <i className="fa-solid fa-qrcode"></i>
+              <span>Attendance</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled
+              title={attendanceBtn.tooltip}
+              style={{
+                backgroundColor: '#f1f5f9',
+                color: '#64748b',
+                border: '1px solid #cbd5e1',
+                padding: '0.45rem 0.875rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                cursor: 'not-allowed',
+                opacity: 0.7,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}
+            >
+              <i className={`fa-solid ${attendanceBtn.mode === 'SCHEDULED' ? 'fa-clock' : 'fa-lock'}`}></i>
+              <span>{attendanceBtn.label}</span>
+            </button>
+          )
+        ) : (
+          onScanAttendance &&
+          isConfirmed && (
+            <button
+              type="button"
+              onClick={onScanAttendance}
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#475569',
+                border: '1px solid #e2e8f0',
+                padding: '0.45rem 0.875rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+              }}
+            >
+              <i className="fa-solid fa-qrcode"></i> Scan Attendance
+            </button>
+          )
         )}
 
         {onToggleRegister && (
@@ -1404,35 +1507,37 @@ export function EventPostActionBar({
                 }}
               >
                 <i className="fa-solid fa-circle-check"></i>
-                <span>Registered</span>
+                <span>{isAttended ? 'Attended' : 'Registered'}</span>
               </span>
-              <button
-                type="button"
-                onClick={onToggleRegister}
-                disabled={isRegistering}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid #fecdd3',
-                  color: '#e11d48',
-                  padding: '0.45rem 0.875rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: isRegistering ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                }}
-              >
-                {isRegistering ? (
-                  <i className="fa-solid fa-spinner fa-spin"></i>
-                ) : (
-                  <>
-                    <i className="fa-solid fa-circle-xmark"></i>
-                    <span>Unregister</span>
-                  </>
-                )}
-              </button>
+              {!isAttended && (
+                <button
+                  type="button"
+                  onClick={onToggleRegister}
+                  disabled={isRegistering}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #fecdd3',
+                    color: '#e11d48',
+                    padding: '0.45rem 0.875rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: isRegistering ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                  }}
+                >
+                  {isRegistering ? (
+                    <i className="fa-solid fa-spinner fa-spin"></i>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-circle-xmark"></i>
+                      <span>Unregister</span>
+                    </>
+                  )}
+                </button>
+              )}
             </>
           ) : isPending ? (
             <>

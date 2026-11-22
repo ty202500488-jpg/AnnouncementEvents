@@ -1,31 +1,29 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import jsQR from 'jsqr';
+import { extractAttendanceToken, evaluateClientGeofence } from '../../utils/attendanceUtils';
 
-function extractCheckInToken(rawValue) {
-  const trimmed = String(rawValue || '').trim();
-  if (!trimmed) return '';
-  if (trimmed.includes('/attendance/check-in/')) {
-    const parts = trimmed.split('/attendance/check-in/');
-    return (parts[1] || '').split(/[?#]/)[0].replace(/\/+$/, '').trim();
+function getCurrentPositionAsync() {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 30000,
+    });
+  });
+}
+
+function getGeolocationErrorMessage(err) {
+  if (err?.code === 1) {
+    return 'Location access was denied. Enable Location Services for this site in your browser settings and tap Retry Location Check, or ask event staff to manually record your attendance.';
   }
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    try {
-      const url = new URL(trimmed);
-      const dataParam = url.searchParams.get('data');
-      if (dataParam) {
-        const nested = extractCheckInToken(dataParam);
-        if (nested) return nested;
-      }
-      const tokenParam = url.searchParams.get('token');
-      if (tokenParam) return tokenParam.trim();
-      const segs = url.pathname.split('/').filter(Boolean);
-      return (segs[segs.length - 1] || '').trim();
-    } catch (_) {
-      return (trimmed.split('/').pop() || '').replace(/\/+$/, '').trim();
-    }
+  if (err?.code === 2) {
+    return 'Unable to determine your current location. Ensure GPS/Location Services are enabled and try again, or ask event staff to manually record your attendance.';
   }
-  return trimmed.replace(/^['"]|['"]$/g, '').trim();
+  if (err?.code === 3) {
+    return 'Location check timed out. Move to an area with clearer signal and tap Retry Location Check, or ask event staff to manually record your attendance.';
+  }
+  return 'Unable to verify your campus location. Enable Location Services and try again, or ask event staff to manually record your attendance.';
 }
 
 function decodeQrFromCanvasSource(source, width, height) {
@@ -53,7 +51,14 @@ function decodeQrFromCanvasSource(source, width, height) {
   return code?.data || '';
 }
 
-export default function QRCheckInScanner({ role = 'student', isModal = false, onClose }) {
+export default function QRCheckInScanner({
+  role = 'student',
+  isModal = false,
+  expectedEventId = null,
+  eventTitle = '',
+  onClose,
+  onCheckInSuccess,
+}) {
   const params = useParams();
   const token = isModal ? undefined : params?.token;
   const navigate = useNavigate();
@@ -61,6 +66,14 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
   const dashboardPath = role === 'staff' ? '/staff/dashboard' : '/student/dashboard';
   const scanPath = role === 'staff' ? '/staff/attendance/check-in/scan' : '/student/attendance/check-in/scan';
 
+  const [locationState, setLocationState] = useState('checking');
+  const [locationDetail, setLocationDetail] = useState({
+    geofenceEnabled: true,
+    campusName: 'WMSU Main Campus',
+    distanceMeters: null,
+    radiusMeters: null,
+    errorMessage: '',
+  });
   const [status, setStatus] = useState(isScanMode ? 'scanner' : 'processing');
   const [message, setMessage] = useState(isScanMode ? '' : 'Verifying attendance token...');
   const [cameraActive, setCameraActive] = useState(false);
@@ -70,6 +83,12 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
   const streamRef = useRef(null);
   const scanTimerRef = useRef(null);
   const submittingRef = useRef(false);
+  const coordsRef = useRef(null);
+  const geofenceEnabledRef = useRef(true);
+  const geofenceConfigRef = useRef(null);
+  const locationCheckIdRef = useRef(0);
+  const autoSubmittedTokenRef = useRef(null);
+  const autoStartedCameraRef = useRef(false);
 
   const stopCamera = useCallback(() => {
     if (scanTimerRef.current) {
@@ -86,8 +105,134 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
     setCameraActive(false);
   }, []);
 
+  const verifyCampusLocation = useCallback(async () => {
+    const authToken = localStorage.getItem('token');
+    if (!authToken) {
+      localStorage.setItem('redirect_after_login', window.location.pathname);
+      navigate('/auth');
+      return false;
+    }
+
+    const checkId = ++locationCheckIdRef.current;
+    stopCamera();
+    autoStartedCameraRef.current = false;
+    setLocationState('checking');
+    setLocationDetail((prev) => ({ ...prev, errorMessage: '' }));
+
+    try {
+      const response = await fetch('http://localhost:5000/api/mypage/attendance/geofence-config', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
+      if (checkId !== locationCheckIdRef.current) return false;
+
+      if (response.status === 401) {
+        localStorage.setItem('redirect_after_login', window.location.pathname);
+        navigate('/auth');
+        return false;
+      }
+
+      if (!response.ok) {
+        setLocationDetail({
+          geofenceEnabled: true,
+          campusName: 'WMSU Main Campus',
+          distanceMeters: null,
+          radiusMeters: null,
+          errorMessage: 'Unable to verify campus geofence settings. Tap Retry Location Check or ask event staff for manual check-in.',
+        });
+        setLocationState('blocked_error');
+        return false;
+      }
+
+      const config = await response.json();
+      if (checkId !== locationCheckIdRef.current) return false;
+
+      geofenceConfigRef.current = config;
+      geofenceEnabledRef.current = config?.enabled !== false;
+
+      if (config?.enabled === false) {
+        coordsRef.current = null;
+        setLocationDetail({
+          geofenceEnabled: false,
+          campusName: config?.campusName || 'WMSU Main Campus',
+          distanceMeters: null,
+          radiusMeters: config?.radiusMeters ?? null,
+          errorMessage: '',
+        });
+        setLocationState('verified');
+        return true;
+      }
+
+      if (!navigator.geolocation) {
+        coordsRef.current = null;
+        setLocationDetail({
+          geofenceEnabled: true,
+          campusName: config?.campusName || 'WMSU Main Campus',
+          distanceMeters: null,
+          radiusMeters: config?.radiusMeters ?? null,
+          errorMessage: 'Location services are not supported in this browser. Ask event staff to manually record your attendance.',
+        });
+        setLocationState('blocked_error');
+        return false;
+      }
+
+      const pos = await getCurrentPositionAsync();
+      if (checkId !== locationCheckIdRef.current) return false;
+
+      const geo = evaluateClientGeofence(
+        { latitude: pos.coords.latitude, longitude: pos.coords.longitude },
+        config
+      );
+
+      if (geo.allowed) {
+        coordsRef.current = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          checkedAt: Date.now(),
+        };
+        setLocationDetail({
+          geofenceEnabled: true,
+          campusName: geo.campusName,
+          distanceMeters: geo.distanceMeters,
+          radiusMeters: geo.radiusMeters,
+          errorMessage: '',
+        });
+        setLocationState('verified');
+        return true;
+      }
+
+      coordsRef.current = null;
+      setLocationDetail({
+        geofenceEnabled: true,
+        campusName: geo.campusName,
+        distanceMeters: geo.distanceMeters,
+        radiusMeters: geo.radiusMeters,
+        errorMessage: '',
+      });
+      setLocationState('blocked_outside');
+      return false;
+    } catch (err) {
+      if (checkId !== locationCheckIdRef.current) return false;
+      coordsRef.current = null;
+      const isGeolocationError = typeof err?.code === 'number';
+      setLocationDetail({
+        geofenceEnabled: geofenceEnabledRef.current,
+        campusName: geofenceConfigRef.current?.campusName || 'WMSU Main Campus',
+        distanceMeters: null,
+        radiusMeters: geofenceConfigRef.current?.radiusMeters ?? null,
+        errorMessage: isGeolocationError
+          ? getGeolocationErrorMessage(err)
+          : 'Network error while verifying campus location. Tap Retry Location Check or ask event staff for manual check-in.',
+      });
+      setLocationState('blocked_error');
+      return false;
+    }
+  }, [navigate, stopCamera]);
+
   const submitTokenCheckIn = useCallback(async (rawToken) => {
-    const cleanToken = extractCheckInToken(rawToken);
+    const cleanToken = extractAttendanceToken(rawToken);
     if (!cleanToken || cleanToken === 'scan') {
       setStatus('error');
       setMessage('Please enter or scan a valid attendance QR code.');
@@ -109,18 +254,84 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
     setMessage('Verifying attendance token...');
 
     try {
+      if (
+        geofenceEnabledRef.current &&
+        (!coordsRef.current || Date.now() - coordsRef.current.checkedAt > 60000)
+      ) {
+        if (!navigator.geolocation) {
+          coordsRef.current = null;
+          setLocationDetail((prev) => ({
+            ...prev,
+            errorMessage: 'Location services are not supported in this browser. Ask event staff to manually record your attendance.',
+          }));
+          setLocationState('blocked_error');
+          setStatus(isScanMode ? 'scanner' : 'processing');
+          return;
+        }
+
+        try {
+          const pos = await getCurrentPositionAsync();
+          const geo = evaluateClientGeofence(
+            { latitude: pos.coords.latitude, longitude: pos.coords.longitude },
+            geofenceConfigRef.current || undefined
+          );
+          if (!geo.allowed) {
+            coordsRef.current = null;
+            setLocationDetail({
+              campusName: geo.campusName,
+              distanceMeters: geo.distanceMeters,
+              radiusMeters: geo.radiusMeters,
+              errorMessage: '',
+            });
+            setLocationState('blocked_outside');
+            setStatus(isScanMode ? 'scanner' : 'processing');
+            return;
+          }
+          coordsRef.current = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            checkedAt: Date.now(),
+          };
+          setLocationDetail({
+            campusName: geo.campusName,
+            distanceMeters: geo.distanceMeters,
+            radiusMeters: geo.radiusMeters,
+            errorMessage: '',
+          });
+        } catch (geoErr) {
+          coordsRef.current = null;
+          setLocationDetail((prev) => ({
+            ...prev,
+            errorMessage: getGeolocationErrorMessage(geoErr),
+          }));
+          setLocationState('blocked_error');
+          setStatus(isScanMode ? 'scanner' : 'processing');
+          return;
+        }
+      }
+
       const response = await fetch('http://localhost:5000/api/mypage/attendance/check-in', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ token: cleanToken }),
+        body: JSON.stringify({
+          token: cleanToken,
+          ...(expectedEventId ? { eventId: expectedEventId } : {}),
+          ...(coordsRef.current
+            ? {
+                latitude: coordsRef.current.latitude,
+                longitude: coordsRef.current.longitude,
+              }
+            : {}),
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
         setStatus('success');
         setMessage(data.message || 'Attendance recorded successfully!');
+        onCheckInSuccess?.(data);
       } else {
         setStatus('error');
         setMessage(data.message || 'Failed to record attendance.');
@@ -132,22 +343,9 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
     } finally {
       submittingRef.current = false;
     }
-  }, [navigate, stopCamera]);
+  }, [expectedEventId, isScanMode, navigate, onCheckInSuccess, stopCamera]);
 
-  useEffect(() => {
-    if (!isScanMode && token) {
-      submitTokenCheckIn(token);
-    } else {
-      setStatus('scanner');
-      setMessage('');
-    }
-  }, [isScanMode, token, submitTokenCheckIn]);
-
-  useEffect(() => {
-    return () => stopCamera();
-  }, [stopCamera]);
-
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     setCameraError('');
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraError('Camera access is not supported in this browser.');
@@ -188,7 +386,7 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
           if (decoded) {
             submitTokenCheckIn(decoded);
           }
-        } catch (_) {
+        } catch {
           /* ignore frame detection errors */
         }
       }, 300);
@@ -197,9 +395,38 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
       setCameraError('Unable to access camera. Please allow camera permission and try again.');
       stopCamera();
     }
-  };
+  }, [stopCamera, submitTokenCheckIn]);
+
+  useEffect(() => {
+    verifyCampusLocation();
+    return () => {
+      locationCheckIdRef.current += 1;
+    };
+  }, [verifyCampusLocation]);
+
+  useEffect(() => {
+    if (locationState !== 'verified') return;
+
+    if (!isScanMode && token) {
+      if (autoSubmittedTokenRef.current !== token) {
+        autoSubmittedTokenRef.current = token;
+        submitTokenCheckIn(token);
+      }
+      return;
+    }
+
+    if (isModal && isScanMode && status === 'scanner' && !autoStartedCameraRef.current) {
+      autoStartedCameraRef.current = true;
+      startCamera();
+    }
+  }, [isModal, isScanMode, locationState, startCamera, status, submitTokenCheckIn, token]);
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, [stopCamera]);
 
   const handleResetToScanner = () => {
+    autoSubmittedTokenRef.current = null;
     setCameraError('');
     setStatus('scanner');
     setMessage('');
@@ -256,8 +483,188 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
         </button>
       </div>
 
+      {eventTitle && (
+        <div
+          style={{
+            padding: '0.625rem 1.25rem',
+            backgroundColor: '#fff1f2',
+            borderBottom: '1px solid #fecdd3',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '0.825rem',
+            fontWeight: 700,
+            color: '#881337',
+          }}
+        >
+          <i className="fa-solid fa-calendar-check" aria-hidden="true"></i>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {eventTitle}
+          </span>
+        </div>
+      )}
+
       <div className="uw-modal-scroll">
-        {status === 'scanner' && (
+        {locationState === 'checking' && (
+          <div style={{ textAlign: 'center', padding: '2.25rem 1.25rem' }}>
+            <i
+              className="fa-solid fa-circle-notch fa-spin"
+              style={{ fontSize: '2.25rem', color: '#7B0D1E', marginBottom: '0.9rem' }}
+            ></i>
+            <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1.1rem', color: '#0f172a' }}>
+              Checking campus location...
+            </h3>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '0.875rem', lineHeight: 1.5 }}>
+              Confirming you are within {locationDetail.campusName} before enabling QR check-in.
+            </p>
+          </div>
+        )}
+
+        {locationState === 'blocked_outside' && (
+          <div style={{ textAlign: 'center', padding: '1.85rem 1.25rem' }}>
+            <div
+              style={{
+                width: '3.5rem',
+                height: '3.5rem',
+                borderRadius: '50%',
+                backgroundColor: '#fff1f2',
+                border: '1px solid #fecdd3',
+                color: '#8c1030',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.45rem',
+                marginBottom: '0.85rem',
+              }}
+            >
+              <i className="fa-solid fa-location-dot"></i>
+            </div>
+            <h3 style={{ margin: '0 0 0.4rem 0', fontSize: '1.15rem', color: '#0f172a' }}>
+              Outside Campus Area
+            </h3>
+            <p style={{ margin: '0 0 0.5rem 0', color: '#475569', fontSize: '0.875rem', lineHeight: 1.5 }}>
+              You appear to be{' '}
+              <strong>
+                {locationDetail.distanceMeters !== null ? `${locationDetail.distanceMeters}m` : 'outside'}
+              </strong>{' '}
+              from {locationDetail.campusName}
+              {locationDetail.radiusMeters !== null
+                ? ` (allowed radius: ${locationDetail.radiusMeters}m)`
+                : ''}
+              .
+            </p>
+            <p style={{ margin: '0 0 1.25rem 0', color: '#64748b', fontSize: '0.8125rem', lineHeight: 1.45 }}>
+              QR check-in is only available on campus. Move within campus grounds and retry, or ask event staff for manual attendance check-in.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={verifyCampusLocation}
+                style={{
+                  backgroundColor: '#7B0D1E',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '0.55rem 1.15rem',
+                  borderRadius: '0.6rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <i className="fa-solid fa-rotate-right"></i>
+                <span>Retry Location Check</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExit}
+                style={{
+                  backgroundColor: '#f1f5f9',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  padding: '0.55rem 1.1rem',
+                  borderRadius: '0.6rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {isModal ? 'Close' : 'Back to Dashboard'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {locationState === 'blocked_error' && (
+          <div style={{ textAlign: 'center', padding: '1.85rem 1.25rem' }}>
+            <div
+              style={{
+                width: '3.5rem',
+                height: '3.5rem',
+                borderRadius: '50%',
+                backgroundColor: '#fef3c7',
+                border: '1px solid #fde68a',
+                color: '#b45309',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.45rem',
+                marginBottom: '0.85rem',
+              }}
+            >
+              <i className="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 style={{ margin: '0 0 0.4rem 0', fontSize: '1.15rem', color: '#0f172a' }}>
+              Location Required
+            </h3>
+            <p style={{ margin: '0 0 1.25rem 0', color: '#475569', fontSize: '0.875rem', lineHeight: 1.5 }}>
+              {locationDetail.errorMessage ||
+                'Enable Location Services for this browser and tap Retry Location Check, or ask event staff to manually record your attendance.'}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={verifyCampusLocation}
+                style={{
+                  backgroundColor: '#7B0D1E',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '0.55rem 1.15rem',
+                  borderRadius: '0.6rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <i className="fa-solid fa-rotate-right"></i>
+                <span>Retry Location Check</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExit}
+                style={{
+                  backgroundColor: '#f1f5f9',
+                  color: '#334155',
+                  border: '1px solid #cbd5e1',
+                  padding: '0.55rem 1.1rem',
+                  borderRadius: '0.6rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {isModal ? 'Close' : 'Back to Dashboard'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {locationState === 'verified' && status === 'scanner' && (
           <>
             {/* Dark Hero Camera Stage matching Spotlight Modal */}
             <div
@@ -310,8 +717,30 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
 
             {/* White Body matching Spotlight Modal */}
             <div className="uw-modal-body" style={{ alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {locationDetail.geofenceEnabled && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    padding: '0.28rem 0.65rem',
+                    borderRadius: '9999px',
+                    backgroundColor: '#ecfdf5',
+                    border: '1px solid #a7f3d0',
+                    color: '#047857',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  <i className="fa-solid fa-location-dot"></i>
+                  <span>
+                    Campus verified · {locationDetail.campusName}
+                    {locationDetail.distanceMeters !== null ? ` (${locationDetail.distanceMeters}m)` : ''}
+                  </span>
+                </div>
+              )}
 
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
                 {cameraActive ? (
                   <button
                     type="button"
@@ -358,7 +787,7 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
               </div>
 
               {cameraError && (
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#b91c1c', fontWeight: 500 }}>
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#b91c1c', fontWeight: 500, textAlign: 'center' }}>
                   {cameraError}
                 </p>
               )}
@@ -366,7 +795,7 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
           </>
         )}
 
-        {status === 'processing' && (
+        {locationState === 'verified' && status === 'processing' && (
           <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
             <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: '2.25rem', color: '#7B0D1E', marginBottom: '0.85rem' }}></i>
             <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1.1rem', color: '#0f172a' }}>Verifying...</h3>
@@ -374,7 +803,7 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
           </div>
         )}
 
-        {status === 'success' && (
+        {locationState === 'verified' && status === 'success' && (
           <div style={{ textAlign: 'center', padding: '1.75rem 1rem' }}>
             <div
               style={{
@@ -395,22 +824,24 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
             <h3 style={{ margin: '0 0 0.35rem 0', fontSize: '1.15rem', color: '#0f172a' }}>Check-In Confirmed!</h3>
             <p style={{ margin: '0 0 1.25rem 0', color: '#475569', fontSize: '0.875rem' }}>{message}</p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={handleResetToScanner}
-                style={{
-                  backgroundColor: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  padding: '0.55rem 1.1rem',
-                  borderRadius: '0.6rem',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Scan Another
-              </button>
+              {!expectedEventId && (
+                <button
+                  type="button"
+                  onClick={handleResetToScanner}
+                  style={{
+                    backgroundColor: '#f1f5f9',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    padding: '0.55rem 1.1rem',
+                    borderRadius: '0.6rem',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Scan Another
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleExit}
@@ -431,7 +862,7 @@ export default function QRCheckInScanner({ role = 'student', isModal = false, on
           </div>
         )}
 
-        {status === 'error' && (
+        {locationState === 'verified' && status === 'error' && (
           <div style={{ textAlign: 'center', padding: '1.75rem 1rem' }}>
             <div
               style={{

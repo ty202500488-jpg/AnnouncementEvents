@@ -274,7 +274,7 @@ export default function StaffDashboardLayout({ children, activePage }) {
         showSearchDropdown={showDropdown}
         onSelectSearchResult={handleSelectSearchResult}
         searchContainerRef={searchContainerRef}
-        showQrButton={true}
+        showQrButton={false}
         qrHref="/staff/attendance/check-in/scan"
         notifications={notifications}
         loadingNotifs={loadingNotifs}

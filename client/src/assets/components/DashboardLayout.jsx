@@ -234,7 +234,7 @@ export default function DashboardLayout({ children, activePage }) {
         showSearchDropdown={showDropdown}
         onSelectSearchResult={handleSelectSearchResult}
         searchContainerRef={searchContainerRef}
-        showQrButton={true}
+        showQrButton={false}
         qrHref="/student/attendance/check-in/scan"
         notifications={notifications}
         loadingNotifs={loadingNotifs}
