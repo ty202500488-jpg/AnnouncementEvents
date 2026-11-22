@@ -292,9 +292,18 @@ CREATE TABLE IF NOT EXISTS event_attendance_sessions (
     status VARCHAR(20) DEFAULT 'CLOSED' NOT NULL CHECK (status IN ('OPEN', 'CLOSED')),
     open_time TIMESTAMPTZ,
     close_time TIMESTAMPTZ,
+    qr_token VARCHAR(128),
+    qr_token_created_at TIMESTAMPTZ,
+    scheduled_open_time TIMESTAMPTZ,
+    scheduled_close_time TIMESTAMPTZ,
+    closed_manually_at TIMESTAMPTZ,
     opened_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_event_attendance_sessions_qr_token
+    ON event_attendance_sessions (qr_token)
+    WHERE qr_token IS NOT NULL;
 
 -- 18. EVENT_QR_TOKENS (Rotating 30-Second SHA-256 QR Credentials)
 CREATE TABLE IF NOT EXISTS event_qr_tokens (
