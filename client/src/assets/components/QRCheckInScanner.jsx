@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import jsQR from 'jsqr';
 import { extractAttendanceToken, evaluateClientGeofence } from '../../utils/attendanceUtils';
 
-function getCurrentPositionAsync() {
+function getCurrentPositionAsync(forceFresh = false) {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: true,
       timeout: 10000,
-      maximumAge: 30000,
+      maximumAge: forceFresh ? 0 : 30000,
     });
   });
 }
@@ -110,7 +110,7 @@ export default function QRCheckInScanner({
     }
   }, []);
 
-  const verifyCampusLocation = useCallback(async () => {
+  const verifyCampusLocation = useCallback(async (forceFresh = false) => {
     const authToken = localStorage.getItem('token');
     if (!authToken) {
       localStorage.setItem('redirect_after_login', window.location.pathname);
@@ -184,7 +184,7 @@ export default function QRCheckInScanner({
         return false;
       }
 
-      const pos = await getCurrentPositionAsync();
+      const pos = await getCurrentPositionAsync(forceFresh);
       if (checkId !== locationCheckIdRef.current) return false;
 
       const geo = evaluateClientGeofence(
@@ -276,7 +276,7 @@ export default function QRCheckInScanner({
         }
 
         try {
-          const pos = await getCurrentPositionAsync();
+          const pos = await getCurrentPositionAsync(forceFresh);
           const geo = evaluateClientGeofence(
             { latitude: pos.coords.latitude, longitude: pos.coords.longitude },
             geofenceConfigRef.current || undefined
@@ -582,7 +582,7 @@ export default function QRCheckInScanner({
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={verifyCampusLocation}
+                onClick={() => verifyCampusLocation(true)}
                 style={{
                   backgroundColor: '#7B0D1E',
                   color: '#ffffff',
@@ -649,7 +649,7 @@ export default function QRCheckInScanner({
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
               <button
                 type="button"
-                onClick={verifyCampusLocation}
+                onClick={() => verifyCampusLocation(true)}
                 style={{
                   backgroundColor: '#7B0D1E',
                   color: '#ffffff',

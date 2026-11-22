@@ -279,7 +279,7 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     event_post_id INTEGER NOT NULL REFERENCES event_details(post_id) ON DELETE CASCADE,
     registrant_user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     status VARCHAR(30) DEFAULT 'Registered' NOT NULL
-        CHECK (status IN ('Registered', 'Attended', 'Cancelled')),
+        CHECK (status IN ('Pending', 'Registered', 'Rejected', 'Attended', 'Cancelled')),
     registered_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     cancelled_at TIMESTAMPTZ,
     CONSTRAINT uq_event_registrant UNIQUE (event_post_id, registrant_user_id)

@@ -30,6 +30,13 @@ function ensureEventRegistrationSchema(pool) {
           ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS reviewed_by INT REFERENCES users(user_id) ON DELETE SET NULL;
       `);
+      await pool.query(`
+        ALTER TABLE event_registrations
+          DROP CONSTRAINT IF EXISTS event_registrations_status_check;
+        ALTER TABLE event_registrations
+          ADD CONSTRAINT event_registrations_status_check
+          CHECK (status IN ('Pending', 'Registered', 'Rejected', 'Attended', 'Cancelled'));
+      `);
     })().catch((err) => {
       schemaPromise = null;
       throw err;
