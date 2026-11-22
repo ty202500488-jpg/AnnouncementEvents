@@ -312,6 +312,58 @@ function extractAttendanceQrToken(rawValue) {
     return trimmed;
 }
 
+/**
+ * Map a /users/my-events SQL row to include normalized registration, session window, and user attendance metadata.
+ */
+function mapMyEventRowWithAttendance(row, now = new Date()) {
+    const source = row && typeof row === 'object' ? row : {};
+    const {
+        session_status,
+        session_open_time,
+        session_close_time,
+        session_scheduled_open_time,
+        session_scheduled_close_time,
+        session_closed_manually_at,
+        ...rest
+    } = source;
+
+    const hasSession = Boolean(
+        session_status ||
+        session_open_time ||
+        session_close_time ||
+        session_scheduled_open_time ||
+        session_scheduled_close_time ||
+        session_closed_manually_at
+    );
+
+    const evaluated = evaluateAttendanceSession(
+        hasSession
+            ? {
+                  status: session_status,
+                  open_time: session_open_time,
+                  close_time: session_close_time,
+                  scheduled_open_time: session_scheduled_open_time,
+                  scheduled_close_time: session_scheduled_close_time,
+                  closed_manually_at: session_closed_manually_at,
+              }
+            : null,
+        now
+    );
+
+    return {
+        ...rest,
+        date: rest.date || rest.event_date || null,
+        is_registered: ['registered', 'attended'].includes(
+            String(rest.registration_status || '').trim().toLowerCase()
+        ),
+        attendance_status: evaluated.effectiveStatus,
+        attendance_open_time: evaluated.scheduledOpenTime || evaluated.openTime || null,
+        attendance_close_time: evaluated.scheduledCloseTime || evaluated.closeTime || null,
+        user_attendance_status: rest.user_attendance_status || null,
+        user_checkin_time: rest.user_checkin_time || null,
+    };
+}
+
 module.exports = {
     DEFAULT_CAMPUS_GEOFENCE,
     ensureAttendanceSchema,
@@ -323,4 +375,5 @@ module.exports = {
     generateStaticQrToken,
     buildAttendanceQrPayload,
     extractAttendanceQrToken,
+    mapMyEventRowWithAttendance,
 };

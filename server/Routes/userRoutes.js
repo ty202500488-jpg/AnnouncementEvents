@@ -29,6 +29,10 @@ const {
     validateRegistrationSubmission,
     fetchUserRegistrationPrefill
 } = require('../utils/eventRegistrationHelper');
+const {
+    ensureAttendanceSchema,
+    mapMyEventRowWithAttendance
+} = require('../utils/attendanceHelper');
 
 ensureSecuritySchema(pool).catch((err) => {
     console.warn('Warning: failed to ensure security schema:', err.message);
@@ -2344,6 +2348,8 @@ router.get('/my-events', async (req, res) => {
         if (!(await assertNoIdorOnUserScope(req, res, authUser))) return;
         const userId = authUser.user_id;
 
+        await ensureAttendanceSchema(pool);
+
         const result = await pool.query(
             `SELECT p.post_id AS id,
                     p.post_id AS event_id,
@@ -2365,6 +2371,7 @@ router.get('/my-events', async (req, res) => {
                         ELSE p.image_url
                     END AS poster_url,
                     ed.event_date,
+                    ed.event_date AS date,
                     ed.end_date,
                     ed.location,
                     ed.capacity,
@@ -2378,10 +2385,10 @@ router.get('/my-events', async (req, res) => {
                     er.status AS registration_status,
                     er.rejection_reason,
                     er.registered_at,
-                    CASE WHEN LOWER(er.status) = 'registered' THEN TRUE ELSE FALSE END AS is_registered,
+                    CASE WHEN LOWER(er.status) IN ('registered', 'attended') THEN TRUE ELSE FALSE END AS is_registered,
                     COALESCE((
                         SELECT COUNT(*)::int FROM event_registrations er_all
-                        WHERE er_all.event_post_id = p.post_id AND LOWER(er_all.status) = 'registered'
+                        WHERE er_all.event_post_id = p.post_id AND LOWER(er_all.status) IN ('registered', 'attended')
                     ), 0) AS registered_count,
                     COALESCE((
                         SELECT COUNT(*)::int FROM event_registrations er_p
@@ -2392,19 +2399,30 @@ router.get('/my-events', async (req, res) => {
                         pg.created_by = $1
                         OR p.creator_user_id = $1
                         OR EXISTS(SELECT 1 FROM page_members pm WHERE pm.page_id = p.page_id AND pm.user_id = $1 AND LOWER(pm.status) = 'active')
-                    ) THEN TRUE ELSE FALSE END AS is_owner
+                    ) THEN TRUE ELSE FALSE END AS is_owner,
+                    eas.status AS session_status,
+                    eas.open_time AS session_open_time,
+                    eas.close_time AS session_close_time,
+                    eas.scheduled_open_time AS session_scheduled_open_time,
+                    eas.scheduled_close_time AS session_scheduled_close_time,
+                    eas.closed_manually_at AS session_closed_manually_at,
+                    ar.status AS user_attendance_status,
+                    ar.checkin_time AS user_checkin_time
              FROM event_registrations er
              JOIN event_details ed ON er.event_post_id = ed.post_id
              JOIN posts p ON ed.post_id = p.post_id
              LEFT JOIN pages pg ON p.page_id = pg.page_id
              LEFT JOIN page_follows pf ON p.page_id = pf.page_id AND pf.follower_user_id = $1
+             LEFT JOIN event_attendance_sessions eas ON eas.event_post_id = p.post_id
+             LEFT JOIN event_attendance_records ar ON ar.registration_id = er.registration_id
              WHERE er.registrant_user_id = $1
                AND LOWER(er.status) != 'cancelled'
              ORDER BY ed.event_date ASC`,
             [userId]
         );
 
-        return res.status(200).json({ events: result.rows });
+        const events = result.rows.map((row) => mapMyEventRowWithAttendance(row));
+        return res.status(200).json({ events });
     } catch (error) {
         console.error('Error fetching my-events:', error);
         return res.status(500).json({ message: 'Server error fetching registered events.' });
