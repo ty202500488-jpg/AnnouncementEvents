@@ -300,15 +300,16 @@ router.post('/events/:eventId/window', requireStaffOrAdmin, authorizeStaffForEve
             const upsertRes = await client.query(
                 `INSERT INTO event_attendance_sessions (
                      event_post_id, status, open_time, close_time,
-                     scheduled_close_time, closed_manually_at,
+                     scheduled_open_time, scheduled_close_time, closed_manually_at,
                      qr_token, qr_token_created_at, opened_by, updated_at
                  )
-                 VALUES ($1, 'OPEN', NOW(), $2, $2, NULL, $3, NOW(), $4, NOW())
+                 VALUES ($1, 'OPEN', NOW(), $2, NULL, $2, NULL, $3, NOW(), $4, NOW())
                  ON CONFLICT (event_post_id)
                  DO UPDATE SET
                      status = 'OPEN',
                      open_time = NOW(),
                      close_time = $2,
+                     scheduled_open_time = NULL,
                      scheduled_close_time = $2,
                      closed_manually_at = NULL,
                      qr_token = COALESCE(event_attendance_sessions.qr_token, $3),
@@ -399,8 +400,14 @@ router.post('/events/:eventId/schedule', requireStaffOrAdmin, authorizeStaffForE
 
         const { openDate, closeDate } = validation;
         const now = new Date();
+        if (closeDate.getTime() <= now.getTime()) {
+            const msg = 'Schedule end time must be in the future.';
+            return res.status(400).json({ message: msg, error: msg });
+        }
+
         const isNowInWindow = now >= openDate && now < closeDate;
         const nextStatus = isNowInWindow ? 'OPEN' : 'CLOSED';
+        const actualOpenTime = isNowInWindow ? openDate : null;
         const candidateToken = generateStaticQrToken();
 
         const client = await pool.connect();
@@ -413,21 +420,21 @@ router.post('/events/:eventId/schedule', requireStaffOrAdmin, authorizeStaffForE
                      scheduled_open_time, scheduled_close_time, closed_manually_at,
                      qr_token, qr_token_created_at, opened_by, updated_at
                  )
-                 VALUES ($1, $2, $3, $4, $3, $4, NULL, $5, NOW(), $6, NOW())
+                 VALUES ($1, $2, $3, NULL, $4, $5, NULL, $6, NOW(), $7, NOW())
                  ON CONFLICT (event_post_id)
                  DO UPDATE SET
                      status = $2,
                      open_time = $3,
-                     close_time = $4,
-                     scheduled_open_time = $3,
-                     scheduled_close_time = $4,
+                     close_time = NULL,
+                     scheduled_open_time = $4,
+                     scheduled_close_time = $5,
                      closed_manually_at = NULL,
-                     opened_by = $6,
-                     qr_token = COALESCE(event_attendance_sessions.qr_token, $5),
+                     opened_by = $7,
+                     qr_token = COALESCE(event_attendance_sessions.qr_token, $6),
                      qr_token_created_at = COALESCE(event_attendance_sessions.qr_token_created_at, NOW()),
                      updated_at = NOW()
                  RETURNING ${SESSION_PUBLIC_COLUMNS}`,
-                [eventId, nextStatus, openDate, closeDate, candidateToken, req.user.id]
+                [eventId, nextStatus, actualOpenTime, openDate, closeDate, candidateToken, req.user.id]
             );
 
             if (isNowInWindow) {
@@ -436,6 +443,10 @@ router.post('/events/:eventId/schedule', requireStaffOrAdmin, authorizeStaffForE
             }
 
             await client.query('COMMIT');
+
+            if (isNowInWindow) {
+                await notifyWindowTransition(pool, { eventId, actorUserId: req.user.id, action: 'OPEN' });
+            }
 
             return res.json({
                 message: isNowInWindow
@@ -663,23 +674,55 @@ async function processQrCheckIn(
          VALUES ($1, 'PRESENT', NOW(), 'qr_scan', NOW())
          ON CONFLICT (registration_id)
          DO UPDATE SET status = 'PRESENT', checkin_time = NOW(), check_in_method = 'qr_scan', updated_at = NOW()
+         WHERE event_attendance_records.status <> 'PRESENT'
+           AND NOT (
+               event_attendance_records.check_in_method = 'manual_staff'
+               AND event_attendance_records.status IN ('ABSENT', 'EXCUSED')
+           )
          RETURNING attendance_id AS id, status, checkin_time`,
         [regId]
     );
     const record = recordRes.rows[0];
+
+    if (!record) {
+        const latestRes = await db.query(
+            `SELECT attendance_id AS id, status, checkin_time, check_in_method
+             FROM event_attendance_records
+             WHERE registration_id = $1
+             LIMIT 1`,
+            [regId]
+        );
+        const latest = latestRes.rows[0];
+        if (latest?.status === 'PRESENT') {
+            return {
+                httpStatus: 200,
+                body: {
+                    message: 'You have already checked in for this event.',
+                    eventId: sessionRow.event_post_id,
+                    status: 'PRESENT',
+                    checkinTime: latest.checkin_time,
+                    alreadyCheckedIn: true
+                }
+            };
+        }
+        return {
+            httpStatus: 409,
+            body: {
+                message: 'Your attendance status was manually set by staff and cannot be overwritten by QR scan.'
+            }
+        };
+    }
 
     await db.query(
         `UPDATE event_registrations SET status = 'Attended' WHERE registration_id = $1`,
         [regId]
     );
 
-    if (record) {
-        await db.query(
-            `INSERT INTO event_attendance_audits (attendance_id, actor_user_id, previous_status, new_status, source, reason)
-             VALUES ($1, $2, $3, 'PRESENT', 'student', 'QR Check-in')`,
-            [record.id, userId, previousStatus]
-        );
-    }
+    await db.query(
+        `INSERT INTO event_attendance_audits (attendance_id, actor_user_id, previous_status, new_status, source, reason)
+         VALUES ($1, $2, $3, 'PRESENT', 'student', 'QR Check-in')`,
+        [record.id, userId, previousStatus]
+    );
 
     return {
         httpStatus: 200,
@@ -687,7 +730,7 @@ async function processQrCheckIn(
             message: 'Attendance recorded successfully!',
             eventId: sessionRow.event_post_id,
             status: 'PRESENT',
-            checkinTime: record?.checkin_time || null
+            checkinTime: record.checkin_time || null
         }
     };
 }

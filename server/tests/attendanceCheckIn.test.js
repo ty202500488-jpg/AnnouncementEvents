@@ -60,6 +60,15 @@ function createCheckInMockPool({
                 const nowIso = new Date().toISOString();
                 let existing = state.records.find((r) => Number(r.registration_id) === Number(regId));
                 if (existing) {
+                    const hasConditionalWhere = /WHERE event_attendance_records\.status <> 'PRESENT'/i.test(text);
+                    if (
+                        hasConditionalWhere &&
+                        (existing.status === 'PRESENT' ||
+                            (existing.check_in_method === 'manual_staff' &&
+                                ['ABSENT', 'EXCUSED'].includes(String(existing.status || '').toUpperCase())))
+                    ) {
+                        return { rows: [], rowCount: 0 };
+                    }
                     existing.status = 'PRESENT';
                     existing.checkin_time = nowIso;
                     existing.check_in_method = 'qr_scan';
@@ -389,4 +398,10 @@ test('6. processQrCheckIn records PRESENT inside WMSU geofence, preserves prior 
     });
     assert.equal(disabledRes.httpStatus, 200);
     assert.equal(disabledRes.body.status, 'PRESENT');
+
+    // SQL ON CONFLICT DO UPDATE includes WHERE guard against manual_staff overrides and duplicate PRESENT
+    const upsertQuery = mockDb.state.queries.find((q) => /^INSERT INTO event_attendance_records/i.test(q.text));
+    assert.ok(upsertQuery);
+    assert.match(upsertQuery.text, /WHERE event_attendance_records\.status <> 'PRESENT'/i);
+    assert.match(upsertQuery.text, /event_attendance_records\.check_in_method = 'manual_staff'/i);
 });

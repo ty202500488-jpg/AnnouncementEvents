@@ -48,9 +48,9 @@ function parseBooleanFlag(rawValue, fallback) {
 }
 
 function parseNumericInput(rawValue) {
-    if (rawValue === undefined || rawValue === null || typeof rawValue === 'boolean') return null;
+    if (typeof rawValue !== 'number' && typeof rawValue !== 'string') return null;
     if (typeof rawValue === 'string' && rawValue.trim() === '') return null;
-    const parsed = typeof rawValue === 'number' ? rawValue : Number(String(rawValue).trim());
+    const parsed = typeof rawValue === 'number' ? rawValue : Number(rawValue.trim());
     return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -100,7 +100,8 @@ function calculateDistanceMeters(lat1, lng1, lat2, lng2) {
     const a =
         Math.sin(dLat / 2) ** 2 +
         Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const clampedA = Math.min(1, Math.max(0, a));
+    const c = 2 * Math.atan2(Math.sqrt(clampedA), Math.sqrt(1 - clampedA));
     return Math.round(EARTH_RADIUS_METERS * c);
 }
 
@@ -295,7 +296,7 @@ function extractAttendanceQrToken(rawValue) {
     const trimmed = rawValue.trim();
     if (!trimmed) return '';
 
-    const prefixedMatch = trimmed.match(/^CRIMSON-ATT:(.+)$/i);
+    const prefixedMatch = trimmed.match(/^CRIMSON-ATT:(.*)$/i);
     if (prefixedMatch) {
         return prefixedMatch[1].trim();
     }

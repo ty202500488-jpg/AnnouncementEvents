@@ -13,15 +13,15 @@ function toRadians(degrees) {
 }
 
 function parseStrictCoordinate(rawValue, min, max) {
-  if (rawValue === undefined || rawValue === null || typeof rawValue === 'boolean') return null;
+  if (typeof rawValue !== 'number' && typeof rawValue !== 'string') return null;
   if (typeof rawValue === 'string' && rawValue.trim() === '') return null;
-  const parsed = typeof rawValue === 'number' ? rawValue : Number(String(rawValue).trim());
+  const parsed = typeof rawValue === 'number' ? rawValue : Number(rawValue.trim());
   if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
   return parsed;
 }
 
 function stripCrimsonPrefix(value) {
-  const match = value.match(/^CRIMSON-ATT:(.+)$/i);
+  const match = value.match(/^CRIMSON-ATT:(.*)$/i);
   return match ? match[1].trim() : value;
 }
 

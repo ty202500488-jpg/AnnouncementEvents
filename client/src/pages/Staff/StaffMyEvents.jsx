@@ -228,7 +228,7 @@ export default function StaffMyEvents() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {filteredEvents.map((item) => {
-              const isUpcoming = new Date(item.date) >= new Date();
+              const isUpcoming = new Date(item.end_date || item.date) >= new Date();
               const deptName = item.department_name || 'University Office';
               const avatarText = deptName.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
               const pageId = item.page_id;

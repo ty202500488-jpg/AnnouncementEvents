@@ -89,8 +89,11 @@ export default function QRCheckInScanner({
   const locationCheckIdRef = useRef(0);
   const autoSubmittedTokenRef = useRef(null);
   const autoStartedCameraRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const cameraRequestIdRef = useRef(0);
 
   const stopCamera = useCallback(() => {
+    cameraRequestIdRef.current += 1;
     if (scanTimerRef.current) {
       clearInterval(scanTimerRef.current);
       scanTimerRef.current = null;
@@ -102,7 +105,9 @@ export default function QRCheckInScanner({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    setCameraActive(false);
+    if (isMountedRef.current) {
+      setCameraActive(false);
+    }
   }, []);
 
   const verifyCampusLocation = useCallback(async () => {
@@ -116,6 +121,7 @@ export default function QRCheckInScanner({
     const checkId = ++locationCheckIdRef.current;
     stopCamera();
     autoStartedCameraRef.current = false;
+    autoSubmittedTokenRef.current = null;
     setLocationState('checking');
     setLocationDetail((prev) => ({ ...prev, errorMessage: '' }));
 
@@ -278,6 +284,7 @@ export default function QRCheckInScanner({
           if (!geo.allowed) {
             coordsRef.current = null;
             setLocationDetail({
+              geofenceEnabled: true,
               campusName: geo.campusName,
               distanceMeters: geo.distanceMeters,
               radiusMeters: geo.radiusMeters,
@@ -293,6 +300,7 @@ export default function QRCheckInScanner({
             checkedAt: Date.now(),
           };
           setLocationDetail({
+            geofenceEnabled: true,
             campusName: geo.campusName,
             distanceMeters: geo.distanceMeters,
             radiusMeters: geo.radiusMeters,
@@ -346,6 +354,7 @@ export default function QRCheckInScanner({
   }, [expectedEventId, isScanMode, navigate, onCheckInSuccess, stopCamera]);
 
   const startCamera = useCallback(async () => {
+    const requestId = ++cameraRequestIdRef.current;
     setCameraError('');
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraError('Camera access is not supported in this browser.');
@@ -357,10 +366,17 @@ export default function QRCheckInScanner({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
+
+      if (!isMountedRef.current || requestId !== cameraRequestIdRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
       streamRef.current = stream;
       setCameraActive(true);
 
       setTimeout(() => {
+        if (!isMountedRef.current || requestId !== cameraRequestIdRef.current) return;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.play().catch(() => {});
@@ -391,6 +407,9 @@ export default function QRCheckInScanner({
         }
       }, 300);
     } catch (err) {
+      if (!isMountedRef.current || requestId !== cameraRequestIdRef.current) {
+        return;
+      }
       console.error('Camera start error:', err);
       setCameraError('Unable to access camera. Please allow camera permission and try again.');
       stopCamera();
@@ -422,7 +441,11 @@ export default function QRCheckInScanner({
   }, [isModal, isScanMode, locationState, startCamera, status, submitTokenCheckIn, token]);
 
   useEffect(() => {
-    return () => stopCamera();
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      stopCamera();
+    };
   }, [stopCamera]);
 
   const handleResetToScanner = () => {

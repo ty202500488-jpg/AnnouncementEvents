@@ -109,15 +109,9 @@ async function processAttendanceSessions(poolArg = pool, notifyFn = notifyAttend
                AND (
                    status = 'OPEN'
                    OR (
-                       (closed_manually_at IS NULL OR closed_manually_at < scheduled_open_time)
-                       AND EXISTS (
-                           SELECT 1
-                           FROM event_registrations er
-                           LEFT JOIN event_attendance_records ar ON ar.registration_id = er.registration_id
-                           WHERE er.event_post_id = event_attendance_sessions.event_post_id
-                             AND LOWER(er.status) IN ('registered', 'attended')
-                             AND (ar.attendance_id IS NULL OR ar.status = 'NOT_MARKED')
-                       )
+                       status = 'CLOSED'
+                       AND (close_time IS NULL OR close_time < scheduled_close_time)
+                       AND (closed_manually_at IS NULL OR closed_manually_at < COALESCE(scheduled_open_time, scheduled_close_time))
                    )
                )`
         );
@@ -142,7 +136,8 @@ async function processAttendanceSessions(poolArg = pool, notifyFn = notifyAttend
                  FROM event_registrations er
                  WHERE ar.registration_id = er.registration_id
                    AND er.event_post_id = $1
-                   AND ar.status = 'NOT_MARKED'`,
+                   AND ar.status = 'NOT_MARKED'
+                   AND ar.check_in_method IS DISTINCT FROM 'manual_staff'`,
                 [session.event_post_id]
             );
 

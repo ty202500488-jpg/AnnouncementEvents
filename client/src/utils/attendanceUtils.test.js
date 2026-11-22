@@ -25,6 +25,9 @@ test('extractAttendanceToken handles CRIMSON-ATT payload, legacy URLs, query par
     'wrappedtok'
   );
   assert.equal(extractAttendanceToken('  rawtoken999  '), 'rawtoken999');
+  assert.equal(extractAttendanceToken('CRIMSON-ATT:'), '');
+  assert.equal(extractAttendanceToken('CRIMSON-ATT:   '), '');
+  assert.equal(extractAttendanceToken('https://campus.wmsu.edu.ph/attendance?data=CRIMSON-ATT:'), '');
   assert.equal(extractAttendanceToken('   '), '');
   assert.equal(extractAttendanceToken(null), '');
   assert.equal(extractAttendanceToken(12345), '');
@@ -84,6 +87,8 @@ test('evaluateClientGeofence validates coordinates, inside/outside bounds, and d
     { latitude: NaN, longitude: 122.0615 },
     { latitude: true, longitude: 122.0615 },
     { latitude: 6.9135, longitude: false },
+    { latitude: [], longitude: 122.0615 },
+    { latitude: 6.9135, longitude: {} },
     { latitude: 91, longitude: 122.0615 },
     { latitude: -90.1, longitude: 122.0615 },
     { latitude: 6.9135, longitude: 181 },

@@ -39,12 +39,17 @@ test('getCampusGeofenceConfig returns WMSU defaults and respects env overrides',
     });
 });
 
-test('calculateDistanceMeters returns 0 for identical coordinates and accurate Haversine meters', () => {
+test('calculateDistanceMeters returns 0 for identical coordinates, handles antipodal clamping, and computes accurate Haversine meters', () => {
     assert.equal(calculateDistanceMeters(6.9135, 122.0615, 6.9135, 122.0615), 0);
 
     // ~116m from WMSU Main Campus center
     const distance = calculateDistanceMeters(6.9135, 122.0615, 6.9145, 122.0618);
     assert.equal(distance, 116);
+
+    // Antipodal coordinates should not produce NaN (clamps `a` into [0, 1])
+    const antipodal = calculateDistanceMeters(0, 0, 0, 180);
+    assert.equal(Number.isFinite(antipodal), true);
+    assert.ok(antipodal > 20000000);
 });
 
 test('evaluateCampusGeofence allows inside, blocks outside/invalid, and respects disabled mode', () => {
@@ -66,6 +71,8 @@ test('evaluateCampusGeofence allows inside, blocks outside/invalid, and respects
         { latitude: null, longitude: 122.0615 },
         { latitude: '', longitude: 122.0615 },
         { latitude: 6.9135, longitude: '' },
+        { latitude: [], longitude: 122.0615 },
+        { latitude: 6.9135, longitude: {} },
         { latitude: NaN, longitude: 122.0615 },
         { latitude: 95, longitude: 122.0615 },
         { latitude: 6.9135, longitude: -200 },
@@ -219,6 +226,8 @@ test('QR token generation, payload encoding, and extraction work across formats'
     );
     assert.equal(extractAttendanceQrToken(`/attendance/check-in/${tok}`), tok);
     assert.equal(extractAttendanceQrToken(`  ${tok}  `), tok);
+    assert.equal(extractAttendanceQrToken('CRIMSON-ATT:'), '');
+    assert.equal(extractAttendanceQrToken('CRIMSON-ATT:   '), '');
     assert.equal(extractAttendanceQrToken(''), '');
     assert.equal(extractAttendanceQrToken(null), '');
 });

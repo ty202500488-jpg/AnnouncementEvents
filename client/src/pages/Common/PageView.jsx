@@ -963,7 +963,7 @@ export default function PageView({ role = 'guest' }) {
                         isOwner={Boolean(page.is_owner || item.is_owner)}
                         isRegistering={registeringEventId === (item.id || item.post_id)}
                         onToggleRegister={!(page.is_owner || item.is_owner) ? () => handleEventRegister(item) : null}
-                            onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                        onViewRegistrations={() => setViewingRegistrationsEvent(item)}
                       />
                     )}
                   </article>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import QRCode from 'qrcode';
 import MyPageDashboardLayout from '../../../assets/components/MyPageDashboardLayout';
 import { toLocalDateTimeInputValue } from '../../../utils/attendanceUtils';
@@ -63,13 +63,15 @@ export default function MyPageAttendance() {
   const [correctionReason, setCorrectionReason] = useState('');
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
 
-  const renderLocalQrDataUrl = useCallback(async (qrPayload) => {
-    const dataUrl = await QRCode.toDataURL(qrPayload, {
+  const eventFetchIdRef = useRef(0);
+  const qrFetchIdRef = useRef(0);
+
+  const buildLocalQrDataUrl = useCallback(async (qrPayload) => {
+    return QRCode.toDataURL(qrPayload, {
       width: 320,
       margin: 2,
       errorCorrectionLevel: 'M'
     });
-    setQrDataUrl(dataUrl);
   }, []);
 
   const fetchAuthorizedEvents = useCallback(async () => {
@@ -97,12 +99,14 @@ export default function MyPageAttendance() {
   }, []);
 
   const fetchEventAttendanceData = useCallback(async (eventId) => {
+    const reqId = ++eventFetchIdRef.current;
     const token = localStorage.getItem('token');
     try {
       const response = await fetch(`${API_BASE}/events/${eventId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
+      if (reqId !== eventFetchIdRef.current) return;
       if (response.ok) {
         setEventData(data);
         setRecords(data.records || []);
@@ -112,13 +116,17 @@ export default function MyPageAttendance() {
         setError(data.message || 'Failed to load event attendance info.');
       }
     } catch (err) {
+      if (reqId !== eventFetchIdRef.current) return;
       console.error('Error fetching event details:', err);
     }
   }, []);
 
   const fetchStaticQrCredential = useCallback(async (eventId) => {
     if (!eventId) return;
+    const reqId = ++qrFetchIdRef.current;
     setQrLoading(true);
+    setQrDataUrl('');
+    setQrCreatedAt(null);
     setQrError('');
     const token = localStorage.getItem('token');
     try {
@@ -126,21 +134,29 @@ export default function MyPageAttendance() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
+      if (reqId !== qrFetchIdRef.current) return;
       if (response.ok && data.qrPayload) {
-        await renderLocalQrDataUrl(data.qrPayload);
+        const dataUrl = await buildLocalQrDataUrl(data.qrPayload);
+        if (reqId !== qrFetchIdRef.current) return;
+        setQrDataUrl(dataUrl);
         setQrCreatedAt(data.qrCreatedAt || null);
       } else {
         setQrDataUrl('');
+        setQrCreatedAt(null);
         setQrError(data.message || 'QR credential unavailable.');
       }
     } catch (err) {
+      if (reqId !== qrFetchIdRef.current) return;
       console.error('Failed to load static QR credential:', err);
       setQrDataUrl('');
+      setQrCreatedAt(null);
       setQrError('Unable to generate local QR code.');
     } finally {
-      setQrLoading(false);
+      if (reqId === qrFetchIdRef.current) {
+        setQrLoading(false);
+      }
     }
-  }, [renderLocalQrDataUrl]);
+  }, [buildLocalQrDataUrl]);
 
   useEffect(() => {
     fetchAuthorizedEvents();
@@ -177,7 +193,8 @@ export default function MyPageAttendance() {
       });
       const data = await response.json();
       if (response.ok && data.qrPayload) {
-        await renderLocalQrDataUrl(data.qrPayload);
+        const dataUrl = await buildLocalQrDataUrl(data.qrPayload);
+        setQrDataUrl(dataUrl);
         setQrCreatedAt(data.qrCreatedAt || new Date().toISOString());
         fetchEventAttendanceData(selectedEventId);
       } else {
@@ -198,13 +215,14 @@ export default function MyPageAttendance() {
     qrImage.onload = () => {
       const width = 640;
       const paddingX = 48;
+      const maxTextWidth = width - paddingX * 2;
       const qrSize = 400;
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
       ctx.font = '700 24px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      const titleLines = wrapCanvasText(ctx, eventData?.event?.title || 'Event Attendance', width - paddingX * 2);
+      const titleLines = wrapCanvasText(ctx, eventData?.event?.title || 'Event Attendance', maxTextWidth);
       const headerHeight = 68 + titleLines.length * 32 + 34;
       const height = headerHeight + qrSize + 92;
 
@@ -227,13 +245,13 @@ export default function MyPageAttendance() {
       ctx.font = '700 24px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.textAlign = 'center';
       titleLines.forEach((line, idx) => {
-        ctx.fillText(line, width / 2, 56 + idx * 32);
+        ctx.fillText(line, width / 2, 56 + idx * 32, maxTextWidth);
       });
 
       // Subtitle
       ctx.fillStyle = '#7B0D1E';
       ctx.font = '600 15px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      ctx.fillText('Scan in Crimson · WMSU Main Campus', width / 2, 56 + titleLines.length * 32 + 6);
+      ctx.fillText('Scan in Crimson · WMSU Main Campus', width / 2, 56 + titleLines.length * 32 + 6, maxTextWidth);
 
       // QR Code
       const qrX = (width - qrSize) / 2;
@@ -244,7 +262,7 @@ export default function MyPageAttendance() {
       // Footer
       ctx.fillStyle = '#64748b';
       ctx.font = '500 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      ctx.fillText(`Event #${selectedEventId} · Official Attendance QR`, width / 2, qrY + qrSize + 44);
+      ctx.fillText(`Event #${selectedEventId} · Official Attendance QR`, width / 2, qrY + qrSize + 44, maxTextWidth);
 
       const triggerDownload = (href) => {
         const link = document.createElement('a');
@@ -263,7 +281,7 @@ export default function MyPageAttendance() {
           }
           const url = window.URL.createObjectURL(blob);
           triggerDownload(url);
-          window.URL.revokeObjectURL(url);
+          setTimeout(() => window.URL.revokeObjectURL(url), 1000);
         }, 'image/png');
       } else {
         triggerDownload(canvas.toDataURL('image/png'));
