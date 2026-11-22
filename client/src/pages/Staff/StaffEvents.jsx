@@ -4,6 +4,8 @@ import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
 import {
   EventPostMeta,
   EventPostActionBar,
+  EventRegisterButton,
+  EventViewRegistrationsButton,
   PostOwnerActionMenu,
   ExpandablePostText,
   PostEditDeleteModals,
@@ -284,8 +286,16 @@ export default function StaffEvents() {
                       </div>
                     </div>
 
-                    {item.is_owner && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                    {item.is_owner ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                        {item.requires_registration !== false && (
+                          <EventViewRegistrationsButton
+                            registeredCount={currentRegistered}
+                            capacity={item.max_capacity || item.capacity}
+                            pendingCount={item.pending_registration_count || 0}
+                            onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                          />
+                        )}
                         <PostOwnerActionMenu
                           isOpen={activeMenuKey === (item.id || item.post_id || index)}
                           onToggle={() => {
@@ -297,6 +307,18 @@ export default function StaffEvents() {
                             setDeletingPost(item);
                             setActiveMenuKey(null);
                           }}
+                        />
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                        <EventRegisterButton
+                          isRegistered={Boolean(item.is_registered)}
+                          registrationStatus={item.registration_status}
+                          requiresRegistration={item.requires_registration !== false}
+                          registeredCount={currentRegistered}
+                          capacity={item.max_capacity || item.capacity}
+                          isRegistering={registeringEventId === (item.id || item.post_id)}
+                          onToggleRegister={() => handleEventRegister(item)}
                         />
                       </div>
                     )}
@@ -343,6 +365,8 @@ export default function StaffEvents() {
                     isRegistering={registeringEventId === (item.id || item.post_id)}
                     onToggleRegister={!item.is_owner ? () => handleEventRegister(item) : null}
                     onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                    hideRegisterAction
+                    hideViewRegistrations
                   />
                 </article>
               );

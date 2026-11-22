@@ -5,6 +5,7 @@ import HiddenPostCard from '../../assets/components/HiddenPostCard';
 import {
   EventPostMeta,
   EventPostActionBar,
+  EventRegisterButton,
   PostAudienceBadge,
   ExpandablePostText,
   normalizePostAudience,
@@ -529,27 +530,17 @@ export default function StudentDashboard() {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleHidePost(postKey, postId);
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        padding: '0.35rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: '9999px'
-                      }}
-                      title="Hide this post"
-                    >
-                      <i className="fa-solid fa-xmark" style={{ fontSize: '1rem' }}></i>
-                    </button>
+                    {isEvent && (
+                      <EventRegisterButton
+                        isRegistered={Boolean(item.is_registered)}
+                        registrationStatus={item.registration_status}
+                        requiresRegistration={item.requires_registration !== false}
+                        registeredCount={currentRegistered}
+                        capacity={item.max_capacity || item.capacity}
+                        isRegistering={registeringEventId === postId}
+                        onToggleRegister={() => handleEventRegister(item)}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -594,6 +585,7 @@ export default function StudentDashboard() {
                     capacity={item.max_capacity || item.capacity}
                     isRegistering={registeringEventId === postId}
                     onToggleRegister={() => handleEventRegister(item)}
+                    hideRegisterAction
                   />
                 )}
               </article>

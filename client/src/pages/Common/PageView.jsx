@@ -2,7 +2,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import '../styles/PageView.css';
 import '../styles/StudentDashboard.css';
-import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials, applyEventRegistrationUpdate, ExpandablePostText } from '../../assets/components/PortalShellElements';
+import { PortalNavbar, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, EventRegisterButton, EventViewRegistrationsButton, PostAudienceBadge, getInitials, applyEventRegistrationUpdate, ExpandablePostText } from '../../assets/components/PortalShellElements';
 import EventRegistrationModal from '../../assets/components/EventRegistrationModal';
 import EventRegistrationsManagerModal from '../../assets/components/EventRegistrationsManagerModal';
 import { formatPostTimestamp } from '../../utils/dateUtils';
@@ -827,6 +827,14 @@ export default function PageView({ role = 'guest' }) {
 
                       {(page.is_owner || item.is_owner) && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative', flexShrink: 0 }}>
+                          {isEvent && item.requires_registration !== false && (
+                            <EventViewRegistrationsButton
+                              registeredCount={currentRegistered}
+                              capacity={item.max_capacity || item.capacity}
+                              pendingCount={item.pending_registration_count || 0}
+                              onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                            />
+                          )}
                           <button
                             type="button"
                             aria-label="Post options"
@@ -915,6 +923,20 @@ export default function PageView({ role = 'guest' }) {
                           )}
                         </div>
                       )}
+
+                      {isEvent && !(page.is_owner || item.is_owner) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                          <EventRegisterButton
+                            isRegistered={isRegistered}
+                            registrationStatus={item.registration_status}
+                            requiresRegistration={item.requires_registration !== false}
+                            registeredCount={currentRegistered}
+                            capacity={item.max_capacity || item.capacity}
+                            isRegistering={registeringEventId === (item.id || item.post_id)}
+                            onToggleRegister={() => handleEventRegister(item)}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* 2. FEED-STYLE MEDIA / CONTENT CONTAINER */}
@@ -964,6 +986,8 @@ export default function PageView({ role = 'guest' }) {
                         isRegistering={registeringEventId === (item.id || item.post_id)}
                         onToggleRegister={!(page.is_owner || item.is_owner) ? () => handleEventRegister(item) : null}
                         onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                        hideRegisterAction
+                        hideViewRegistrations
                       />
                     )}
                   </article>

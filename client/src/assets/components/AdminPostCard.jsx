@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { EventPostMeta, PostAudienceBadge, ExpandablePostText } from './PortalShellElements';
+import { EventPostMeta, EventViewRegistrationsButton, PostAudienceBadge, ExpandablePostText } from './PortalShellElements';
 import { formatPostTimestamp } from '../../utils/dateUtils';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -37,6 +37,7 @@ export default function AdminPostCard({
   onToggleMenu,
   onCloseMenu,
   onViewDetails,
+  onViewRegistrations,
   onEdit,
   onArchive,
   onTakeDown,
@@ -63,6 +64,8 @@ export default function AdminPostCard({
   const hasMenuActions = Boolean(
     onViewDetails || onEdit || onArchive || onTakeDown || onRestore || onDelete
   );
+
+  const showHeaderRegistrations = Boolean(isEvent && item.requires_registration !== false && onViewRegistrations);
 
   return (
     <article className="csf-post-card">
@@ -110,8 +113,17 @@ export default function AdminPostCard({
           </div>
         </div>
 
-        {hasMenuActions && (
+        {(hasMenuActions || showHeaderRegistrations) && (
           <div className="csf-post-header-right">
+            {showHeaderRegistrations && (
+              <EventViewRegistrationsButton
+                registeredCount={item.registered_count ?? item.current_registered ?? 0}
+                capacity={item.max_capacity || item.capacity}
+                pendingCount={item.pending_registration_count || 0}
+                onViewRegistrations={() => onViewRegistrations(item)}
+              />
+            )}
+            {hasMenuActions && (
             <div className="csf-post-menu-wrap">
               <button
                 type="button"
@@ -214,6 +226,7 @@ export default function AdminPostCard({
                 </div>
               )}
             </div>
+            )}
           </div>
         )}
       </div>

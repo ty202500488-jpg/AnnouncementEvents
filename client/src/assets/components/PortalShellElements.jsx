@@ -1232,7 +1232,255 @@ export function applyEventRegistrationUpdate(items, eventId, nextStatusOrBool) {
 }
 
 /**
- * Consistent action bar for event posts (Register Now / Pending / Unregister + Scan Attendance + Staff View Registrations).
+ * Shared event registration button/badge (Register / Unregister / Pending / Full / Attended / No Registration Required).
+ */
+export function EventRegisterButton({
+  isRegistered = false,
+  registrationStatus = null,
+  requiresRegistration = true,
+  registeredCount = 0,
+  capacity = null,
+  isRegistering = false,
+  onToggleRegister = null,
+  userAttendanceStatus = null,
+}) {
+  const effectiveStatus = registrationStatus || (isRegistered ? 'Registered' : null);
+  const normStatus = String(effectiveStatus || '').toLowerCase();
+  const isConfirmed = normStatus === 'registered' || normStatus === 'attended';
+  const isAttended =
+    normStatus === 'attended' || String(userAttendanceStatus || '').toUpperCase() === 'PRESENT';
+  const isPending = normStatus === 'pending';
+  const isFull = Boolean(capacity && Number(registeredCount) >= Number(capacity));
+
+  if (requiresRegistration === false) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+          padding: '0.38rem 0.75rem',
+          borderRadius: '0.5rem',
+          backgroundColor: '#f8fafc',
+          color: '#64748b',
+          border: '1px solid #e2e8f0',
+          fontSize: '0.78rem',
+          fontWeight: 600,
+        }}
+      >
+        <i className="fa-solid fa-door-open"></i>
+        <span>No Registration Required</span>
+      </span>
+    );
+  }
+
+  if (!onToggleRegister) return null;
+
+  if (isConfirmed) {
+    return isAttended ? (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+          padding: '0.4rem 0.75rem',
+          borderRadius: '0.5rem',
+          backgroundColor: '#ecfdf5',
+          color: '#047857',
+          border: '1px solid #a7f3d0',
+          fontSize: '0.8rem',
+          fontWeight: 600,
+        }}
+      >
+        <i className="fa-solid fa-circle-check"></i>
+        <span>Attended</span>
+      </span>
+    ) : (
+      <button
+        type="button"
+        onClick={onToggleRegister}
+        disabled={isRegistering}
+        style={{
+          background: 'transparent',
+          border: '1px solid #fecdd3',
+          color: '#e11d48',
+          padding: '0.45rem 0.875rem',
+          borderRadius: '0.5rem',
+          fontSize: '0.8rem',
+          fontWeight: 600,
+          cursor: isRegistering ? 'not-allowed' : 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+        }}
+      >
+        {isRegistering ? (
+          <i className="fa-solid fa-spinner fa-spin"></i>
+        ) : (
+          <>
+            <i className="fa-solid fa-circle-xmark"></i>
+            <span>Unregister</span>
+          </>
+        )}
+      </button>
+    );
+  }
+
+  if (isPending) {
+    return (
+      <>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            padding: '0.4rem 0.75rem',
+            borderRadius: '0.5rem',
+            backgroundColor: '#fffbeb',
+            color: '#b45309',
+            border: '1px solid #fde68a',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+          }}
+        >
+          <i className="fa-solid fa-clock"></i>
+          <span>Pending Approval</span>
+        </span>
+        <button
+          type="button"
+          onClick={onToggleRegister}
+          disabled={isRegistering}
+          style={{
+            background: 'transparent',
+            border: '1px solid #cbd5e1',
+            color: '#475569',
+            padding: '0.45rem 0.875rem',
+            borderRadius: '0.5rem',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: isRegistering ? 'not-allowed' : 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+          }}
+        >
+          {isRegistering ? (
+            <i className="fa-solid fa-spinner fa-spin"></i>
+          ) : (
+            <span>Cancel Request</span>
+          )}
+        </button>
+      </>
+    );
+  }
+
+  if (isFull) {
+    return (
+      <button
+        type="button"
+        disabled
+        style={{
+          backgroundColor: '#f1f5f9',
+          color: '#64748b',
+          border: '1px solid #cbd5e1',
+          padding: '0.45rem 1rem',
+          borderRadius: '0.5rem',
+          fontSize: '0.8rem',
+          fontWeight: 700,
+          cursor: 'not-allowed',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+        }}
+      >
+        <i className="fa-solid fa-ban"></i>
+        <span>Event Full</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onToggleRegister}
+      disabled={isRegistering}
+      style={{
+        background: 'transparent',
+        border: '1px solid #7B0D1E',
+        color: '#7B0D1E',
+        padding: '0.45rem 0.875rem',
+        borderRadius: '0.5rem',
+        fontSize: '0.8rem',
+        fontWeight: 600,
+        cursor: isRegistering ? 'not-allowed' : 'pointer',
+        opacity: isRegistering ? 0.7 : 1,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.35rem',
+      }}
+    >
+      {isRegistering ? (
+        <i className="fa-solid fa-spinner fa-spin"></i>
+      ) : (
+        <>
+          <i className="fa-solid fa-circle-plus"></i>
+          <span>Register</span>
+        </>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Shared owner button to view event registrations and pending requests.
+ */
+export function EventViewRegistrationsButton({
+  registeredCount = 0,
+  capacity = null,
+  pendingCount = 0,
+  onViewRegistrations = null,
+}) {
+  if (!onViewRegistrations) return null;
+  return (
+    <button
+      type="button"
+      onClick={onViewRegistrations}
+      style={{
+        backgroundColor: '#fff1f2',
+        color: '#881337',
+        border: '1px solid #fecdd3',
+        padding: '0.45rem 0.875rem',
+        borderRadius: '0.5rem',
+        fontSize: '0.8rem',
+        fontWeight: 700,
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.4rem',
+      }}
+    >
+      <i className="fa-solid fa-users"></i>
+      <span>Registrations</span>
+      {pendingCount > 0 && (
+        <span
+          style={{
+            backgroundColor: '#d97706',
+            color: '#ffffff',
+            fontSize: '0.68rem',
+            fontWeight: 800,
+            padding: '0.1rem 0.45rem',
+            borderRadius: '9999px',
+          }}
+        >
+          {pendingCount} Pending
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Consistent action bar for event posts (Register / Pending / Unregister + Scan Attendance + Staff View Registrations).
  */
 export function EventPostActionBar({
   isRegistered = false,
@@ -1247,6 +1495,8 @@ export function EventPostActionBar({
   onToggleRegister = null,
   onScanAttendance = null,
   onViewRegistrations = null,
+  hideRegisterAction = false,
+  hideViewRegistrations = false,
   attendanceStatus = undefined,
   attendanceOpenTime = null,
   attendanceCloseTime = null,
@@ -1256,11 +1506,7 @@ export function EventPostActionBar({
   const effectiveStatus = registrationStatus || (isRegistered ? 'Registered' : null);
   const normStatus = String(effectiveStatus || '').toLowerCase();
   const isConfirmed = normStatus === 'registered' || normStatus === 'attended';
-  const isAttended =
-    normStatus === 'attended' || String(userAttendanceStatus || '').toUpperCase() === 'PRESENT';
-  const isPending = normStatus === 'pending';
   const isRejected = normStatus === 'rejected';
-  const isFull = Boolean(capacity && Number(registeredCount) >= Number(capacity));
   const attendanceBtn =
     attendanceStatus !== undefined
       ? getAttendanceButtonState({
@@ -1273,45 +1519,31 @@ export function EventPostActionBar({
       : null;
 
   if (requiresRegistration === false) {
+    if (hideRegisterAction) return null;
     return (
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: 'flex-start',
           gap: '0.5rem',
           margin: '0.75rem 1rem 0.25rem 1rem',
           paddingTop: '0.75rem',
           borderTop: '1px solid #e6ebf0',
         }}
       >
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            padding: '0.38rem 0.75rem',
-            borderRadius: '0.5rem',
-            backgroundColor: '#f8fafc',
-            color: '#64748b',
-            border: '1px solid #e2e8f0',
-            fontSize: '0.78rem',
-            fontWeight: 600,
-          }}
-        >
-          <i className="fa-solid fa-door-open"></i>
-          <span>No Registration Required</span>
-        </span>
+        <EventRegisterButton requiresRegistration={false} />
       </div>
     );
   }
 
-  if (
-    !onToggleRegister &&
-    !(onScanAttendance && isConfirmed) &&
-    !attendanceBtn?.visible &&
-    !(onViewRegistrations && isOwner)
-  ) {
+  const hasBottomActions =
+    (!hideRegisterAction && Boolean(onToggleRegister)) ||
+    Boolean(onScanAttendance && isConfirmed) ||
+    Boolean(attendanceBtn?.visible) ||
+    (!hideViewRegistrations && Boolean(onViewRegistrations && isOwner));
+
+  if (!hasBottomActions && !(isRejected && rejectionReason)) {
     return null;
   }
 
@@ -1351,46 +1583,18 @@ export function EventPostActionBar({
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: 'flex-start',
           gap: '0.5rem',
           flexWrap: 'wrap',
         }}
       >
-        {onViewRegistrations && isOwner && (
-          <button
-            type="button"
-            onClick={onViewRegistrations}
-            style={{
-              backgroundColor: '#fff1f2',
-              color: '#881337',
-              border: '1px solid #fecdd3',
-              padding: '0.45rem 0.875rem',
-              borderRadius: '0.5rem',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-            }}
-          >
-            <i className="fa-solid fa-users-viewfinder"></i>
-            <span>View Registrations ({registeredCount}{capacity ? `/${capacity}` : ''})</span>
-            {pendingCount > 0 && (
-              <span
-                style={{
-                  backgroundColor: '#d97706',
-                  color: '#ffffff',
-                  fontSize: '0.68rem',
-                  fontWeight: 800,
-                  padding: '0.1rem 0.45rem',
-                  borderRadius: '9999px',
-                }}
-              >
-                {pendingCount} Pending
-              </span>
-            )}
-          </button>
+        {!hideViewRegistrations && isOwner && (
+          <EventViewRegistrationsButton
+            registeredCount={registeredCount}
+            capacity={capacity}
+            pendingCount={pendingCount}
+            onViewRegistrations={onViewRegistrations}
+          />
         )}
 
         {attendanceBtn?.visible ? (
@@ -1489,139 +1693,17 @@ export function EventPostActionBar({
           )
         )}
 
-        {onToggleRegister && (
-          isConfirmed ? (
-            <>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.4rem 0.75rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: '#ecfdf5',
-                  color: '#047857',
-                  border: '1px solid #a7f3d0',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                }}
-              >
-                <i className="fa-solid fa-circle-check"></i>
-                <span>{isAttended ? 'Attended' : 'Registered'}</span>
-              </span>
-              {!isAttended && (
-                <button
-                  type="button"
-                  onClick={onToggleRegister}
-                  disabled={isRegistering}
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid #fecdd3',
-                    color: '#e11d48',
-                    padding: '0.45rem 0.875rem',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                    cursor: isRegistering ? 'not-allowed' : 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                  }}
-                >
-                  {isRegistering ? (
-                    <i className="fa-solid fa-spinner fa-spin"></i>
-                  ) : (
-                    <>
-                      <i className="fa-solid fa-circle-xmark"></i>
-                      <span>Unregister</span>
-                    </>
-                  )}
-                </button>
-              )}
-            </>
-          ) : isPending ? (
-            <>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  padding: '0.4rem 0.75rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: '#fffbeb',
-                  color: '#b45309',
-                  border: '1px solid #fde68a',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                }}
-              >
-                <i className="fa-solid fa-clock"></i>
-                <span>Pending Approval</span>
-              </span>
-              <button
-                type="button"
-                onClick={onToggleRegister}
-                disabled={isRegistering}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid #cbd5e1',
-                  color: '#475569',
-                  padding: '0.45rem 0.875rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: isRegistering ? 'not-allowed' : 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                }}
-              >
-                {isRegistering ? (
-                  <i className="fa-solid fa-spinner fa-spin"></i>
-                ) : (
-                  <span>Cancel Request</span>
-                )}
-              </button>
-            </>
-          ) : isFull ? (
-            <button
-              type="button"
-              disabled
-              style={{
-                backgroundColor: '#f1f5f9',
-                color: '#64748b',
-                border: '1px solid #cbd5e1',
-                padding: '0.45rem 1rem',
-                borderRadius: '0.5rem',
-                fontSize: '0.8rem',
-                fontWeight: 700,
-                cursor: 'not-allowed',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
-            >
-              <i className="fa-solid fa-ban"></i>
-              <span>Event Full</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onToggleRegister}
-              disabled={isRegistering}
-              className="btn-fb btn-fb-primary"
-              style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}
-            >
-              {isRegistering ? (
-                <i className="fa-solid fa-spinner fa-spin"></i>
-              ) : (
-                <>
-                  <i className="fa-solid fa-ticket"></i>
-                  <span>{isRejected ? 'Register Again' : 'Register Now'}</span>
-                </>
-              )}
-            </button>
-          )
+        {!hideRegisterAction && (
+          <EventRegisterButton
+            isRegistered={isRegistered}
+            registrationStatus={registrationStatus}
+            requiresRegistration={requiresRegistration}
+            registeredCount={registeredCount}
+            capacity={capacity}
+            isRegistering={isRegistering}
+            onToggleRegister={onToggleRegister}
+            userAttendanceStatus={userAttendanceStatus}
+          />
         )}
       </div>
     </div>

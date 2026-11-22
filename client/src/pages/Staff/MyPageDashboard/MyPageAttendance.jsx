@@ -43,6 +43,8 @@ export default function MyPageAttendance() {
   const [records, setRecords] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [recordsPage, setRecordsPage] = useState(1);
+  const RECORDS_PAGE_SIZE = 10;
 
   // Static QR Display State
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -588,7 +590,9 @@ export default function MyPageAttendance() {
                   <div className="metric-val">{eventData.summary?.present || 0}</div>
                   <div className="metric-pct">{eventData.summary?.presentPct || 0}% of total</div>
                 </div>
-                <i className="fa-solid fa-circle-check" style={{ fontSize: '2rem', color: '#16a34a' }}></i>
+                <span className="metric-icon-box is-present" aria-hidden="true">
+                  <i className="fa-solid fa-circle-check"></i>
+                </span>
               </div>
 
               <div className="metric-card absent">
@@ -597,7 +601,9 @@ export default function MyPageAttendance() {
                   <div className="metric-val">{eventData.summary?.absent || 0}</div>
                   <div className="metric-pct">{eventData.summary?.absentPct || 0}% of total</div>
                 </div>
-                <i className="fa-solid fa-circle-xmark" style={{ fontSize: '2rem', color: '#dc2626' }}></i>
+                <span className="metric-icon-box is-absent" aria-hidden="true">
+                  <i className="fa-solid fa-circle-xmark"></i>
+                </span>
               </div>
 
               <div className="metric-card unmarked">
@@ -606,7 +612,9 @@ export default function MyPageAttendance() {
                   <div className="metric-val">{eventData.summary?.unmarked || 0}</div>
                   <div className="metric-pct">{eventData.summary?.unmarkedPct || 0}% remaining</div>
                 </div>
-                <i className="fa-solid fa-clock" style={{ fontSize: '2rem', color: '#d97706' }}></i>
+                <span className="metric-icon-box is-unmarked" aria-hidden="true">
+                  <i className="fa-solid fa-clock"></i>
+                </span>
               </div>
             </div>
 
@@ -635,7 +643,7 @@ export default function MyPageAttendance() {
                       className="btn-primary-maroon"
                       onClick={() => handleToggleAttendanceWindow('OPEN')}
                     >
-                      <i className="fa-solid fa-door-open"></i> Activate Attendance
+                      <i className="fa-solid fa-circle-play"></i> Activate Attendance
                     </button>
                   ) : (
                     <button
@@ -643,7 +651,7 @@ export default function MyPageAttendance() {
                       className="btn-secondary-outline"
                       onClick={() => handleToggleAttendanceWindow('CLOSE')}
                     >
-                      <i className="fa-solid fa-door-closed"></i> Deactivate Attendance
+                      <i className="fa-solid fa-circle-stop"></i> Deactivate Attendance
                     </button>
                   )}
                 </div>
@@ -652,7 +660,7 @@ export default function MyPageAttendance() {
               <form className="schedule-window-form" onSubmit={handleSaveSchedule}>
                 <div className="schedule-window-header">
                   <span className="schedule-window-title">
-                    <i className="fa-solid fa-calendar-clock"></i> Schedule Window
+                    <i className="fa-solid fa-clock"></i> Schedule Window
                   </span>
                   <span className="schedule-window-hint">
                     Optional: automatically activates and closes check-ins at your chosen times.
@@ -681,7 +689,8 @@ export default function MyPageAttendance() {
                   <div className="schedule-actions">
                     <button
                       type="submit"
-                      className="btn-primary-maroon"
+                      className="btn-secondary-outline"
+                      style={{ borderColor: '#7B0D1E', color: '#7B0D1E' }}
                       disabled={scheduleSaving}
                     >
                       <i className="fa-solid fa-floppy-disk"></i> {scheduleSaving ? 'Saving...' : 'Save Schedule'}
@@ -835,21 +844,31 @@ export default function MyPageAttendance() {
               </div>
             )}
 
-            {activeTab === 'records' && (
+            {activeTab === 'records' && (() => {
+              const totalRecords = filteredRecords.length;
+              const totalPages = Math.max(1, Math.ceil(totalRecords / RECORDS_PAGE_SIZE));
+              const safePage = Math.min(recordsPage, totalPages);
+              const startIdx = (safePage - 1) * RECORDS_PAGE_SIZE;
+              const paginatedRecords = filteredRecords.slice(startIdx, startIdx + RECORDS_PAGE_SIZE);
+
+              return (
               <div className="records-table-container">
                 <div className="records-filter-bar">
-                  <input
-                    type="text"
-                    placeholder="Search by student name or ID..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1', width: '260px' }}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 0.8rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', flex: '1 1 260px' }}>
+                    <i className="fa-solid fa-magnifying-glass" style={{ color: '#94a3b8', fontSize: '0.825rem' }}></i>
+                    <input
+                      type="text"
+                      placeholder="Search by student name or ID..."
+                      value={searchTerm}
+                      onChange={(e) => { setSearchTerm(e.target.value); setRecordsPage(1); }}
+                      style={{ flex: 1, border: 'none', outline: 'none', backgroundColor: 'transparent', fontSize: '0.84rem', color: '#0f172a', minWidth: 0 }}
+                    />
+                  </div>
 
                   <select
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    style={{ padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid #cbd5e1' }}
+                    onChange={(e) => { setStatusFilter(e.target.value); setRecordsPage(1); }}
+                    style={{ padding: '0.5rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontSize: '0.84rem', fontWeight: 500, color: '#0f172a' }}
                   >
                     <option value="ALL">All Statuses</option>
                     <option value="PRESENT">Present</option>
@@ -866,31 +885,39 @@ export default function MyPageAttendance() {
                         <th>Student Name</th>
                         <th>Status</th>
                         <th>Check-in Time</th>
-                        <th>Action</th>
+                        <th style={{ textAlign: 'right' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRecords.length === 0 ? (
+                      {paginatedRecords.length === 0 ? (
                         <tr>
-                          <td colSpan="5" style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8' }}>
-                            No matching student records found.
+                          <td colSpan="5" style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                            <div style={{ display: 'inline-flex', width: '2.75rem', height: '2.75rem', borderRadius: '9999px', backgroundColor: '#f1f5f9', color: '#94a3b8', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                              <i className="fa-solid fa-users"></i>
+                            </div>
+                            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#334155' }}>
+                              No matching student records found
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.15rem' }}>
+                              Attendance check-ins for eligible students will appear here.
+                            </div>
                           </td>
                         </tr>
                       ) : (
-                        filteredRecords.map((r) => (
+                        paginatedRecords.map((r) => (
                           <tr key={r.id}>
                             <td>{r.student_id || 'N/A'}</td>
-                            <td>{r.student_name}</td>
+                            <td style={{ fontWeight: 600, color: '#0f172a' }}>{r.student_name}</td>
                             <td>
                               <span className={`status-badge ${r.status.toLowerCase()}`}>
                                 {r.status}
                               </span>
                             </td>
                             <td>{r.checkin_time ? new Date(r.checkin_time).toLocaleTimeString() : '—'}</td>
-                            <td>
+                            <td style={{ textAlign: 'right' }}>
                               <button
                                 className="btn-secondary-outline"
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem', borderRadius: '9999px' }}
                                 onClick={() => {
                                   setSelectedRecord(r);
                                   setCorrectionStatus(r.status);
@@ -906,8 +933,50 @@ export default function MyPageAttendance() {
                     </tbody>
                   </table>
                 </div>
+
+                {totalRecords > 0 && (
+                  <div style={{ padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontSize: '0.8rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>
+                      Showing <strong style={{ color: '#0f172a' }}>{startIdx + 1}</strong>–
+                      <strong style={{ color: '#0f172a' }}>{Math.min(startIdx + RECORDS_PAGE_SIZE, totalRecords)}</strong> of{' '}
+                      <strong style={{ color: '#0f172a' }}>{totalRecords}</strong>
+                    </span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <button
+                        type="button"
+                        disabled={safePage <= 1}
+                        onClick={() => setRecordsPage((p) => Math.max(1, p - 1))}
+                        style={{ padding: '0.32rem 0.65rem', borderRadius: '0.4rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: safePage <= 1 ? '#94a3b8' : '#334155', fontSize: '0.78rem', fontWeight: 600, cursor: safePage <= 1 ? 'not-allowed' : 'pointer' }}
+                      >
+                        Prev
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                        const isActive = pageNum === safePage;
+                        return (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            onClick={() => setRecordsPage(pageNum)}
+                            style={{ minWidth: '1.85rem', padding: '0.32rem 0.5rem', borderRadius: '0.4rem', border: isActive ? '1px solid #7B0D1E' : '1px solid #cbd5e1', backgroundColor: isActive ? '#7B0D1E' : '#ffffff', color: isActive ? '#ffffff' : '#334155', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        disabled={safePage >= totalPages}
+                        onClick={() => setRecordsPage((p) => Math.min(totalPages, p + 1))}
+                        style={{ padding: '0.32rem 0.65rem', borderRadius: '0.4rem', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: safePage >= totalPages ? '#94a3b8' : '#334155', fontSize: '0.78rem', fontWeight: 600, cursor: safePage >= totalPages ? 'not-allowed' : 'pointer' }}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+              );
+            })()}
 
             {activeTab === 'reports' && (
               <div style={{ background: '#ffffff', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>

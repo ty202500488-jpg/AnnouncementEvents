@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import StaffDashboardLayout from '../../assets/components/StaffDashboardLayout';
 import MyPageProfile from './MyPageDashboard/MyPageProfile';
 import { formatPostTimestamp } from '../../utils/dateUtils';
-import { EventPostMeta, EventPostActionBar, PostAudienceBadge, ExpandablePostText } from '../../assets/components/PortalShellElements';
+import { EventPostMeta, EventPostActionBar, EventViewRegistrationsButton, PostAudienceBadge, ExpandablePostText } from '../../assets/components/PortalShellElements';
 import EventRegistrationsManagerModal from '../../assets/components/EventRegistrationsManagerModal';
 import '../styles/StaffDashboard.css';
 import '../styles/MyPage.css';
@@ -569,8 +569,17 @@ export default function StaffMyPage() {
                         </div>
                       </div>
 
-                      {/* 3-Dots Dropdown Menu */}
-                      <div style={{ position: 'relative', flexShrink: 0 }} ref={isMenuOpen ? menuRef : null}>
+                      {/* Header Actions & 3-Dots Dropdown Menu */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                        {isEvent && post.requires_registration !== false && (
+                          <EventViewRegistrationsButton
+                            registeredCount={currentRegistered}
+                            capacity={post.max_capacity || post.capacity}
+                            pendingCount={post.pending_registration_count || 0}
+                            onViewRegistrations={() => setViewingRegistrationsEvent(post)}
+                          />
+                        )}
+                        <div style={{ position: 'relative', flexShrink: 0 }} ref={isMenuOpen ? menuRef : null}>
                         <button 
                           type="button" 
                           onClick={() => setActiveMenuId(isMenuOpen ? null : pId)}
@@ -607,6 +616,7 @@ export default function StaffMyPage() {
                             </button>
                           </div>
                         )}
+                        </div>
                       </div>
                     </div>
 
@@ -634,6 +644,7 @@ export default function StaffMyPage() {
                         pendingCount={post.pending_registration_count || 0}
                         isOwner={true}
                         onViewRegistrations={() => setViewingRegistrationsEvent(post)}
+                        hideViewRegistrations
                       />
                     )}
                   </article>

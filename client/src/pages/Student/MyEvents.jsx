@@ -5,6 +5,7 @@ import QRCheckInScanner from '../../assets/components/QRCheckInScanner';
 import {
   EventPostMeta,
   EventPostActionBar,
+  EventRegisterButton,
   PostOwnerActionMenu,
   ExpandablePostText,
   PostEditDeleteModals,
@@ -380,8 +381,8 @@ export default function MyEvents() {
                       </div>
                     </div>
 
-                    {item.is_owner && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                      {item.is_owner && (
                         <PostOwnerActionMenu
                           isOpen={activeMenuKey === (item.id || item.event_id)}
                           onToggle={() => {
@@ -394,8 +395,27 @@ export default function MyEvents() {
                             setActiveMenuKey(null);
                           }}
                         />
-                      </div>
-                    )}
+                      )}
+                      <EventRegisterButton
+                        isRegistered={Boolean(item.is_registered)}
+                        registrationStatus={item.registration_status || 'Registered'}
+                        requiresRegistration={item.requires_registration !== false}
+                        registeredCount={currentRegistered}
+                        capacity={item.max_capacity || item.capacity}
+                        userAttendanceStatus={item.user_attendance_status}
+                        onToggleRegister={
+                          isUpcoming
+                            ? () => {
+                                if (String(item.registration_status || '').toLowerCase() === 'rejected') {
+                                  setRegisteringModalEvent(item);
+                                } else {
+                                  handleCancelRegistration(item.id);
+                                }
+                              }
+                            : null
+                        }
+                      />
+                    </div>
                   </div>
 
                   {/* Post Content & Media */}
@@ -456,6 +476,7 @@ export default function MyEvents() {
                         ? () => setScannerEvent(item)
                         : null
                     }
+                    hideRegisterAction
                   />
                 </article>
               );

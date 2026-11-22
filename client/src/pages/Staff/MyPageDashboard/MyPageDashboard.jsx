@@ -6,6 +6,8 @@ import {
   PostPageAvatar,
   EventPostMeta,
   EventPostActionBar,
+  EventRegisterButton,
+  EventViewRegistrationsButton,
   PostAudienceBadge,
   EventRequirementsPicker,
   normalizeEventRequirements,
@@ -1170,7 +1172,15 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                    {isEvent && (isMyOwnPage || item.is_owner) && item.requires_registration !== false && (
+                      <EventViewRegistrationsButton
+                        registeredCount={currentRegistered}
+                        capacity={item.max_capacity || item.capacity}
+                        pendingCount={item.pending_registration_count || 0}
+                        onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                      />
+                    )}
                     {(isMyOwnPage || item.is_owner) && (
                       <div style={{ position: 'relative' }}>
                         <button
@@ -1264,27 +1274,17 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleHidePost(postKey, postId);
-                      }}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        padding: '0.35rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderRadius: '9999px'
-                      }}
-                      title="Hide this post"
-                    >
-                      <i className="fa-solid fa-xmark" style={{ fontSize: '1rem' }}></i>
-                    </button>
+                    {isEvent && !(isMyOwnPage || item.is_owner) && (
+                      <EventRegisterButton
+                        isRegistered={Boolean(item.is_registered)}
+                        registrationStatus={item.registration_status}
+                        requiresRegistration={item.requires_registration !== false}
+                        registeredCount={currentRegistered}
+                        capacity={item.max_capacity || item.capacity}
+                        isRegistering={registeringEventId === postId}
+                        onToggleRegister={() => handleEventRegister(item)}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -1331,6 +1331,8 @@ export default function MyPageDashboard({ onSwitchToStaffDashboard }) {
                     isRegistering={registeringEventId === postId}
                     onToggleRegister={!(isMyOwnPage || item.is_owner) ? () => handleEventRegister(item) : null}
                     onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                    hideRegisterAction
+                    hideViewRegistrations
                   />
                 )}
               </article>

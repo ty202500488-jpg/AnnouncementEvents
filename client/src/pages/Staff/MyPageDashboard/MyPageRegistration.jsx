@@ -226,64 +226,103 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
               </p>
             </div>
 
-            <button
-              type="button"
-              disabled={!selectedEventId || registrations.length === 0}
-              onClick={handleExportCSV}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                padding: '0.55rem 1rem',
-                borderRadius: '0.5rem',
-                border: 'none',
-                backgroundColor: '#881337',
-                color: '#ffffff',
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                opacity: selectedEventId && registrations.length > 0 ? 1 : 0.55,
-                cursor: selectedEventId && registrations.length > 0 ? 'pointer' : 'not-allowed'
-              }}
-            >
-              <i className="fa-solid fa-file-csv"></i>
-              <span>Export CSV</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  fetchSummary();
+                  fetchEvents();
+                  fetchRegistrations();
+                }}
+                disabled={loading}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.55rem 1rem',
+                  borderRadius: '9999px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#475569',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  cursor: loading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <i className={`fa-solid fa-rotate-right ${loading ? 'fa-spin' : ''}`}></i>
+                <span>Refresh</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={!selectedEventId || registrations.length === 0}
+                onClick={handleExportCSV}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.55rem 1.1rem',
+                  borderRadius: '9999px',
+                  border: 'none',
+                  backgroundColor: '#7B0D1E',
+                  color: '#ffffff',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  opacity: selectedEventId && registrations.length > 0 ? 1 : 0.5,
+                  cursor: selectedEventId && registrations.length > 0 ? 'pointer' : 'not-allowed',
+                  boxShadow: selectedEventId && registrations.length > 0 ? '0 2px 6px rgba(123, 13, 30, 0.2)' : 'none'
+                }}
+              >
+                <i className="fa-solid fa-file-csv"></i>
+                <span>Export CSV</span>
+              </button>
+            </div>
           </div>
 
           {/* SUMMARY STATS GRID */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              gap: '0.75rem',
-              marginTop: '1.25rem',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '0.85rem',
+              marginTop: '1.15rem',
               paddingTop: '1rem',
-              borderTop: '1px solid var(--slate-100)'
+              borderTop: '1px solid #f1f5f9'
             }}
           >
-            <div style={{ padding: '0.75rem', backgroundColor: 'var(--slate-50)', borderRadius: '0.5rem', border: '1px solid var(--slate-100)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 500 }}>Total Scope Registrations</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--slate-800)' }}>
-                {summary.total_registrations}
+            <div style={{ padding: '0.85rem 1rem', backgroundColor: '#f8fafc', borderRadius: '0.75rem', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <div>
+                <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>Total Registrations</div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#7B0D1E', marginTop: '0.15rem' }}>
+                  {summary.total_registrations}
+                </div>
               </div>
+              <span style={{ width: '2.5rem', height: '2.5rem', borderRadius: '0.75rem', backgroundColor: '#f3e4e7', color: '#7B0D1E', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>
+                <i className="fa-solid fa-users"></i>
+              </span>
             </div>
 
-            <div style={{ padding: '0.75rem', backgroundColor: 'var(--slate-50)', borderRadius: '0.5rem', border: '1px solid var(--slate-100)' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 500 }}>Events With Registrations</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--slate-800)' }}>
-                {summary.total_events_with_registrations}
+            <div style={{ padding: '0.85rem 1rem', backgroundColor: '#f8fafc', borderRadius: '0.75rem', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <div>
+                <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 600 }}>Events With Registrations</div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#7B0D1E', marginTop: '0.15rem' }}>
+                  {summary.total_events_with_registrations}
+                </div>
               </div>
+              <span style={{ width: '2.5rem', height: '2.5rem', borderRadius: '0.75rem', backgroundColor: '#f3e4e7', color: '#7B0D1E', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>
+                <i className="fa-solid fa-calendar-check"></i>
+              </span>
             </div>
           </div>
         </div>
 
         {/* SEARCH & FILTERS CARD */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', borderRadius: '1rem', padding: '1.25rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', borderRadius: '1rem', padding: '1.15rem 1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: '0.75rem' }}>
             
             {/* Event Selector */}
-            <div>
-              <label htmlFor="reg-event-select" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--slate-500)', display: 'block', marginBottom: '4px' }}>
+            <div style={{ minWidth: 0 }}>
+              <label htmlFor="reg-event-select" style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', display: 'block', marginBottom: '0.35rem' }}>
                 SELECT EVENT
               </label>
               <select
@@ -292,14 +331,17 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
                 onChange={(e) => { setSelectedEventId(e.target.value); setCurrentPage(1); }}
                 style={{
                   width: '100%',
+                  maxWidth: '100%',
                   padding: '0.55rem 0.75rem',
                   borderRadius: '0.5rem',
                   border: '1px solid #cbd5e1',
                   backgroundColor: '#ffffff',
                   color: '#0f172a',
-                  fontSize: '0.875rem',
+                  fontSize: '0.84rem',
+                  fontWeight: 500,
                   outline: 'none',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  textOverflow: 'ellipsis'
                 }}
               >
                 {events.length === 0 && <option value="">No events available</option>}
@@ -310,8 +352,8 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
             </div>
 
             {/* Status Filter */}
-            <div>
-              <label htmlFor="reg-status-select" style={{ fontSize: '11px', fontWeight: 700, color: 'var(--slate-500)', display: 'block', marginBottom: '4px' }}>
+            <div style={{ minWidth: 0 }}>
+              <label htmlFor="reg-status-select" style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', display: 'block', marginBottom: '0.35rem' }}>
                 REGISTRATION STATUS
               </label>
               <select
@@ -320,12 +362,14 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
                 onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
                 style={{
                   width: '100%',
+                  maxWidth: '100%',
                   padding: '0.55rem 0.75rem',
                   borderRadius: '0.5rem',
                   border: '1px solid #cbd5e1',
                   backgroundColor: '#ffffff',
                   color: '#0f172a',
-                  fontSize: '0.875rem',
+                  fontSize: '0.84rem',
+                  fontWeight: 500,
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
@@ -340,8 +384,8 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
           </div>
 
           {/* Search Field */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '0.5rem', backgroundColor: '#ffffff' }}>
-            <i className="fa-solid fa-magnifying-glass" style={{ color: '#64748b', fontSize: '0.875rem' }}></i>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.85rem', border: '1px solid #cbd5e1', borderRadius: '0.5rem', backgroundColor: '#f8fafc' }}>
+            <i className="fa-solid fa-magnifying-glass" style={{ color: '#94a3b8', fontSize: '0.825rem' }}></i>
             <input
               type="text"
               placeholder="Search by student name, ID, or email..."
@@ -353,7 +397,7 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
                 outline: 'none',
                 backgroundColor: 'transparent',
                 color: '#0f172a',
-                fontSize: '0.875rem',
+                fontSize: '0.84rem',
                 fontFamily: 'inherit'
               }}
             />
@@ -361,9 +405,9 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
         </div>
 
         {/* REGISTRATIONS TABLE CARD */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden', borderRadius: '1rem' }}>
           {error && (
-            <div style={{ padding: '1rem', color: 'var(--rose-600)', backgroundColor: 'var(--rose-50)', fontSize: '0.8125rem' }}>
+            <div style={{ padding: '0.85rem 1rem', color: '#be123c', backgroundColor: '#fff1f2', borderBottom: '1px solid #fecdd3', fontSize: '0.8125rem', fontWeight: 600 }}>
               {error}
             </div>
           )}
@@ -371,26 +415,35 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
               <thead>
-                <tr style={{ backgroundColor: 'var(--slate-50)', borderBottom: '1px solid var(--slate-200)', color: 'var(--slate-600)' }}>
-                  <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Student</th>
-                  <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Student ID</th>
-                  <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>College / Program</th>
-                  <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Registration Date</th>
-                  <th style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>Status</th>
-                  <th style={{ padding: '0.75rem 1rem', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                <tr style={{ backgroundColor: '#7B0D1E', color: '#ffffff' }}>
+                  <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Student</th>
+                  <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Student ID</th>
+                  <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>College / Program</th>
+                  <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Registered Date</th>
+                  <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Status</th>
+                  <th style={{ padding: '0.75rem 1rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--slate-400)' }}>
+                    <td colSpan="6" style={{ padding: '2.5rem 1rem', textAlign: 'center', color: '#64748b' }}>
+                      <i className="fa-solid fa-circle-notch fa-spin" style={{ color: '#7B0D1E', marginRight: '0.5rem' }}></i>
                       Loading registration records...
                     </td>
                   </tr>
                 ) : registrations.length === 0 ? (
                   <tr>
-                    <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--slate-400)' }}>
-                      No student registrations found for this selection.
+                    <td colSpan="6" style={{ padding: '2.75rem 1rem', textAlign: 'center' }}>
+                      <div style={{ display: 'inline-flex', width: '2.75rem', height: '2.75rem', borderRadius: '9999px', backgroundColor: '#f1f5f9', color: '#94a3b8', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', marginBottom: '0.6rem' }}>
+                        <i className="fa-solid fa-users"></i>
+                      </div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#334155' }}>
+                        No student registrations found
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.2rem' }}>
+                        Registered students for the selected event and filter will appear here.
+                      </div>
                     </td>
                   </tr>
                 ) : (
@@ -445,9 +498,23 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
                             type="button"
                             className="action-btn"
                             onClick={() => handleViewDetails(reg.id)}
-                            style={{ border: '1px solid var(--slate-200)', borderRadius: '0.375rem', padding: '0.25rem 0.625rem' }}
+                            title="View registration details"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              border: '1px solid #e2e8f0',
+                              backgroundColor: '#ffffff',
+                              color: '#334155',
+                              borderRadius: '9999px',
+                              padding: '0.3rem 0.75rem',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
                           >
-                            View Details
+                            <i className="fa-solid fa-eye"></i>
+                            <span>View</span>
                           </button>
                         </td>
                       </tr>
@@ -459,52 +526,96 @@ export default function MyPageRegistration({ onSwitchToStaffDashboard }) {
           </div>
 
           {/* PAGINATION */}
-          {paginationInfo.totalPages > 1 && (
-            <div
-              style={{
-                padding: '0.75rem 1rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderTop: '1px solid var(--slate-200)',
-                fontSize: '0.8125rem'
-              }}
-            >
-              <span style={{ color: 'var(--slate-500)' }}>
-                Page {paginationInfo.currentPage} of {paginationInfo.totalPages} ({paginationInfo.totalRecords} records)
-              </span>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  className="action-btn"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(p => p - 1)}
-                  style={{
-                    border: '1px solid var(--slate-200)',
-                    padding: '0.25rem 0.625rem',
-                    opacity: currentPage === 1 ? 0.5 : 1,
-                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  className="action-btn"
-                  disabled={currentPage === paginationInfo.totalPages}
-                  onClick={() => setCurrentPage(p => p + 1)}
-                  style={{
-                    border: '1px solid var(--slate-200)',
-                    padding: '0.25rem 0.625rem',
-                    opacity: currentPage === paginationInfo.totalPages ? 0.5 : 1,
-                    cursor: currentPage === paginationInfo.totalPages ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Next
-                </button>
+          {!loading && registrations.length > 0 && (() => {
+            const totalRecords = paginationInfo.totalRecords ?? registrations.length;
+            const totalPages = Math.max(1, paginationInfo.totalPages || 1);
+            const safePage = Math.min(currentPage, totalPages);
+            const startIdx = (safePage - 1) * 10 + 1;
+            const endIdx = Math.min(safePage * 10, totalRecords);
+
+            return (
+              <div
+                style={{
+                  padding: '0.75rem 1rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderTop: '1px solid #e2e8f0',
+                  backgroundColor: '#f8fafc',
+                  fontSize: '0.8rem',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <span style={{ color: '#64748b', fontWeight: 500 }}>
+                  Showing <strong style={{ color: '#0f172a' }}>{startIdx}</strong>–
+                  <strong style={{ color: '#0f172a' }}>{endIdx}</strong> of{' '}
+                  <strong style={{ color: '#0f172a' }}>{totalRecords}</strong>
+                </span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <button
+                    type="button"
+                    disabled={safePage <= 1}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    style={{
+                      padding: '0.32rem 0.65rem',
+                      borderRadius: '0.4rem',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: safePage <= 1 ? '#94a3b8' : '#334155',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: safePage <= 1 ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Prev
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                    const isActive = pageNum === safePage;
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        style={{
+                          minWidth: '1.85rem',
+                          padding: '0.32rem 0.5rem',
+                          borderRadius: '0.4rem',
+                          border: isActive ? '1px solid #7B0D1E' : '1px solid #cbd5e1',
+                          backgroundColor: isActive ? '#7B0D1E' : '#ffffff',
+                          color: isActive ? '#ffffff' : '#334155',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    style={{
+                      padding: '0.32rem 0.65rem',
+                      borderRadius: '0.4rem',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      color: safePage >= totalPages ? '#94a3b8' : '#334155',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: safePage >= totalPages ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* DETAILS MODAL */}

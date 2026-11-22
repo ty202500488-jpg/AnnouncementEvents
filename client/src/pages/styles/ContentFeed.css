@@ -1510,8 +1510,8 @@ Scoped strictly under .content-feed-container & .feed-*
   border-radius: 1.25rem;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
-  overflow: visible;
-  padding-bottom: 0.35rem;
+  overflow: hidden;
+  padding: 0 0 1rem 0;
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
@@ -1738,13 +1738,13 @@ Scoped strictly under .content-feed-container & .feed-*
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
   margin: 0;
 }
 
 .content-feed-container .csf-post-media img {
   width: 100%;
   height: auto;
-  max-height: 450px;
   object-fit: cover;
   display: block;
 }

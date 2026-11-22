@@ -24,6 +24,7 @@ const UserManagement = () => {
   // Data States
   const [users, setUsers] = useState([]);
   const [collegesList, setCollegesList] = useState([]);
+  const [programsList, setProgramsList] = useState([]);
   const [verificationQueue, setVerificationQueue] = useState([]);
   const [staffAssignments, setStaffAssignments] = useState([]);
   const [eligibleUsersList, setEligibleUsersList] = useState([]);
@@ -54,6 +55,20 @@ const UserManagement = () => {
   const [reviewReason, setReviewReason] = useState('');
   const [grantFormData, setGrantFormData] = useState({ userId: '', pageId: '', roleScope: 'page_editor' });
   const [editFormData, setEditFormData] = useState({ firstName: '', lastName: '', studentId: '', college: '', program: '' });
+  const [createFormData, setCreateFormData] = useState({
+    firstName: '',
+    middleInitial: '',
+    lastName: '',
+    email: '',
+    password: '',
+    role: 'Student',
+    accountStatus: 'Active',
+    studentNumber: '',
+    departmentId: '',
+    programId: '',
+    yearLevel: '1st Year'
+  });
+  const [createError, setCreateError] = useState('');
 
   // Debounce search query (300ms)
   useEffect(() => {
@@ -109,6 +124,9 @@ const UserManagement = () => {
       if (response.ok) {
         if (data.colleges) {
           setCollegesList(data.colleges);
+        }
+        if (data.programs) {
+          setProgramsList(data.programs);
         }
         if (data.summary) {
           setSummaryCounts({
@@ -297,6 +315,57 @@ const UserManagement = () => {
     }
   };
 
+  const handleOpenCreateUser = () => {
+    setCreateError('');
+    setCreateFormData({
+      firstName: '',
+      middleInitial: '',
+      lastName: '',
+      email: '',
+      password: '',
+      role: 'Student',
+      accountStatus: 'Active',
+      studentNumber: '',
+      departmentId: '',
+      programId: '',
+      yearLevel: '1st Year'
+    });
+    setActiveModal('create_user');
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setCreateError('');
+    setSubmitting(true);
+    const token = localStorage.getItem('token');
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify(createFormData)
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setCreateError(data.message || 'Failed to create user.');
+        return;
+      }
+
+      setFeedback({ type: 'success', message: data.message || 'User account created successfully.' });
+      setActiveModal(null);
+      fetchTabData();
+    } catch (err) {
+      console.error('Create User Error:', err);
+      setCreateError('Network error while creating user.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Activate / Suspend / Archive User Account
   const handleExecuteAccountStatusChange = async (reasonText) => {
     if (!selectedUser || !pendingAccountAction) return;
@@ -352,10 +421,18 @@ const UserManagement = () => {
           </div>
 
           <div className="um-header-actions">
+            <button
+              type="button"
+              className="btn-um-primary"
+              onClick={handleOpenCreateUser}
+            >
+              <i className="fa-solid fa-user-plus" aria-hidden="true"></i>
+              <span>Add User</span>
+            </button>
             {activeTab === 'staff' && (
               <button
                 type="button"
-                className="btn-um-primary"
+                className="btn-um-grant"
                 onClick={() => setActiveModal('grant_staff')}
               >
                 <i className="fa-solid fa-plus" aria-hidden="true"></i>
@@ -364,7 +441,7 @@ const UserManagement = () => {
             )}
             <button
               type="button"
-              className="btn-um-primary"
+              className="btn-um-secondary"
               onClick={fetchTabData}
               disabled={loading}
             >
@@ -920,7 +997,30 @@ const UserManagement = () => {
                             {s.page_name || 'No Page Assigned Yet'}
                           </span>
                         </td>
-                        <td><span className="scope-badge">{s.role_scope || 'Page Staff'}</span></td>
+                        <td>
+                          {(() => {
+                            const raw = String(s.role_scope || '').trim();
+                            const norm = raw.toLowerCase();
+                            let label = 'Page Staff';
+                            let variant = '';
+                            if (norm === 'admin') {
+                              label = 'Page Admin';
+                              variant = 'is-admin';
+                            } else if (norm === 'page_manager' || norm === 'manager') {
+                              label = 'Page Manager';
+                              variant = 'is-manager';
+                            } else if (norm === 'page_editor' || norm === 'editor') {
+                              label = 'Page Editor';
+                              variant = 'is-editor';
+                            } else if (norm.includes('unassigned')) {
+                              label = 'Unassigned';
+                              variant = 'is-unassigned';
+                            } else if (raw) {
+                              label = raw;
+                            }
+                            return <span className={`scope-badge ${variant}`}>{label}</span>;
+                          })()}
+                        </td>
                         <td className="text-slate-500">
                           {(() => {
                             const rawDate = s.granted_at || s.assigned_at || s.created_at;
@@ -1350,6 +1450,211 @@ const UserManagement = () => {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5. ADD / CREATE USER MODAL */}
+        {activeModal === 'create_user' && (
+          <div className="um-modal-backdrop" onClick={() => !submitting && setActiveModal(null)}>
+            <div className="um-modal-card" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Add New User</h2>
+                <button type="button" className="close-btn" onClick={() => !submitting && setActiveModal(null)}>
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateUser} className="modal-body">
+                {createError && (
+                  <div style={{ padding: '0.65rem 0.85rem', borderRadius: '0.5rem', backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+                    {createError}
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 76px minmax(0, 1fr)', gap: '0.75rem' }}>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label htmlFor="cu-first-name">First Name *</label>
+                    <input
+                      id="cu-first-name"
+                      type="text"
+                      required
+                      value={createFormData.firstName}
+                      onChange={(e) => setCreateFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                      placeholder="Juan"
+                      style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label htmlFor="cu-middle">M.I.</label>
+                    <input
+                      id="cu-middle"
+                      type="text"
+                      maxLength={5}
+                      value={createFormData.middleInitial}
+                      onChange={(e) => setCreateFormData(prev => ({ ...prev, middleInitial: e.target.value }))}
+                      placeholder="A."
+                      style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label htmlFor="cu-last-name">Last Name *</label>
+                    <input
+                      id="cu-last-name"
+                      type="text"
+                      required
+                      value={createFormData.lastName}
+                      onChange={(e) => setCreateFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                      placeholder="Dela Cruz"
+                      style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.75rem' }}>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label htmlFor="cu-email">Email Address *</label>
+                    <input
+                      id="cu-email"
+                      type="email"
+                      required
+                      value={createFormData.email}
+                      onChange={(e) => setCreateFormData(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="user@wmsu.edu.ph"
+                      style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label htmlFor="cu-password">Password * (min 8 chars)</label>
+                    <input
+                      id="cu-password"
+                      type="password"
+                      required
+                      minLength={8}
+                      value={createFormData.password}
+                      onChange={(e) => setCreateFormData(prev => ({ ...prev, password: e.target.value }))}
+                      placeholder="Enter password"
+                      style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.75rem' }}>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label htmlFor="cu-role">Role *</label>
+                    <select
+                      id="cu-role"
+                      className="um-select"
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                      value={createFormData.role}
+                      onChange={(e) => setCreateFormData(prev => ({ ...prev, role: e.target.value }))}
+                    >
+                      <option value="Student">Student</option>
+                      <option value="Staff">Staff</option>
+                      <option value="Admin">Admin</option>
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ minWidth: 0 }}>
+                    <label htmlFor="cu-status">Account Status</label>
+                    <select
+                      id="cu-status"
+                      className="um-select"
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                      value={createFormData.accountStatus}
+                      onChange={(e) => setCreateFormData(prev => ({ ...prev, accountStatus: e.target.value }))}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Suspended">Suspended</option>
+                    </select>
+                  </div>
+                </div>
+
+                {createFormData.role === 'Student' && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.75rem' }}>
+                      <div className="form-group" style={{ minWidth: 0 }}>
+                        <label htmlFor="cu-student-id">Student ID *</label>
+                        <input
+                          id="cu-student-id"
+                          type="text"
+                          required
+                          value={createFormData.studentNumber}
+                          onChange={(e) => setCreateFormData(prev => ({ ...prev, studentNumber: e.target.value }))}
+                          placeholder="2026-00001"
+                          style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '0.5rem', border: '1px solid #cbd5e1', fontSize: '0.875rem', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ minWidth: 0 }}>
+                        <label htmlFor="cu-year">Year Level *</label>
+                        <select
+                          id="cu-year"
+                          className="um-select"
+                          style={{ width: '100%', boxSizing: 'border-box' }}
+                          value={createFormData.yearLevel}
+                          onChange={(e) => setCreateFormData(prev => ({ ...prev, yearLevel: e.target.value }))}
+                        >
+                          <option value="1st Year">1st Year</option>
+                          <option value="2nd Year">2nd Year</option>
+                          <option value="3rd Year">3rd Year</option>
+                          <option value="4th Year">4th Year</option>
+                          <option value="5th Year">5th Year</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '0.75rem' }}>
+                      <div className="form-group" style={{ minWidth: 0 }}>
+                        <label htmlFor="cu-college">College / Department *</label>
+                        <select
+                          id="cu-college"
+                          className="um-select"
+                          style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
+                          required
+                          value={createFormData.departmentId}
+                          onChange={(e) => setCreateFormData(prev => ({ ...prev, departmentId: e.target.value, programId: '' }))}
+                        >
+                          <option value="">-- Select College --</option>
+                          {collegesList.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} {c.code ? `(${c.code})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group" style={{ minWidth: 0 }}>
+                        <label htmlFor="cu-program">Program (Optional)</label>
+                        <select
+                          id="cu-program"
+                          className="um-select"
+                          style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
+                          value={createFormData.programId}
+                          onChange={(e) => setCreateFormData(prev => ({ ...prev, programId: e.target.value }))}
+                          disabled={!createFormData.departmentId}
+                        >
+                          <option value="">-- Select Program --</option>
+                          {programsList
+                            .filter((p) => String(p.department_id) === String(createFormData.departmentId))
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '1rem', marginTop: '0.5rem', borderTop: '1px solid #e2e8f0' }}>
+                  <button type="button" className="btn-um-secondary" disabled={submitting} onClick={() => setActiveModal(null)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-um-primary" disabled={submitting}>
+                    {submitting ? 'Creating...' : 'Create User'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

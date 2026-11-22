@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
 import AdminPostCard, { resolveAdminMediaUrl } from '../../assets/components/AdminPostCard';
+import EventRegistrationsManagerModal from '../../assets/components/EventRegistrationsManagerModal';
 import ConfirmationModal from '../../assets/components/ConfirmationModal';
 import UniversityWideSpotlight from '../../assets/components/UniversityWideSpotlight';
 import SpotlightExpirationPicker from '../../assets/components/SpotlightExpirationPicker';
@@ -56,6 +57,7 @@ const ContentFeed = () => {
   const [modalPickerView, setModalPickerView] = useState(null); // null | 'postType' | 'category'
   const [activeModal, setActiveModal] = useState(null); // 'create_announcement', 'create_event', 'edit', 'preview', 'archive', 'takedown', 'restore', 'delete'
   const [selectedItem, setSelectedItem] = useState(null);
+  const [viewingRegistrationsEvent, setViewingRegistrationsEvent] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState(null);
   const [failedImages, setFailedImages] = useState({});
@@ -906,6 +908,7 @@ const ContentFeed = () => {
                         onToggleMenu={() => setActivePostMenuKey((prev) => (prev === postKey ? null : postKey))}
                         onCloseMenu={() => setActivePostMenuKey(null)}
                         onViewDetails={handleOpenPreview}
+                        onViewRegistrations={setViewingRegistrationsEvent}
                         onEdit={handleOpenEdit}
                         onArchive={(target) => handleOpenConfirm('archive', target)}
                         onTakeDown={(target) => handleOpenConfirm('takedown', target)}
@@ -1443,6 +1446,22 @@ const ContentFeed = () => {
           onConfirm={handleExecuteWorkflow}
           onCancel={handleCloseModal}
         />
+
+        {viewingRegistrationsEvent && (
+          <EventRegistrationsManagerModal
+            event={viewingRegistrationsEvent}
+            onClose={() => setViewingRegistrationsEvent(null)}
+            onUpdated={(eventId, counts) => {
+              setItems((prev) =>
+                prev.map((it) =>
+                  it.type === 'event' && it.id === eventId
+                    ? { ...it, ...counts }
+                    : it
+                )
+              );
+            }}
+          />
+        )}
 
       </div>
     </AdminLayout>

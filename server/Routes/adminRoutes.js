@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcrypt');
 const pool = require('../db');
 const { requireAdmin, logAudit } = require('../middleware/auth');
 const { isEmailConfigured, sendStudentVerificationDecisionEmail } = require('../utils/emailService');
@@ -1702,12 +1703,20 @@ router.get('/users', async (req, res) => {
         const limitNum = Math.max(1, parseInt(limit, 10) || 10);
         const offset = (pageNum - 1) * limitNum;
 
-        const collegesRes = await pool.query(
-            `SELECT department_id AS id, department_name AS name, department_code AS code
-             FROM departments
-             WHERE LOWER(status) = 'active'
-             ORDER BY department_name ASC`
-        );
+        const [collegesRes, programsRes] = await Promise.all([
+            pool.query(
+                `SELECT department_id AS id, department_name AS name, department_code AS code
+                 FROM departments
+                 WHERE LOWER(status) = 'active'
+                 ORDER BY department_name ASC`
+            ),
+            pool.query(
+                `SELECT program_id AS id, program_name AS name, department_id
+                 FROM programs
+                 WHERE LOWER(status) = 'active'
+                 ORDER BY program_name ASC`
+            )
+        ]);
 
         const [summaryRes, pendingVerifRes, staffCountRes] = await Promise.all([
             pool.query(
@@ -1999,6 +2008,7 @@ router.get('/users', async (req, res) => {
         return res.json({
             users: usersRes.rows,
             colleges: collegesRes.rows,
+            programs: programsRes.rows,
             summary,
             pagination: {
                 page: pageNum,
@@ -2208,6 +2218,152 @@ const handleUserAccountStatus = async (req, res) => {
 router.patch('/users/:id/status', handleUserAccountStatus);
 router.put('/users/:id/status', handleUserAccountStatus);
 router.post('/users/:id/status', handleUserAccountStatus);
+
+router.post('/users', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const {
+            firstName,
+            middleInitial = '',
+            lastName,
+            email,
+            password,
+            role = 'Student',
+            accountStatus = 'Active',
+            studentNumber = '',
+            departmentId = null,
+            programId = null,
+            yearLevel = '1st Year'
+        } = req.body || {};
+
+        const cleanFirst = String(firstName || '').trim();
+        const cleanMiddle = String(middleInitial || '').trim();
+        const cleanLast = String(lastName || '').trim();
+        const cleanEmail = String(email || '').trim().toLowerCase();
+        const cleanPassword = String(password || '');
+        const cleanRole = String(role || 'Student').trim();
+        const cleanStudentNumber = String(studentNumber || '').trim();
+
+        if (!cleanFirst || !cleanLast || !cleanEmail || !cleanPassword) {
+            return res.status(400).json({ message: 'First name, last name, email, and password are required.' });
+        }
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+            return res.status(400).json({ message: 'Please enter a valid email address.' });
+        }
+
+        if (cleanPassword.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long.' });
+        }
+
+        const roleRes = await client.query(
+            `SELECT role_id, role_name FROM roles WHERE LOWER(role_name) = LOWER($1) LIMIT 1`,
+            [cleanRole]
+        );
+        if (roleRes.rowCount === 0) {
+            return res.status(400).json({ message: 'Invalid role selected.' });
+        }
+        const roleRow = roleRes.rows[0];
+        const isStudent = roleRow.role_name.toLowerCase() === 'student';
+
+        const allowedStatuses = ['Active', 'Pending', 'Suspended'];
+        const normalizedStatus = allowedStatuses.find(
+            (s) => s.toLowerCase() === String(accountStatus || 'Active').trim().toLowerCase()
+        ) || 'Active';
+
+        if (isStudent) {
+            if (!cleanStudentNumber) {
+                return res.status(400).json({ message: 'Student number is required for Student accounts.' });
+            }
+            if (!departmentId || Number(departmentId) <= 0) {
+                return res.status(400).json({ message: 'College / Department is required for Student accounts.' });
+            }
+        }
+
+        await client.query('BEGIN');
+
+        const existingEmail = await client.query(
+            `SELECT user_id FROM users WHERE LOWER(email) = $1 LIMIT 1`,
+            [cleanEmail]
+        );
+        if (existingEmail.rowCount > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ message: 'An account with this email already exists.' });
+        }
+
+        if (isStudent && cleanStudentNumber) {
+            const existingStud = await client.query(
+                `SELECT user_id FROM student_profiles WHERE LOWER(student_number) = LOWER($1) LIMIT 1`,
+                [cleanStudentNumber]
+            );
+            if (existingStud.rowCount > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ message: 'A student with this Student ID already exists.' });
+            }
+        }
+
+        const passwordHash = await bcrypt.hash(cleanPassword, 12);
+
+        const userIns = await client.query(
+            `INSERT INTO users (role_id, first_name, middle_initial, last_name, email, password_hash, is_email_verified, account_status)
+             VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7)
+             RETURNING user_id, first_name, middle_initial, last_name, email, account_status, created_at`,
+            [
+                roleRow.role_id,
+                cleanFirst,
+                cleanMiddle || null,
+                cleanLast,
+                cleanEmail,
+                passwordHash,
+                normalizedStatus
+            ]
+        );
+        const newUser = userIns.rows[0];
+
+        if (isStudent) {
+            const allowedYears = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year'];
+            const validYear = allowedYears.includes(yearLevel) ? yearLevel : '1st Year';
+            await client.query(
+                `INSERT INTO student_profiles (user_id, student_number, department_id, program_id, year_level, verification_status, verified_by, verified_at)
+                 VALUES ($1, $2, $3, $4, $5, 'Verified', $6, NOW())`,
+                [
+                    newUser.user_id,
+                    cleanStudentNumber,
+                    Number(departmentId),
+                    programId && Number(programId) > 0 ? Number(programId) : null,
+                    validYear,
+                    req.user.user_id
+                ]
+            );
+        }
+
+        await client.query('COMMIT');
+
+        await logAudit(req, {
+            action: 'Created User Account',
+            module: 'users',
+            targetType: 'user',
+            targetId: newUser.user_id,
+            isSecurityEvent: true,
+            details: { email: cleanEmail, role: roleRow.role_name, accountStatus: normalizedStatus }
+        });
+
+        return res.status(201).json({
+            message: `${roleRow.role_name} account created successfully.`,
+            user: {
+                ...newUser,
+                id: newUser.user_id,
+                role: roleRow.role_name
+            }
+        });
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('Admin create user error:', error);
+        return res.status(500).json({ message: 'Failed to create user account.' });
+    } finally {
+        client.release();
+    }
+});
 
 router.post('/staff-access', async (req, res) => {
     const client = await pool.connect();

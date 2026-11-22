@@ -296,6 +296,26 @@ Scoped strictly under .user-management-container & .um-*
   color: #ffffff;
   box-shadow: 0 2px 8px rgba(5, 150, 105, 0.22);
 }
+.user-management-container .um-header-actions .btn-um-grant {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.1rem;
+  background-color: #fff1f2;
+  color: #7B0D1E;
+  border: 1.5px solid #7B0D1E;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-management-container .um-header-actions .btn-um-grant:hover:not(:disabled) {
+  background-color: #fde8ec;
+  border-color: #7B0D1E;
+  transform: translateY(-1px);
+}
 .user-management-container .btn-um-emerald:hover:not(:disabled) {
   background-color: #047857;
   border-color: #047857;
@@ -460,6 +480,43 @@ Scoped strictly under .user-management-container & .um-*
 .user-management-container .role-student { background-color: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
 .user-management-container .role-staff { background-color: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
 .user-management-container .role-admin { background-color: #fde8ec; color: #7B0D1E; border: 1px solid #f5c2cb; }
+
+.user-management-container .scope-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.user-management-container .scope-badge.is-admin {
+  background-color: #fde8ec;
+  color: #7B0D1E;
+  border-color: #f5c2cb;
+}
+
+.user-management-container .scope-badge.is-manager {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.user-management-container .scope-badge.is-editor {
+  background-color: #d1fae5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.user-management-container .scope-badge.is-unassigned {
+  background-color: #fef3c7;
+  color: #b45309;
+  border-color: #fde68a;
+}
 
 .user-management-container .status-pill {
   font-size: 0.7rem;

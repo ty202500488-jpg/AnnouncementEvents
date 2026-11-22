@@ -244,12 +244,12 @@ const PostApproval = () => {
           <div className="pa-header-actions">
             <button
               type="button"
-              className="btn-pa-primary"
+              className="btn-pa-secondary"
               onClick={fetchApprovalData}
               disabled={loading}
             >
               <i className={`fa-solid fa-rotate-right ${loading ? 'pa-spin-icon' : ''}`} aria-hidden="true"></i>
-              <span>Refresh Queue</span>
+              <span>Refresh</span>
             </button>
           </div>
         </div>

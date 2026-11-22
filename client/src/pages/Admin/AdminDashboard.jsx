@@ -606,7 +606,7 @@ const AdminDashboard = () => {
             label="Total Events"
             kpi={overviewData.kpis?.totalEvents}
             icon="fa-calendar-days"
-            tone="emerald"
+            tone="maroon"
             loading={overviewLoading}
             onClick={() => navigate('/admin/content-feed?tab=events')}
           />
@@ -615,7 +615,7 @@ const AdminDashboard = () => {
             label="Pending Approvals"
             kpi={overviewData.kpis?.pendingApprovals}
             icon="fa-clock"
-            tone="amber"
+            tone="maroon"
             loading={overviewLoading}
             onClick={() => navigate('/admin/post-approval?tab=pending')}
           />
@@ -624,7 +624,7 @@ const AdminDashboard = () => {
             label="Approved Pages"
             kpi={overviewData.kpis?.approvedPages}
             icon="fa-building-columns"
-            tone="blue"
+            tone="maroon"
             loading={overviewLoading}
             onClick={() => navigate('/admin/pages?tab=active')}
           />
@@ -648,7 +648,9 @@ const AdminDashboard = () => {
                 {displayedYear ? `SY ${displayedYear.start_year}–${displayedYear.end_year}` : 'Active SY'}
               </div>
             </div>
-            <i className="fa-solid fa-graduation-cap ov-mini-icon is-emerald" aria-hidden="true"></i>
+            <span className="ov-mini-icon-box is-emerald" aria-hidden="true">
+              <i className="fa-solid fa-graduation-cap"></i>
+            </span>
           </div>
 
           <div
@@ -660,11 +662,13 @@ const AdminDashboard = () => {
           >
             <div>
               <div className="ov-mini-label">Post Approvals</div>
-              <div className="ov-mini-val is-amber">
+              <div className="ov-mini-val is-maroon">
                 {overviewData.kpis?.pendingApprovals?.pendingPosts ?? 0} Pending
               </div>
             </div>
-            <i className="fa-solid fa-file-circle-check ov-mini-icon is-amber" aria-hidden="true"></i>
+            <span className="ov-mini-icon-box is-maroon" aria-hidden="true">
+              <i className="fa-solid fa-file-circle-check"></i>
+            </span>
           </div>
 
           <div
@@ -676,21 +680,25 @@ const AdminDashboard = () => {
           >
             <div>
               <div className="ov-mini-label">Page Requests</div>
-              <div className="ov-mini-val is-rose">
+              <div className="ov-mini-val is-maroon">
                 {overviewData.kpis?.pendingApprovals?.pendingPages ?? 0} Awaiting Review
               </div>
             </div>
-            <i className="fa-solid fa-building-columns ov-mini-icon is-rose" aria-hidden="true"></i>
+            <span className="ov-mini-icon-box is-maroon" aria-hidden="true">
+              <i className="fa-solid fa-building-columns"></i>
+            </span>
           </div>
 
           <div className="ov-status-mini-card is-static">
             <div>
               <div className="ov-mini-label">Approved Pages</div>
-              <div className="ov-mini-val is-emerald">
+              <div className="ov-mini-val is-maroon">
                 {overviewData.kpis?.approvedPages?.totalActivePages ?? 0} Active
               </div>
             </div>
-            <i className="fa-solid fa-circle-check ov-mini-icon is-emerald" aria-hidden="true"></i>
+            <span className="ov-mini-icon-box is-maroon" aria-hidden="true">
+              <i className="fa-solid fa-circle-check"></i>
+            </span>
           </div>
         </section>
 

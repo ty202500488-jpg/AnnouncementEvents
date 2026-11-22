@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../styles/PageView.css';
 import '../../styles/StudentDashboard.css';
-import { PortalNavbar, PortalToast, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, PostAudienceBadge, getInitials, ExpandablePostText } from '../../../assets/components/PortalShellElements';
+import { PortalNavbar, PortalToast, buildPortalProfileMenuItems, EventPostMeta, EventPostActionBar, EventViewRegistrationsButton, PostAudienceBadge, getInitials, ExpandablePostText } from '../../../assets/components/PortalShellElements';
 import EventRegistrationsManagerModal from '../../../assets/components/EventRegistrationsManagerModal';
 import PostComposerModal from '../../../assets/components/PostComposerModal';
 import { formatPostTimestamp } from '../../../utils/dateUtils';
@@ -769,6 +769,14 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                       </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'relative', flexShrink: 0 }}>
+                        {isEvent && item.requires_registration !== false && (
+                          <EventViewRegistrationsButton
+                            registeredCount={currentRegistered}
+                            capacity={item.max_capacity || item.capacity}
+                            pendingCount={item.pending_registration_count || 0}
+                            onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                          />
+                        )}
                         <button
                           type="button"
                           aria-label="Post options"
@@ -895,6 +903,7 @@ export default function MyPageProfile({ onSwitchToStaffDashboard, fromStaffDashb
                         pendingCount={item.pending_registration_count || 0}
                         isOwner={true}
                         onViewRegistrations={() => setViewingRegistrationsEvent(item)}
+                        hideViewRegistrations
                       />
                     )}
                   </article>
