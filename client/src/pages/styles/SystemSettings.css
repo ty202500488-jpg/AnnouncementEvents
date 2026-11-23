@@ -86,7 +86,7 @@
   gap: 1rem;
   margin-bottom: 1.5rem;
   padding-bottom: 1.25rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 2px solid #cbd5e1;
 }
 
 .system-settings-page .breadcrumbs {
@@ -201,50 +201,60 @@
   cursor: not-allowed;
 }
 
-/* Two-Column Dashboard Layout */
+/* Settings Body Layout */
 .system-settings-page .settings-body-layout {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 1.5rem;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
-/* Settings Navigation Sidebar */
+/* Settings Navigation Bar */
 .system-settings-page .settings-nav {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
-  padding: 0.75rem;
+  padding: 0.5rem 0.75rem;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .system-settings-page .mobile-category-select {
   display: none;
+  flex: 1;
 }
 
 .system-settings-page .desktop-category-list {
+  flex: 1;
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.system-settings-page .desktop-category-list li {
+  flex: 1;
 }
 
 .system-settings-page .nav-tab-btn {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  justify-content: center;
+  height: 40px;
+  padding: 0.5rem;
   border: none;
   background: transparent;
   color: #475569;
-  font-size: 0.875rem;
+  font-size: 1rem;
   font-weight: 600;
   border-radius: 0.5rem;
   cursor: pointer;
-  text-align: left;
   transition: all 0.15s ease;
 }
 
@@ -262,9 +272,9 @@
 .system-settings-page .nav-tab-btn.active {
   background-color: #fff5f5;
   color: #7B0D1E;
-  border-left: 3px solid #7B0D1E;
-  border-top-left-radius: 0;
+  border-bottom: 3px solid #7B0D1E;
   border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .system-settings-page .nav-tab-btn.active i {
@@ -272,22 +282,23 @@
 }
 
 .system-settings-page .reset-defaults-box {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid #f1f5f9;
-  text-align: center;
+  margin-left: auto;
+  padding-left: 0.75rem;
+  border-left: 2px solid #cbd5e1;
+  display: flex;
+  align-items: center;
 }
 
 .system-settings-page .btn-link-danger {
   background: none;
   border: none;
   color: #dc2626;
-  font-size: 0.8125rem;
+  font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  justify-content: center;
   padding: 0.5rem;
 }
 
@@ -383,7 +394,7 @@
 .system-settings-page .history-subsection {
   margin-top: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid #e2e8f0;
+  border-top: 2px solid #cbd5e1;
 }
 
 .system-settings-page .history-subsection h3 {
@@ -405,6 +416,10 @@
 .system-settings-page .table-responsive {
   width: 100%;
   overflow-x: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .system-settings-page .history-table {
@@ -416,16 +431,33 @@
 
 .system-settings-page .history-table th {
   background-color: #f8fafc;
-  color: #475569;
-  font-weight: 600;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.85rem 1rem;
+  border-bottom: 2px solid #cbd5e1;
+  white-space: nowrap;
 }
 
 .system-settings-page .history-table td {
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #cbd5e1;
   color: #334155;
+  vertical-align: middle;
+}
+
+.system-settings-page .history-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.system-settings-page .history-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.system-settings-page .history-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .system-settings-page .font-semibold {
@@ -652,10 +684,6 @@
 
 /* Responsive Breakpoints */
 @media (max-width: 900px) {
-  .system-settings-page .settings-body-layout {
-    grid-template-columns: 1fr;
-  }
-
   .system-settings-page .desktop-category-list {
     display: none;
   }
@@ -673,11 +701,6 @@
     border: 1px solid #cbd5e1;
     border-radius: 0.5rem;
     background-color: #ffffff;
-  }
-
-  .system-settings-page .reset-defaults-box {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
   }
 }
 
@@ -762,6 +785,12 @@
 .system-settings-page .sy-action-btn.view:hover {
   background: #f1f5f9;
   color: #0f172a;
+}
+
+.system-settings-page .taxonomy-block + .taxonomy-block {
+  margin-top: 2.25rem;
+  padding-top: 2.25rem;
+  border-top: 2px solid #cbd5e1;
 }
 
 .system-settings-page .taxonomy-block h3 {

@@ -67,8 +67,8 @@ const SystemSettings = () => {
   const [activeSchoolYear, setActiveSchoolYear] = useState(DEFAULT_ACADEMIC_YEAR);
   const [academicHistory, setAcademicHistory] = useState([]);
 
-  // School Year Form State (Create or Edit)
-  const [editingYearId, setEditingYearId] = useState(null);
+  // School Year Form State (Create)
+  const [createYearModalOpen, setCreateYearModalOpen] = useState(false);
   const [syForm, setSyForm] = useState({
     start_year: 2027,
     end_year: 2028,
@@ -77,6 +77,18 @@ const SystemSettings = () => {
     end_date: '2028-05-31',
     status: 'Upcoming',
     set_active: false,
+  });
+  const [editYearModal, setEditYearModal] = useState({
+    isOpen: false,
+    id: null,
+    start_year: 2027,
+    end_year: 2028,
+    semester: '1st Semester',
+    start_date: '',
+    end_date: '',
+    status: 'Upcoming',
+    saving: false,
+    errors: {},
   });
 
   // School Year Table Filters & Pagination
@@ -93,8 +105,16 @@ const SystemSettings = () => {
   // Categories & Colleges/Departments State (Part 16)
   const [categories, setCategories] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [catPage, setCatPage] = useState(1);
+  const [catPageSize, setCatPageSize] = useState(10);
+  const [deptPage, setDeptPage] = useState(1);
+  const [deptPageSize, setDeptPageSize] = useState(10);
   const [catForm, setCatForm] = useState({ id: null, name: '', description: '' });
   const [deptForm, setDeptForm] = useState({ id: null, code: '', name: '', status: 'Active' });
+  const [editCatModal, setEditCatModal] = useState({ isOpen: false, id: null, name: '', description: '', saving: false });
+  const [editDeptModal, setEditDeptModal] = useState({ isOpen: false, id: null, code: '', name: '', status: 'Active', saving: false });
+  const [createCatModalOpen, setCreateCatModalOpen] = useState(false);
+  const [createDeptModalOpen, setCreateDeptModalOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -314,7 +334,7 @@ const SystemSettings = () => {
     }
   };
 
-  // Submit School Year Create / Edit Form
+  // Submit School Year Create Form
   const handleSyFormSubmit = async (e) => {
     e.preventDefault();
     if (!validateSyForm()) {
@@ -323,7 +343,7 @@ const SystemSettings = () => {
     }
 
     // If user toggled "Activate immediately", open the School Year Switching Confirmation Modal first!
-    if (!editingYearId && syForm.set_active) {
+    if (syForm.set_active) {
       setTargetSwitchYear({
         isFromForm: true,
         start_year: syForm.start_year,
@@ -332,19 +352,15 @@ const SystemSettings = () => {
         start_date: syForm.start_date,
         end_date: syForm.end_date,
       });
+      setCreateYearModalOpen(false);
       setSwitchModalOpen(true);
       return;
     }
 
     setSaving(true);
     try {
-      const url = editingYearId
-        ? `/api/admin/academic-years/${editingYearId}`
-        : '/api/admin/academic-years';
-      const method = editingYearId ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
+      const res = await fetch('/api/admin/academic-years', {
+        method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
           start_year: Number(syForm.start_year),
@@ -364,7 +380,7 @@ const SystemSettings = () => {
       }
 
       showNotification('success', data.message || 'School year saved successfully.');
-      setEditingYearId(null);
+      setCreateYearModalOpen(false);
       await fetchSettings();
     } catch (err) {
       showNotification('error', err.message);
@@ -430,7 +446,6 @@ const SystemSettings = () => {
       showNotification('success', data.message || 'Active school year switched and previous school year archived.');
       setSwitchModalOpen(false);
       setTargetSwitchYear(null);
-      setEditingYearId(null);
       await fetchSettings();
     } catch (err) {
       showNotification('error', err.message || 'Failed to switch school year.');
@@ -439,19 +454,106 @@ const SystemSettings = () => {
     }
   };
 
-  // Populate form to Edit a School Year
+  // Open Edit School Year Modal
   const handleStartEditYear = (item) => {
-    setEditingYearId(item.id || item.academic_year_id);
-    setSyForm({
+    setEditYearModal({
+      isOpen: true,
+      id: item.id || item.academic_year_id,
       start_year: item.start_year,
       end_year: item.end_year,
       semester: item.semester || '1st Semester',
       start_date: item.start_date ? String(item.start_date).slice(0, 10) : `${item.start_year}-08-01`,
       end_date: item.end_date ? String(item.end_date).slice(0, 10) : `${item.end_year}-05-31`,
       status: item.status || (item.is_active ? 'Active' : 'Archived'),
-      set_active: false,
+      saving: false,
+      errors: {},
     });
-    setErrors({});
+  };
+
+  const handleEditYearFieldChange = (field, value) => {
+    setEditYearModal((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'start_year') {
+        const parsed = parseInt(value, 10);
+        if (!Number.isNaN(parsed)) {
+          next.end_year = parsed + 1;
+        }
+      }
+      if (prev.errors && prev.errors[field]) {
+        const updatedErrors = { ...prev.errors };
+        delete updatedErrors[field];
+        next.errors = updatedErrors;
+      }
+      return next;
+    });
+  };
+
+  const handleUpdateYearModal = async (e) => {
+    e.preventDefault();
+    const modalErrors = {};
+    const sYear = Number(editYearModal.start_year);
+    const eYear = Number(editYearModal.end_year);
+
+    if (!sYear || sYear < 2000 || sYear > 2100) {
+      modalErrors.start_year = 'Enter a valid start year (2000–2100).';
+    }
+    if (!eYear || eYear !== sYear + 1) {
+      modalErrors.end_year = 'End year must be Start Year + 1.';
+    }
+    if (!editYearModal.start_date) {
+      modalErrors.start_date = 'Start date is required.';
+    }
+    if (!editYearModal.end_date) {
+      modalErrors.end_date = 'End date is required.';
+    }
+    if (editYearModal.start_date && editYearModal.end_date && editYearModal.start_date >= editYearModal.end_date) {
+      modalErrors.end_date = 'End date must be after start date.';
+    }
+
+    if (Object.keys(modalErrors).length > 0) {
+      setEditYearModal((prev) => ({ ...prev, errors: modalErrors }));
+      showNotification('error', 'Please fix the school year validation errors.');
+      return;
+    }
+
+    setEditYearModal((prev) => ({ ...prev, saving: true }));
+    try {
+      const res = await fetch(`/api/admin/academic-years/${editYearModal.id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          start_year: sYear,
+          end_year: eYear,
+          semester: editYearModal.semester,
+          start_date: editYearModal.start_date,
+          end_date: editYearModal.end_date,
+          status: editYearModal.status,
+          is_active: false,
+          set_active: false,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update school year.');
+      }
+      showNotification('success', data.message || 'School year updated successfully.');
+      setEditYearModal({
+        isOpen: false,
+        id: null,
+        start_year: 2027,
+        end_year: 2028,
+        semester: '1st Semester',
+        start_date: '',
+        end_date: '',
+        status: 'Upcoming',
+        saving: false,
+        errors: {},
+      });
+      await fetchSettings();
+    } catch (err) {
+      showNotification('error', err.message);
+      setEditYearModal((prev) => ({ ...prev, saving: false }));
+    }
   };
 
   // Filtered & Paginated School Years
@@ -476,6 +578,20 @@ const SystemSettings = () => {
     return filteredHistory.slice(start, start + syPageSize);
   }, [filteredHistory, syPage, syPageSize]);
 
+  const catTotalPages = Math.max(1, Math.ceil(categories.length / catPageSize));
+  const safeCatPage = Math.min(catPage, catTotalPages);
+  const pagedCategories = useMemo(() => {
+    const start = (safeCatPage - 1) * catPageSize;
+    return categories.slice(start, start + catPageSize);
+  }, [categories, safeCatPage, catPageSize]);
+
+  const deptTotalPages = Math.max(1, Math.ceil(departments.length / deptPageSize));
+  const safeDeptPage = Math.min(deptPage, deptTotalPages);
+  const pagedDepartments = useMemo(() => {
+    const start = (safeDeptPage - 1) * deptPageSize;
+    return departments.slice(start, start + deptPageSize);
+  }, [departments, safeDeptPage, deptPageSize]);
+
   // Save Category
   const handleSaveCategory = async (e) => {
     e.preventDefault();
@@ -492,6 +608,7 @@ const SystemSettings = () => {
       if (!res.ok) throw new Error(data.message || 'Failed to save category.');
       showNotification('success', data.message || 'Category saved.');
       setCatForm({ id: null, name: '', description: '' });
+      setCreateCatModalOpen(false);
       fetchSettings();
     } catch (err) {
       showNotification('error', err.message);
@@ -518,16 +635,62 @@ const SystemSettings = () => {
       if (!res.ok) throw new Error(data.message || 'Failed to save college/department.');
       showNotification('success', data.message || 'College/Department saved.');
       setDeptForm({ id: null, code: '', name: '', status: 'Active' });
+      setCreateDeptModalOpen(false);
       fetchSettings();
     } catch (err) {
       showNotification('error', err.message);
     }
   };
 
-  const handleResetToSaved = () => {
-    setSettings(savedSettings);
-    setErrors({});
-    showNotification('success', 'Discarded unsaved changes.');
+  // Update Category from Modal
+  const handleUpdateCategoryModal = async (e) => {
+    e.preventDefault();
+    if (!editCatModal.name.trim() || !editCatModal.id) return;
+    setEditCatModal((prev) => ({ ...prev, saving: true }));
+    try {
+      const res = await fetch(`/api/admin/categories/${editCatModal.id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          name: editCatModal.name.trim(),
+          description: editCatModal.description.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to update category.');
+      showNotification('success', data.message || 'Category updated.');
+      setEditCatModal({ isOpen: false, id: null, name: '', description: '', saving: false });
+      fetchSettings();
+    } catch (err) {
+      showNotification('error', err.message);
+      setEditCatModal((prev) => ({ ...prev, saving: false }));
+    }
+  };
+
+  // Update Department/College from Modal
+  const handleUpdateDepartmentModal = async (e) => {
+    e.preventDefault();
+    if (!editDeptModal.code.trim() || !editDeptModal.name.trim() || !editDeptModal.id) return;
+    setEditDeptModal((prev) => ({ ...prev, saving: true }));
+    try {
+      const res = await fetch(`/api/admin/departments/${editDeptModal.id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          code: editDeptModal.code.trim().toUpperCase(),
+          name: editDeptModal.name.trim(),
+          status: editDeptModal.status,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to update college/department.');
+      showNotification('success', data.message || 'College/Department updated.');
+      setEditDeptModal({ isOpen: false, id: null, code: '', name: '', status: 'Active', saving: false });
+      fetchSettings();
+    } catch (err) {
+      showNotification('error', err.message);
+      setEditDeptModal((prev) => ({ ...prev, saving: false }));
+    }
   };
 
   const tabs = [
@@ -578,9 +741,6 @@ const SystemSettings = () => {
             <h1>
               System Settings {isDirty && <span className="unsaved-badge">Unsaved Changes</span>}
             </h1>
-            <p className="header-description">
-              Manage global operation parameters, School Year transitions & automatic data archiving, categories, colleges, moderation rules, and security policies.
-            </p>
             {metadata.updatedAt && (
               <div className="last-updated-meta">
                 <i className="fa-solid fa-clock-rotate-left"></i>
@@ -591,14 +751,6 @@ const SystemSettings = () => {
           </div>
 
           <div className="header-actions">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleResetToSaved}
-              disabled={!isDirty || saving}
-            >
-              <i className="fa-solid fa-rotate-left"></i> Discard
-            </button>
             <button
               type="button"
               className="btn btn-primary"
@@ -644,9 +796,10 @@ const SystemSettings = () => {
                     type="button"
                     className={`nav-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
                     onClick={() => setActiveTab(tab.id)}
+                    title={tab.label}
+                    aria-label={tab.label}
                   >
-                    <i className={tab.icon}></i>
-                    <span>{tab.label}</span>
+                    <i className={tab.icon} aria-hidden="true"></i>
                   </button>
                 </li>
               ))}
@@ -657,8 +810,10 @@ const SystemSettings = () => {
                 type="button"
                 className="btn-link-danger"
                 onClick={() => setShowResetConfirmModal(true)}
+                title="Reset All to Defaults"
+                aria-label="Reset All to Defaults"
               >
-                <i className="fa-solid fa-arrow-rotate-left"></i> Reset All to Defaults
+                <i className="fa-solid fa-arrow-rotate-left" aria-hidden="true"></i>
               </button>
             </div>
           </nav>
@@ -743,10 +898,24 @@ const SystemSettings = () => {
             {/* 2. SCHOOL YEAR MANAGEMENT & AUTO-ARCHIVING (PART 4) */}
             {activeTab === 'academic_year' && (
               <section className="settings-section">
-                <h2><i className="fa-solid fa-graduation-cap"></i> School Year Management & Automatic Archiving</h2>
-                <p className="section-desc">
-                  Manage academic school years and semesters. Switching the active school year automatically archives the previous active school year's announcements and completed events while preserving all registrations, attendance history, and ongoing cross-year events.
-                </p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                  <div>
+                    <h2 style={{ marginBottom: '0.25rem' }}><i className="fa-solid fa-graduation-cap"></i> School Year Management</h2>
+                    <p className="section-desc" style={{ marginBottom: 0 }}>
+                      Manage school years and semesters. Activating a new year automatically archives the previous one.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setErrors({});
+                      setCreateYearModalOpen(true);
+                    }}
+                  >
+                    <i className="fa-solid fa-plus"></i> Create New School Year
+                  </button>
+                </div>
 
                 {/* Active School Year Banner */}
                 <div className="current-period-banner">
@@ -763,148 +932,6 @@ const SystemSettings = () => {
                     <i className="fa-solid fa-circle"></i> Active School Year
                   </span>
                 </div>
-
-                {/* Create / Edit School Year Form */}
-                <form onSubmit={handleSyFormSubmit} className="sy-management-form-box">
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>
-                      {editingYearId ? (
-                        <><i className="fa-solid fa-pen-to-square" style={{ color: '#7b0d1e' }}></i> Edit School Year #{editingYearId}</>
-                      ) : (
-                        <><i className="fa-solid fa-plus-circle" style={{ color: '#7b0d1e' }}></i> Create New School Year</>
-                      )}
-                    </h3>
-                    {editingYearId && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.78rem' }}
-                        onClick={() => {
-                          setEditingYearId(null);
-                          setErrors({});
-                        }}
-                      >
-                        Cancel Edit
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group col-6">
-                      <label htmlFor="sy_start_year">Start Year <span className="required">*</span></label>
-                      <input
-                        type="number"
-                        id="sy_start_year"
-                        min="2000"
-                        max="2100"
-                        value={syForm.start_year}
-                        onChange={(e) => handleSyFormChange('start_year', e.target.value)}
-                        className={errors.start_year ? 'input-error' : ''}
-                      />
-                      {errors.start_year && <span className="error-text">{errors.start_year}</span>}
-                    </div>
-
-                    <div className="form-group col-6">
-                      <label htmlFor="sy_end_year">End Year (Start + 1) <span className="required">*</span></label>
-                      <input
-                        type="number"
-                        id="sy_end_year"
-                        value={syForm.end_year}
-                        onChange={(e) => handleSyFormChange('end_year', e.target.value)}
-                        className={errors.end_year ? 'input-error' : ''}
-                      />
-                      {errors.end_year && <span className="error-text">{errors.end_year}</span>}
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group col-6">
-                      <label htmlFor="sy_start_date">Start Date <span className="required">*</span></label>
-                      <input
-                        type="date"
-                        id="sy_start_date"
-                        value={syForm.start_date}
-                        onChange={(e) => handleSyFormChange('start_date', e.target.value)}
-                        className={errors.start_date ? 'input-error' : ''}
-                      />
-                      {errors.start_date && <span className="error-text">{errors.start_date}</span>}
-                    </div>
-
-                    <div className="form-group col-6">
-                      <label htmlFor="sy_end_date">End Date <span className="required">*</span></label>
-                      <input
-                        type="date"
-                        id="sy_end_date"
-                        value={syForm.end_date}
-                        onChange={(e) => handleSyFormChange('end_date', e.target.value)}
-                        className={errors.end_date ? 'input-error' : ''}
-                      />
-                      {errors.end_date && <span className="error-text">{errors.end_date}</span>}
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group col-6">
-                      <label htmlFor="sy_semester">Semester <span className="required">*</span></label>
-                      <select
-                        id="sy_semester"
-                        value={syForm.semester}
-                        onChange={(e) => handleSyFormChange('semester', e.target.value)}
-                      >
-                        <option value="1st Semester">1st Semester</option>
-                        <option value="2nd Semester">2nd Semester</option>
-                        <option value="Summer">Summer</option>
-                      </select>
-                    </div>
-
-                    <div className="form-group col-6">
-                      <label htmlFor="sy_status">Initial Status</label>
-                      <select
-                        id="sy_status"
-                        value={syForm.status}
-                        onChange={(e) => handleSyFormChange('status', e.target.value)}
-                        disabled={syForm.set_active}
-                      >
-                        <option value="Upcoming">Upcoming</option>
-                        <option value="Inactive">Inactive</option>
-                        <option value="Archived">Archived</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {!editingYearId && (
-                    <div className="form-group card-toggle-group" style={{ marginBottom: '1rem' }}>
-                      <div className="toggle-info">
-                        <label htmlFor="sy_set_active" className="toggle-label">
-                          Activate Immediately & Archive Current School Year ({activeSchoolYear.start_year}–{activeSchoolYear.end_year})
-                        </label>
-                        <p className="toggle-desc">
-                          When checked, saving will prompt confirmation and run a database transaction to switch the active school year and archive {activeSchoolYear.start_year}–{activeSchoolYear.end_year}.
-                        </p>
-                      </div>
-                      <label className="switch">
-                        <input
-                          type="checkbox"
-                          id="sy_set_active"
-                          checked={syForm.set_active}
-                          onChange={(e) => handleSyFormChange('set_active', e.target.checked)}
-                        />
-                        <span className="slider round"></span>
-                      </label>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      <i className={editingYearId ? 'fa-solid fa-check' : 'fa-solid fa-plus'}></i>{' '}
-                      {editingYearId
-                        ? 'Update School Year'
-                        : syForm.set_active
-                        ? 'Create & Activate School Year'
-                        : 'Create School Year'}
-                    </button>
-                  </div>
-                </form>
 
                 {/* School Years Directory & History Table */}
                 <div className="history-subsection">
@@ -1052,36 +1079,21 @@ const SystemSettings = () => {
 
                 {/* Announcement & Event Categories */}
                 <div className="taxonomy-block">
-                  <h3><i className="fa-solid fa-tags"></i> Announcement & Event Categories</h3>
-                  <form onSubmit={handleSaveCategory} className="taxonomy-inline-form">
-                    <input
-                      type="text"
-                      placeholder="Category Name (e.g., Scholarship)"
-                      value={catForm.name}
-                      onChange={(e) => setCatForm((p) => ({ ...p, name: e.target.value }))}
-                      required
-                    />
-                    <input
-                      type="text"
-                      placeholder="Description"
-                      value={catForm.description}
-                      onChange={(e) => setCatForm((p) => ({ ...p, description: e.target.value }))}
-                    />
-                    <button type="submit" className="btn btn-primary">
-                      {catForm.id ? 'Update Category' : 'Add Category'}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+                    <h3 style={{ margin: 0 }}><i className="fa-solid fa-tags"></i> Announcement & Event Categories</h3>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        setCatForm({ id: null, name: '', description: '' });
+                        setCreateCatModalOpen(true);
+                      }}
+                    >
+                      <i className="fa-solid fa-plus"></i> Add Category
                     </button>
-                    {catForm.id && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => setCatForm({ id: null, name: '', description: '' })}
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </form>
+                  </div>
 
-                  <div className="table-responsive" style={{ marginTop: '0.85rem' }}>
+                  <div className="table-responsive">
                     <table className="history-table">
                       <thead>
                         <tr>
@@ -1092,7 +1104,7 @@ const SystemSettings = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {categories.map((c) => (
+                        {pagedCategories.map((c) => (
                           <tr key={c.id}>
                             <td className="font-semibold">{c.name}</td>
                             <td>{c.description || '—'}</td>
@@ -1101,7 +1113,15 @@ const SystemSettings = () => {
                               <button
                                 type="button"
                                 className="sy-action-btn edit"
-                                onClick={() => setCatForm({ id: c.id, name: c.name, description: c.description || '' })}
+                                onClick={() =>
+                                  setEditCatModal({
+                                    isOpen: true,
+                                    id: c.id,
+                                    name: c.name,
+                                    description: c.description || '',
+                                    saving: false,
+                                  })
+                                }
                               >
                                 <i className="fa-solid fa-pen"></i> Edit
                               </button>
@@ -1111,50 +1131,34 @@ const SystemSettings = () => {
                       </tbody>
                     </table>
                   </div>
+
+                  <Pagination
+                    currentPage={safeCatPage}
+                    totalPages={catTotalPages}
+                    totalRecords={categories.length}
+                    pageSize={catPageSize}
+                    onPageChange={(p) => setCatPage(p)}
+                    itemLabel="categories"
+                  />
                 </div>
 
                 {/* Colleges & Departments */}
-                <div className="taxonomy-block" style={{ marginTop: '2rem' }}>
-                  <h3><i className="fa-solid fa-graduation-cap"></i> WMSU Colleges & Academic Departments</h3>
-                  <form onSubmit={handleSaveDepartment} className="taxonomy-inline-form">
-                    <input
-                      type="text"
-                      placeholder="Code (e.g., CCS)"
-                      value={deptForm.code}
-                      onChange={(e) => setDeptForm((p) => ({ ...p, code: e.target.value }))}
-                      style={{ maxWidth: '130px' }}
-                      required
-                    />
-                    <input
-                      type="text"
-                      placeholder="College / Department Full Name"
-                      value={deptForm.name}
-                      onChange={(e) => setDeptForm((p) => ({ ...p, name: e.target.value }))}
-                      required
-                    />
-                    <select
-                      value={deptForm.status}
-                      onChange={(e) => setDeptForm((p) => ({ ...p, status: e.target.value }))}
-                      style={{ maxWidth: '140px' }}
+                <div className="taxonomy-block">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.85rem' }}>
+                    <h3 style={{ margin: 0 }}><i className="fa-solid fa-graduation-cap"></i> WMSU Colleges & Academic Departments</h3>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        setDeptForm({ id: null, code: '', name: '', status: 'Active' });
+                        setCreateDeptModalOpen(true);
+                      }}
                     >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                    <button type="submit" className="btn btn-primary">
-                      {deptForm.id ? 'Update College' : 'Add College'}
+                      <i className="fa-solid fa-plus"></i> Add College
                     </button>
-                    {deptForm.id && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => setDeptForm({ id: null, code: '', name: '', status: 'Active' })}
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </form>
+                  </div>
 
-                  <div className="table-responsive" style={{ marginTop: '0.85rem' }}>
+                  <div className="table-responsive">
                     <table className="history-table">
                       <thead>
                         <tr>
@@ -1167,7 +1171,7 @@ const SystemSettings = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {departments.map((d) => (
+                        {pagedDepartments.map((d) => (
                           <tr key={d.id}>
                             <td className="font-semibold">{d.code}</td>
                             <td>{d.name}</td>
@@ -1182,7 +1186,16 @@ const SystemSettings = () => {
                               <button
                                 type="button"
                                 className="sy-action-btn edit"
-                                onClick={() => setDeptForm({ id: d.id, code: d.code, name: d.name, status: d.status || 'Active' })}
+                                onClick={() =>
+                                  setEditDeptModal({
+                                    isOpen: true,
+                                    id: d.id,
+                                    code: d.code,
+                                    name: d.name,
+                                    status: d.status || 'Active',
+                                    saving: false,
+                                  })
+                                }
                               >
                                 <i className="fa-solid fa-pen"></i> Edit
                               </button>
@@ -1192,6 +1205,15 @@ const SystemSettings = () => {
                       </tbody>
                     </table>
                   </div>
+
+                  <Pagination
+                    currentPage={safeDeptPage}
+                    totalPages={deptTotalPages}
+                    totalRecords={departments.length}
+                    pageSize={deptPageSize}
+                    onPageChange={(p) => setDeptPage(p)}
+                    itemLabel="colleges"
+                  />
                 </div>
               </section>
             )}
@@ -1554,6 +1576,646 @@ const SystemSettings = () => {
           }}
           onCancel={() => setShowResetConfirmModal(false)}
         />
+
+        {/* CREATE SCHOOL YEAR MODAL */}
+        {createYearModalOpen && (
+          <div
+            className="admin-global-modal-overlay"
+            onClick={() => {
+              if (!saving) {
+                setCreateYearModalOpen(false);
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-year-modal-title"
+          >
+            <div className="admin-global-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-global-modal-header variant-primary">
+                <div className="admin-global-modal-icon variant-primary">
+                  <i className="fa-solid fa-plus-circle"></i>
+                </div>
+                <div className="admin-global-modal-title-wrap">
+                  <h3 id="create-year-modal-title" className="admin-global-modal-title">
+                    Create New School Year
+                  </h3>
+                  <div className="admin-global-modal-record-badge">
+                    <span className="record-name">SY {syForm.start_year}–{syForm.end_year}</span>
+                    <span className="record-sub"> • {syForm.semester}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="admin-global-modal-close"
+                  onClick={() => setCreateYearModalOpen(false)}
+                  disabled={saving}
+                  aria-label="Close modal"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <form onSubmit={handleSyFormSubmit} className="admin-global-modal-body">
+                <div className="form-row">
+                  <div className="form-group col-6">
+                    <label htmlFor="sy_start_year">Start Year <span className="required">*</span></label>
+                    <input
+                      type="number"
+                      id="sy_start_year"
+                      min="2000"
+                      max="2100"
+                      value={syForm.start_year}
+                      onChange={(e) => handleSyFormChange('start_year', e.target.value)}
+                      className={errors.start_year ? 'input-error' : ''}
+                    />
+                    {errors.start_year && <span className="error-text">{errors.start_year}</span>}
+                  </div>
+
+                  <div className="form-group col-6">
+                    <label htmlFor="sy_end_year">End Year (Start + 1) <span className="required">*</span></label>
+                    <input
+                      type="number"
+                      id="sy_end_year"
+                      value={syForm.end_year}
+                      onChange={(e) => handleSyFormChange('end_year', e.target.value)}
+                      className={errors.end_year ? 'input-error' : ''}
+                    />
+                    {errors.end_year && <span className="error-text">{errors.end_year}</span>}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group col-6">
+                    <label htmlFor="sy_start_date">Start Date <span className="required">*</span></label>
+                    <input
+                      type="date"
+                      id="sy_start_date"
+                      value={syForm.start_date}
+                      onChange={(e) => handleSyFormChange('start_date', e.target.value)}
+                      className={errors.start_date ? 'input-error' : ''}
+                    />
+                    {errors.start_date && <span className="error-text">{errors.start_date}</span>}
+                  </div>
+
+                  <div className="form-group col-6">
+                    <label htmlFor="sy_end_date">End Date <span className="required">*</span></label>
+                    <input
+                      type="date"
+                      id="sy_end_date"
+                      value={syForm.end_date}
+                      onChange={(e) => handleSyFormChange('end_date', e.target.value)}
+                      className={errors.end_date ? 'input-error' : ''}
+                    />
+                    {errors.end_date && <span className="error-text">{errors.end_date}</span>}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group col-6">
+                    <label htmlFor="sy_semester">Semester <span className="required">*</span></label>
+                    <select
+                      id="sy_semester"
+                      value={syForm.semester}
+                      onChange={(e) => handleSyFormChange('semester', e.target.value)}
+                    >
+                      <option value="1st Semester">1st Semester</option>
+                      <option value="2nd Semester">2nd Semester</option>
+                      <option value="Summer">Summer</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group col-6">
+                    <label htmlFor="sy_status">Initial Status</label>
+                    <select
+                      id="sy_status"
+                      value={syForm.status}
+                      onChange={(e) => handleSyFormChange('status', e.target.value)}
+                      disabled={syForm.set_active}
+                    >
+                      <option value="Upcoming">Upcoming</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Archived">Archived</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group card-toggle-group">
+                  <div className="toggle-info">
+                    <label htmlFor="sy_set_active" className="toggle-label">
+                      Activate Immediately & Archive Current School Year ({activeSchoolYear.start_year}–{activeSchoolYear.end_year})
+                    </label>
+                    <p className="toggle-desc">
+                      When checked, saving will prompt confirmation and run a database transaction to switch the active school year and archive {activeSchoolYear.start_year}–{activeSchoolYear.end_year}.
+                    </p>
+                  </div>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      id="sy_set_active"
+                      checked={syForm.set_active}
+                      onChange={(e) => handleSyFormChange('set_active', e.target.checked)}
+                    />
+                    <span className="slider round"></span>
+                  </label>
+                </div>
+
+                <div className="admin-global-modal-footer">
+                  <button
+                    type="button"
+                    className="admin-global-btn cancel"
+                    onClick={() => setCreateYearModalOpen(false)}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="admin-global-btn confirm variant-primary" disabled={saving}>
+                    {saving ? (
+                      <>
+                        <i className="fa-solid fa-spinner fa-spin"></i> Creating...
+                      </>
+                    ) : syForm.set_active ? (
+                      'Create & Activate School Year'
+                    ) : (
+                      'Create School Year'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT SCHOOL YEAR MODAL */}
+        {editYearModal.isOpen && (
+          <div
+            className="admin-global-modal-overlay"
+            onClick={() => {
+              if (!editYearModal.saving) {
+                setEditYearModal((prev) => ({ ...prev, isOpen: false }));
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-year-modal-title"
+          >
+            <div className="admin-global-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-global-modal-header variant-primary">
+                <div className="admin-global-modal-icon variant-primary">
+                  <i className="fa-solid fa-calendar-days"></i>
+                </div>
+                <div className="admin-global-modal-title-wrap">
+                  <h3 id="edit-year-modal-title" className="admin-global-modal-title">
+                    Edit School Year
+                  </h3>
+                  <div className="admin-global-modal-record-badge">
+                    <span className="record-name">SY {editYearModal.start_year}–{editYearModal.end_year}</span>
+                    <span className="record-sub"> • {editYearModal.semester}</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="admin-global-modal-close"
+                  onClick={() => setEditYearModal((prev) => ({ ...prev, isOpen: false }))}
+                  disabled={editYearModal.saving}
+                  aria-label="Close modal"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <form onSubmit={handleUpdateYearModal} className="admin-global-modal-body">
+                <div className="form-row">
+                  <div className="form-group col-6">
+                    <label htmlFor="modal_sy_start_year">Start Year <span className="required">*</span></label>
+                    <input
+                      id="modal_sy_start_year"
+                      type="number"
+                      min="2000"
+                      max="2100"
+                      value={editYearModal.start_year}
+                      onChange={(e) => handleEditYearFieldChange('start_year', e.target.value)}
+                      className={editYearModal.errors?.start_year ? 'input-error' : ''}
+                    />
+                    {editYearModal.errors?.start_year && <span className="error-text">{editYearModal.errors.start_year}</span>}
+                  </div>
+                  <div className="form-group col-6">
+                    <label htmlFor="modal_sy_end_year">End Year <span className="required">*</span></label>
+                    <input
+                      id="modal_sy_end_year"
+                      type="number"
+                      value={editYearModal.end_year}
+                      onChange={(e) => handleEditYearFieldChange('end_year', e.target.value)}
+                      className={editYearModal.errors?.end_year ? 'input-error' : ''}
+                    />
+                    {editYearModal.errors?.end_year && <span className="error-text">{editYearModal.errors.end_year}</span>}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group col-6">
+                    <label htmlFor="modal_sy_start_date">Start Date <span className="required">*</span></label>
+                    <input
+                      id="modal_sy_start_date"
+                      type="date"
+                      value={editYearModal.start_date}
+                      onChange={(e) => handleEditYearFieldChange('start_date', e.target.value)}
+                      className={editYearModal.errors?.start_date ? 'input-error' : ''}
+                    />
+                    {editYearModal.errors?.start_date && <span className="error-text">{editYearModal.errors.start_date}</span>}
+                  </div>
+                  <div className="form-group col-6">
+                    <label htmlFor="modal_sy_end_date">End Date <span className="required">*</span></label>
+                    <input
+                      id="modal_sy_end_date"
+                      type="date"
+                      value={editYearModal.end_date}
+                      onChange={(e) => handleEditYearFieldChange('end_date', e.target.value)}
+                      className={editYearModal.errors?.end_date ? 'input-error' : ''}
+                    />
+                    {editYearModal.errors?.end_date && <span className="error-text">{editYearModal.errors.end_date}</span>}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group col-6">
+                    <label htmlFor="modal_sy_semester">Semester <span className="required">*</span></label>
+                    <select
+                      id="modal_sy_semester"
+                      value={editYearModal.semester}
+                      onChange={(e) => handleEditYearFieldChange('semester', e.target.value)}
+                    >
+                      <option value="1st Semester">1st Semester</option>
+                      <option value="2nd Semester">2nd Semester</option>
+                      <option value="Summer">Summer</option>
+                    </select>
+                  </div>
+                  <div className="form-group col-6">
+                    <label htmlFor="modal_sy_status">Status</label>
+                    <select
+                      id="modal_sy_status"
+                      value={editYearModal.status}
+                      onChange={(e) => handleEditYearFieldChange('status', e.target.value)}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Upcoming">Upcoming</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Archived">Archived</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="admin-global-modal-footer">
+                  <button
+                    type="button"
+                    className="admin-global-btn cancel"
+                    onClick={() => setEditYearModal((prev) => ({ ...prev, isOpen: false }))}
+                    disabled={editYearModal.saving}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="admin-global-btn confirm variant-primary" disabled={editYearModal.saving}>
+                    {editYearModal.saving ? (
+                      <>
+                        <i className="fa-solid fa-spinner fa-spin"></i> Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ADD CATEGORY MODAL */}
+        {createCatModalOpen && (
+          <div
+            className="admin-global-modal-overlay"
+            onClick={() => setCreateCatModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-cat-modal-title"
+          >
+            <div className="admin-global-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-global-modal-header variant-primary">
+                <div className="admin-global-modal-icon variant-primary">
+                  <i className="fa-solid fa-tags"></i>
+                </div>
+                <div className="admin-global-modal-title-wrap">
+                  <h3 id="create-cat-modal-title" className="admin-global-modal-title">
+                    Add Category
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="admin-global-modal-close"
+                  onClick={() => setCreateCatModalOpen(false)}
+                  aria-label="Close modal"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <form onSubmit={handleSaveCategory} className="admin-global-modal-body">
+                <div className="form-group">
+                  <label htmlFor="create_cat_name">Category Name <span className="required">*</span></label>
+                  <input
+                    id="create_cat_name"
+                    type="text"
+                    placeholder="Category Name (e.g., Scholarship)"
+                    value={catForm.name}
+                    onChange={(e) => setCatForm((p) => ({ ...p, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="create_cat_desc">Description</label>
+                  <input
+                    id="create_cat_desc"
+                    type="text"
+                    placeholder="Description"
+                    value={catForm.description}
+                    onChange={(e) => setCatForm((p) => ({ ...p, description: e.target.value }))}
+                  />
+                </div>
+                <div className="admin-global-modal-footer">
+                  <button
+                    type="button"
+                    className="admin-global-btn cancel"
+                    onClick={() => setCreateCatModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="admin-global-btn confirm variant-primary">
+                    Add Category
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ADD COLLEGE / DEPARTMENT MODAL */}
+        {createDeptModalOpen && (
+          <div
+            className="admin-global-modal-overlay"
+            onClick={() => setCreateDeptModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-dept-modal-title"
+          >
+            <div className="admin-global-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-global-modal-header variant-primary">
+                <div className="admin-global-modal-icon variant-primary">
+                  <i className="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div className="admin-global-modal-title-wrap">
+                  <h3 id="create-dept-modal-title" className="admin-global-modal-title">
+                    Add College / Department
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="admin-global-modal-close"
+                  onClick={() => setCreateDeptModalOpen(false)}
+                  aria-label="Close modal"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <form onSubmit={handleSaveDepartment} className="admin-global-modal-body">
+                <div className="form-row">
+                  <div className="form-group col-6">
+                    <label htmlFor="create_dept_code">Code <span className="required">*</span></label>
+                    <input
+                      id="create_dept_code"
+                      type="text"
+                      placeholder="Code (e.g., CCS)"
+                      value={deptForm.code}
+                      onChange={(e) => setDeptForm((p) => ({ ...p, code: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="form-group col-6">
+                    <label htmlFor="create_dept_status">Status</label>
+                    <select
+                      id="create_dept_status"
+                      value={deptForm.status}
+                      onChange={(e) => setDeptForm((p) => ({ ...p, status: e.target.value }))}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="create_dept_name">College / Department Full Name <span className="required">*</span></label>
+                  <input
+                    id="create_dept_name"
+                    type="text"
+                    placeholder="College / Department Full Name"
+                    value={deptForm.name}
+                    onChange={(e) => setDeptForm((p) => ({ ...p, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div className="admin-global-modal-footer">
+                  <button
+                    type="button"
+                    className="admin-global-btn cancel"
+                    onClick={() => setCreateDeptModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="admin-global-btn confirm variant-primary">
+                    Add College
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT CATEGORY MODAL */}
+        {editCatModal.isOpen && (
+          <div
+            className="admin-global-modal-overlay"
+            onClick={() => {
+              if (!editCatModal.saving) {
+                setEditCatModal({ isOpen: false, id: null, name: '', description: '', saving: false });
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-cat-modal-title"
+          >
+            <div className="admin-global-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-global-modal-header variant-primary">
+                <div className="admin-global-modal-icon variant-primary">
+                  <i className="fa-solid fa-tags"></i>
+                </div>
+                <div className="admin-global-modal-title-wrap">
+                  <h3 id="edit-cat-modal-title" className="admin-global-modal-title">
+                    Edit Category
+                  </h3>
+                  {editCatModal.name && (
+                    <div className="admin-global-modal-record-badge">
+                      <span className="record-name">{editCatModal.name}</span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="admin-global-modal-close"
+                  onClick={() => setEditCatModal({ isOpen: false, id: null, name: '', description: '', saving: false })}
+                  disabled={editCatModal.saving}
+                  aria-label="Close modal"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <form onSubmit={handleUpdateCategoryModal} className="admin-global-modal-body">
+                <div className="form-group">
+                  <label htmlFor="modal_cat_name">Category Name <span className="required">*</span></label>
+                  <input
+                    id="modal_cat_name"
+                    type="text"
+                    value={editCatModal.name}
+                    onChange={(e) => setEditCatModal((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="Category Name"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="modal_cat_desc">Description</label>
+                  <input
+                    id="modal_cat_desc"
+                    type="text"
+                    value={editCatModal.description}
+                    onChange={(e) => setEditCatModal((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="Description"
+                  />
+                </div>
+                <div className="admin-global-modal-footer">
+                  <button
+                    type="button"
+                    className="admin-global-btn cancel"
+                    onClick={() => setEditCatModal({ isOpen: false, id: null, name: '', description: '', saving: false })}
+                    disabled={editCatModal.saving}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="admin-global-btn confirm variant-primary" disabled={editCatModal.saving}>
+                    {editCatModal.saving ? (
+                      <>
+                        <i className="fa-solid fa-spinner fa-spin"></i> Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT COLLEGE / DEPARTMENT MODAL */}
+        {editDeptModal.isOpen && (
+          <div
+            className="admin-global-modal-overlay"
+            onClick={() => {
+              if (!editDeptModal.saving) {
+                setEditDeptModal({ isOpen: false, id: null, code: '', name: '', status: 'Active', saving: false });
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-dept-modal-title"
+          >
+            <div className="admin-global-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-global-modal-header variant-primary">
+                <div className="admin-global-modal-icon variant-primary">
+                  <i className="fa-solid fa-graduation-cap"></i>
+                </div>
+                <div className="admin-global-modal-title-wrap">
+                  <h3 id="edit-dept-modal-title" className="admin-global-modal-title">
+                    Edit College / Department
+                  </h3>
+                  {editDeptModal.code && (
+                    <div className="admin-global-modal-record-badge">
+                      <span className="record-name">{editDeptModal.code}</span>
+                      {editDeptModal.name && <span className="record-sub"> • {editDeptModal.name}</span>}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="admin-global-modal-close"
+                  onClick={() => setEditDeptModal({ isOpen: false, id: null, code: '', name: '', status: 'Active', saving: false })}
+                  disabled={editDeptModal.saving}
+                  aria-label="Close modal"
+                >
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <form onSubmit={handleUpdateDepartmentModal} className="admin-global-modal-body">
+                <div className="form-row">
+                  <div className="form-group col-6">
+                    <label htmlFor="modal_dept_code">Code <span className="required">*</span></label>
+                    <input
+                      id="modal_dept_code"
+                      type="text"
+                      value={editDeptModal.code}
+                      onChange={(e) => setEditDeptModal((p) => ({ ...p, code: e.target.value }))}
+                      placeholder="e.g., CCS"
+                      required
+                    />
+                  </div>
+                  <div className="form-group col-6">
+                    <label htmlFor="modal_dept_status">Status</label>
+                    <select
+                      id="modal_dept_status"
+                      value={editDeptModal.status}
+                      onChange={(e) => setEditDeptModal((p) => ({ ...p, status: e.target.value }))}
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="modal_dept_name">College / Department Name <span className="required">*</span></label>
+                  <input
+                    id="modal_dept_name"
+                    type="text"
+                    value={editDeptModal.name}
+                    onChange={(e) => setEditDeptModal((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="Full Name"
+                    required
+                  />
+                </div>
+                <div className="admin-global-modal-footer">
+                  <button
+                    type="button"
+                    className="admin-global-btn cancel"
+                    onClick={() => setEditDeptModal({ isOpen: false, id: null, code: '', name: '', status: 'Active', saving: false })}
+                    disabled={editDeptModal.saving}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="admin-global-btn confirm variant-primary" disabled={editDeptModal.saving}>
+                    {editDeptModal.saving ? (
+                      <>
+                        <i className="fa-solid fa-spinner fa-spin"></i> Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
