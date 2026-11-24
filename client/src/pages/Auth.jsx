@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import InteractiveCrimsonBg from '../assets/components/InteractiveCrimsonBg';
 import { useInteractiveCrimsonBg } from '../utils/useInteractiveCrimsonBg';
 import '../pages/styles/Auth.css';
+import revealStyles from '../styles/DashboardReveal.module.css';
 
 const collegeDepartments = {
   'College of Law (LAW)': 1,
@@ -178,6 +179,15 @@ export default function Auth() {
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(600);
   const otpInputRefs = useRef([]);
+  const [loginPhase, setLoginPhase] = useState('idle'); // 'idle' | 'loading' | 'exiting'
+  const revealTimersRef = useRef([]);
+
+  useEffect(() => {
+    return () => {
+      revealTimersRef.current.forEach((id) => clearTimeout(id));
+      revealTimersRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     if (regStep !== 'awaiting_confirmation' || otpSecondsLeft <= 0) return;
@@ -574,7 +584,11 @@ export default function Auth() {
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
+    if (loginPhase !== 'idle') return;
     setInlineNotice(null);
+    setLoginPhase('loading');
+    const submitStart = performance.now();
+
     try {
       const response = await fetch('http://localhost:5000/api/users/login', {
         method: 'POST',
@@ -594,15 +608,33 @@ export default function Auth() {
           3
         );
 
-        // Direct navigation without confirmation modal
+        let targetPath = '/student/dashboard';
         if (roleName === 'admin' || role === 1) {
-          navigate('/admin/dashboard');
+          targetPath = '/admin/dashboard';
         } else if (roleName === 'staff' || role === 2) {
-          navigate('/staff/dashboard');
-        } else {
-          navigate('/student/dashboard');
+          targetPath = '/staff/dashboard';
         }
+
+        const prefersReducedMotion =
+          typeof window !== 'undefined' &&
+          window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+        if (prefersReducedMotion) {
+          navigate(targetPath, { state: { dashboardReveal: true } });
+          return;
+        }
+
+        const remainingLoadingMs = Math.max(0, 300 - (performance.now() - submitStart));
+        const loadingTimer = setTimeout(() => {
+          setLoginPhase('exiting');
+          const handoffTimer = setTimeout(() => {
+            navigate(targetPath, { state: { dashboardReveal: true } });
+          }, 280);
+          revealTimersRef.current.push(handoffTimer);
+        }, remainingLoadingMs);
+        revealTimersRef.current.push(loadingTimer);
       } else if (response.status === 403 && data.requiresEmailConfirmation) {
+        setLoginPhase('idle');
         const targetEmail = data.email || loginData.email.trim().toLowerCase();
         setRegData((prev) => ({ ...prev, email: targetEmail }));
         setActiveTab('register');
@@ -613,6 +645,7 @@ export default function Auth() {
           'warning'
         );
       } else if (response.status === 403 && data.requiresAdminVerification) {
+        setLoginPhase('idle');
         if (data.verificationState === 'correction' && data.resubmitToken) {
           stopCameraStream();
           setResubmitModal({
@@ -637,9 +670,11 @@ export default function Auth() {
           );
         }
       } else {
+        setLoginPhase('idle');
         showAlert('Authentication Failed', data.message || 'Incorrect email or password. Please try again.', 'error');
       }
     } catch (err) {
+      setLoginPhase('idle');
       console.error('Backend connection error:', err);
       showAlert('Connection Error', 'Could not connect to the backend server. Make sure localhost:5000 is running.', 'error');
     }
@@ -920,9 +955,9 @@ export default function Auth() {
       <InteractiveCrimsonBg ripples={ripples} />
       <main className="login-wrapper">
         <div className={`login-card-wrapper ${activeTab === 'register' ? 'wide-mode' : ''}`}>
-          <div className="card-glow-bg"></div>
+          <div className={`card-glow-bg ${loginPhase === 'exiting' ? revealStyles.cardGlowExit : ''}`}></div>
 
-          <div className="login-card">
+          <div className={`login-card ${loginPhase === 'exiting' ? revealStyles.loginCardExit : ''}`}>
             <div className={`login-header ${activeTab === 'register' && regStep === 'awaiting_confirmation' ? 'is-otp-step' : ''}`}>
               <h2 className="shimmer-glow-text">
                 {activeTab === 'login' ? 'Welcome Back' : 'Create Account'}
@@ -1045,7 +1080,21 @@ export default function Auth() {
                 </div>
               </div>
 
-              <button type="submit" className="btn-auth-submit btn-block">Sign In</button>
+              <button
+                type="submit"
+                className={`btn-auth-submit btn-block ${loginPhase !== 'idle' ? revealStyles.submitBtnLoading : ''}`}
+                disabled={loginPhase !== 'idle'}
+                aria-busy={loginPhase !== 'idle'}
+              >
+                {loginPhase !== 'idle' ? (
+                  <span className={revealStyles.submitBtnContent}>
+                    <span className={revealStyles.submitSpinner} aria-hidden="true" />
+                    <span>Signing in...</span>
+                  </span>
+                ) : (
+                  'Sign In'
+                )}
+              </button>
             </form>
 
             {/* Register Form */}

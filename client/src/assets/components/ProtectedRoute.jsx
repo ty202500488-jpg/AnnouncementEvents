@@ -33,10 +33,23 @@ export async function performSecureLogout() {
 
 export function ProtectedRoute({ allowedRoles = [], children }) {
   const location = useLocation();
-  const [authState, setAuthState] = useState({
-    loading: true,
-    authenticated: false,
-    role: null
+  const [authState, setAuthState] = useState(() => {
+    if (location.state?.dashboardReveal) {
+      try {
+        const token = localStorage.getItem('token');
+        const storedRaw = localStorage.getItem('user');
+        const stored = storedRaw ? JSON.parse(storedRaw) : null;
+        const role = String(stored?.role_name || stored?.role || '').toLowerCase();
+        if (token && stored && role) {
+          return { loading: false, authenticated: true, role };
+        }
+      } catch (_) {}
+    }
+    return {
+      loading: true,
+      authenticated: false,
+      role: null
+    };
   });
 
   useEffect(() => {
@@ -136,7 +149,10 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
 
   if (authState.loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: 'var(--workspace-canvas-bg, #f3f5f9)' }}
+      >
         <div className="flex items-center gap-3 text-slate-600 text-sm font-medium">
           <div className="w-5 h-5 border-2 border-red-800 border-t-transparent rounded-full animate-spin" />
           <span>Verifying session security...</span>

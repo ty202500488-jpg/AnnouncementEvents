@@ -6,10 +6,12 @@ import { formatPostTimestamp } from '../../utils/dateUtils';
 import { formatNotificationDisplay } from '../../utils/notificationUtils';
 import { performSecureLogout } from './ProtectedRoute';
 import '../../pages/styles/AdminDashboard.css';
+import revealStyles from '../../styles/DashboardReveal.module.css';
 
 const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [shouldReveal] = useState(() => Boolean(location.state?.dashboardReveal));
 
   // Mobile menu toggle state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -256,7 +258,7 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
   const adminInitials = getInitials(user.displayName, 'WM');
 
   return (
-    <div className="admin-dashboard-container">
+    <div className={`admin-dashboard-container ${shouldReveal ? revealStyles.workspaceReveal : ''}`}>
       {/* ==================== HEADER BAR ==================== */}
       <header className="header">
         <div className="admin-header-inner">
@@ -544,8 +546,16 @@ const AdminLayout = ({ children, headerCenter = null, fullBleed = false }) => {
                     const isActive = item.aliases
                       ? item.aliases.includes(location.pathname)
                       : location.pathname === item.path;
+                    const staggerIndex =
+                      navigationSections
+                        .slice(0, sectionIdx)
+                        .reduce((acc, s) => acc + s.items.length, 0) + itemIdx;
                     return (
-                      <li key={itemIdx}>
+                      <li
+                        key={itemIdx}
+                        className={shouldReveal ? revealStyles.staggerSidebarItem : undefined}
+                        style={shouldReveal ? { '--dr-stagger-index': staggerIndex } : undefined}
+                      >
                         <Link
                           to={item.path}
                           className={`nav-item-link ${isActive ? 'active' : ''}`}

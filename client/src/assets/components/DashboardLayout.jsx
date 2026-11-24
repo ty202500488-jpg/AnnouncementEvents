@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import '../../pages/styles/StudentDashboard.css';
+import revealStyles from '../../styles/DashboardReveal.module.css';
 import useSessionGuard from './useSessionGuard';
 import { performSecureLogout } from './ProtectedRoute';
 import UniversityWideSpotlight from './UniversityWideSpotlight';
@@ -13,7 +14,9 @@ import {
 } from './PortalShellElements';
 
 export default function DashboardLayout({ children, activePage }) {
+  const location = useLocation();
   const navigate = useNavigate();
+  const [shouldReveal] = useState(() => Boolean(location.state?.dashboardReveal));
   useSessionGuard();
 
   const [user, setUser] = useState({
@@ -201,7 +204,7 @@ export default function DashboardLayout({ children, activePage }) {
   const userInitials = getInitials(`${user.firstName} ${user.lastName}`, 'ST');
 
   return (
-    <div className="student-dashboard-wrapper fb-shell-layout">
+    <div className={`student-dashboard-wrapper fb-shell-layout ${shouldReveal ? revealStyles.workspaceReveal : ''}`}>
       <style>{`
         @media (min-width: 1024px) {
           .mobile-bottom-nav {
@@ -325,19 +328,31 @@ export default function DashboardLayout({ children, activePage }) {
             <div className="fb-nav-section">
               <div className="nav-group-title">Main</div>
               <nav className="space-y-1">
-                <a href="/student/dashboard" className={`nav-item ${activePage === 'home' ? 'active btn-nav' : ''}`}>
+                <a
+                  href="/student/dashboard"
+                  className={`nav-item ${activePage === 'home' ? 'active btn-nav' : ''} ${shouldReveal ? revealStyles.staggerSidebarItem : ''}`}
+                  style={shouldReveal ? { '--dr-stagger-index': 0 } : undefined}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-house nav-icon"></i>
                     <span>Home</span>
                   </div>
                 </a>
-                <a href="/student/announcements" className={`nav-item ${activePage === 'announcements' ? 'active btn-nav' : ''}`}>
+                <a
+                  href="/student/announcements"
+                  className={`nav-item ${activePage === 'announcements' ? 'active btn-nav' : ''} ${shouldReveal ? revealStyles.staggerSidebarItem : ''}`}
+                  style={shouldReveal ? { '--dr-stagger-index': 1 } : undefined}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-bullhorn nav-icon"></i>
                     <span>Announcements</span>
                   </div>
                 </a>
-                <a href="/student/events" className={`nav-item ${activePage === 'events' ? 'active btn-nav' : ''}`}>
+                <a
+                  href="/student/events"
+                  className={`nav-item ${activePage === 'events' ? 'active btn-nav' : ''} ${shouldReveal ? revealStyles.staggerSidebarItem : ''}`}
+                  style={shouldReveal ? { '--dr-stagger-index': 2 } : undefined}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-calendar-days nav-icon"></i>
                     <span>Events</span>
@@ -349,13 +364,21 @@ export default function DashboardLayout({ children, activePage }) {
             <div className="fb-nav-section">
               <div className="nav-group-title">Personal</div>
               <nav className="space-y-1">
-                <a href="/student/profile" className={`nav-item ${activePage === 'profile' ? 'active btn-nav' : ''}`}>
+                <a
+                  href="/student/profile"
+                  className={`nav-item ${activePage === 'profile' ? 'active btn-nav' : ''} ${shouldReveal ? revealStyles.staggerSidebarItem : ''}`}
+                  style={shouldReveal ? { '--dr-stagger-index': 3 } : undefined}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-user nav-icon"></i>
                     <span>Profile</span>
                   </div>
                 </a>
-                <a href="/student/notifications" className={`nav-item ${activePage === 'notifications' ? 'active btn-nav' : ''}`}>
+                <a
+                  href="/student/notifications"
+                  className={`nav-item ${activePage === 'notifications' ? 'active btn-nav' : ''} ${shouldReveal ? revealStyles.staggerSidebarItem : ''}`}
+                  style={shouldReveal ? { '--dr-stagger-index': 4 } : undefined}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-bell nav-icon"></i>
                     <span>Notifications</span>
@@ -366,7 +389,11 @@ export default function DashboardLayout({ children, activePage }) {
                     </span>
                   )}
                 </a>
-                <a href="/student/my-events" className={`nav-item ${activePage === 'my-events' ? 'active btn-nav' : ''}`}>
+                <a
+                  href="/student/my-events"
+                  className={`nav-item ${activePage === 'my-events' ? 'active btn-nav' : ''} ${shouldReveal ? revealStyles.staggerSidebarItem : ''}`}
+                  style={shouldReveal ? { '--dr-stagger-index': 5 } : undefined}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-calendar-days nav-icon"></i>
                     <span>My Events</span>
@@ -378,7 +405,11 @@ export default function DashboardLayout({ children, activePage }) {
             <div className="fb-nav-section">
               <div className="nav-group-title">System</div>
               <nav className="space-y-1">
-                <a href="/student/settings" className={`nav-item ${activePage === 'settings' ? 'active btn-nav' : ''}`}>
+                <a
+                  href="/student/settings"
+                  className={`nav-item ${activePage === 'settings' ? 'active btn-nav' : ''} ${shouldReveal ? revealStyles.staggerSidebarItem : ''}`}
+                  style={shouldReveal ? { '--dr-stagger-index': 6 } : undefined}
+                >
                   <div className="nav-item-content">
                     <i className="fa-solid fa-gear nav-icon"></i>
                     <span>Settings</span>
@@ -386,7 +417,8 @@ export default function DashboardLayout({ children, activePage }) {
                 </a>
                 <a
                   href="/"
-                  className="nav-item nav-item-logout"
+                  className={`nav-item nav-item-logout ${shouldReveal ? revealStyles.staggerSidebarItem : ''}`}
+                  style={shouldReveal ? { '--dr-stagger-index': 7 } : undefined}
                   onClick={(e) => {
                     e.preventDefault();
                     handleLogout();

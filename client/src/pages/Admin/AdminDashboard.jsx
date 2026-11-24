@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../assets/components/AdminLayout';
 import Pagination from '../../assets/components/Pagination';
 import { ReferenceBarChartCard, ReferenceAreaLineChartCard } from '../../assets/components/OverviewCharts';
 import '../styles/Overview.css';
+import revealStyles from '../../styles/DashboardReveal.module.css';
 
 const DATE_PRESET_OPTIONS = [
   { value: 'school_year', label: 'School Year' },
@@ -89,12 +90,14 @@ function computePresetDates(presetKey) {
   }
 }
 
-const OverviewStatCard = ({ label, kpi, subtext, icon, tone = 'maroon', loading, onClick }) => {
+const OverviewStatCard = ({ label, kpi, subtext, icon, tone = 'maroon', loading, onClick, revealIndex = null }) => {
   const current = Number(kpi?.current) || 0;
+  const shouldStagger = revealIndex !== null && revealIndex !== undefined;
 
   return (
     <div
-      className={`ov-kpi-card ov-kpi-${tone}`}
+      className={`ov-kpi-card ov-kpi-${tone} ${shouldStagger ? revealStyles.staggerStatCard : ''}`}
+      style={shouldStagger ? { '--dr-stagger-index': revealIndex } : undefined}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -129,7 +132,9 @@ const OverviewStatCard = ({ label, kpi, subtext, icon, tone = 'maroon', loading,
 };
 
 const AdminDashboard = () => {
+  const location = useLocation();
   const navigate = useNavigate();
+  const [shouldReveal] = useState(() => Boolean(location.state?.dashboardReveal));
 
   // Reference-Matched UI State
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(true);
@@ -599,6 +604,7 @@ const AdminDashboard = () => {
             icon="fa-bullhorn"
             tone="maroon"
             loading={overviewLoading}
+            revealIndex={shouldReveal ? 0 : null}
             onClick={() => navigate('/admin/content-feed?tab=announcements')}
           />
 
@@ -608,6 +614,7 @@ const AdminDashboard = () => {
             icon="fa-calendar-days"
             tone="maroon"
             loading={overviewLoading}
+            revealIndex={shouldReveal ? 1 : null}
             onClick={() => navigate('/admin/content-feed?tab=events')}
           />
 
@@ -617,6 +624,7 @@ const AdminDashboard = () => {
             icon="fa-clock"
             tone="maroon"
             loading={overviewLoading}
+            revealIndex={shouldReveal ? 2 : null}
             onClick={() => navigate('/admin/post-approval?tab=pending')}
           />
 
@@ -626,6 +634,7 @@ const AdminDashboard = () => {
             icon="fa-building-columns"
             tone="maroon"
             loading={overviewLoading}
+            revealIndex={shouldReveal ? 3 : null}
             onClick={() => navigate('/admin/pages?tab=active')}
           />
         </section>
